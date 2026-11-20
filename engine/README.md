@@ -1,4 +1,4 @@
-# CIUDAD ENGINE — 0.14.0
+# CIUDAD ENGINE — 0.17.0
 
 Primera capa interna del motor propio de CIUDAD CERO.
 
@@ -45,3 +45,12 @@ Agrega conducción autónoma ECS opcional mediante `VehicleAISystem` y el compon
 ## V0.13.0 — World & Engine Integration
 
 Se incorpora `WorldBridge`, `SceneSyncSystem` y `WorldBoundsSystem` para enlazar entidades ECS con `THREE.Object3D`, sincronizar transformaciones y notificar/aplicar límites espaciales opcionales. La escena se enlaza automáticamente al ejecutar `Engine.attachRenderer()`. Consultar `world/README.md`.
+
+
+## V0.15.0 — Next-Gen City Environment
+El renderizador 3D incorpora mapas PBR locales (normal, roughness y emissive), ciclo día/noche, iluminación dinámica y lluvia ligera con transición de humedad del asfalto. Los efectos son parte del renderizador del juego y no fuerzan migración de los sistemas legacy.
+
+
+## V0.17.0 — Urban detail generation
+
+`rendering/CityDetailSystem.js` adds instanced street lights, rooftop HVAC units and park benches. It is optional and is invoked by the 3D renderer when the engine module is available. Diagnostics expose generated object counts.
