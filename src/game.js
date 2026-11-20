@@ -20,7 +20,9 @@ CiudadCero.Game = (() => {
   let viewW = 960;
   let viewH = 600;
   let lastTime = 0;
+  let simTime = 0;
   let autoSaveTimer = 0;
+  let appSettings = Save.loadSettings();
 
   const state = {
     money: 500,
@@ -29,13 +31,23 @@ CiudadCero.Game = (() => {
     vehicles: [],
     pedestrians: [],
     npcs: [],
+    customWaypoint: null,
     camera: { x: 0, y: 0 }
   };
+
+  function applyAllSettings() {
+    Audio.applySettings(appSettings.audio);
+    Input.applySettings(appSettings.touch);
+    Renderer.setQuality(appSettings.general.quality);
+    Renderer.setShowMinimap(appSettings.general.showMinimap);
+    resizeCanvas();
+  }
 
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     if (rect.width < 10 || rect.height < 10) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const maxDpr = appSettings.general.quality === 'performance' ? 1.25 : 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
     viewW = Math.round(rect.width);
     viewH = Math.round(rect.height);
     canvas.width = Math.round(viewW * dpr);
@@ -47,6 +59,9 @@ CiudadCero.Game = (() => {
     Save.save({
       money: state.money,
       missionsCompleted: state.missionsCompleted,
+      playerPos: state.player
+        ? { x: Math.round(state.player.x), y: Math.round(state.player.y), angle: state.player.angle }
+        : null,
       story: Story.exportState(),
       garage: Garage.exportState()
     });
@@ -69,7 +84,7 @@ CiudadCero.Game = (() => {
   }
 
   function populateAmbientCity(excludeCar) {
-    const parkedSpecs = ['sedan', 'taxi', 'suv', 'van', 'coupe'];
+    const parkedSpecs = ['sedan', 'taxi', 'suv', 'van', 'coupe', 'compact', 'muscle', 'truck'];
     World.parkedSpots.forEach((spot, idx) => {
       if (idx >= Config.TRAFFIC.parkedVehicles) return;
       if (excludeCar && Math.hypot(spot.x - excludeCar.x, spot.y - excludeCar.y) < 120) return;
@@ -86,7 +101,8 @@ CiudadCero.Game = (() => {
     });
 
     for (let i = 0; i < Config.TRAFFIC.targetVehicles; i++) {
-      const v = Entities.spawnTrafficVehicle(state.vehicles, state.player);
+      const preferNear = i < Math.floor(Config.TRAFFIC.targetVehicles * 0.65);
+      const v = Entities.spawnTrafficVehicle(state.vehicles, state.player, preferNear);
       if (v) state.vehicles.push(v);
     }
 
@@ -98,15 +114,13 @@ CiudadCero.Game = (() => {
   function startFreshGame(playIntro = true) {
     state.money = 500;
     state.missionsCompleted = 0;
+    state.customWaypoint = null;
     state.player = Entities.createPlayer();
     state.vehicles = [];
     state.pedestrians = [];
     state.npcs = Entities.createStoryNPCs();
     Police.reset();
-    UI.closeGarageModal();
-    UI.closeStoryModal();
-    UI.closeConfirmModal();
-    Input.setBlocked(false);
+    closeAllModals();
 
     const starterCar = Entities.createVehicle({
       typeId: 'coupe',
@@ -128,27 +142,36 @@ CiudadCero.Game = (() => {
     Input.setMode(false);
     updateCamera(1);
     UI.renderDialogue(Story.getCurrentDialogueLine());
-    UI.showToast('Ciudad Cero v0.4 · Capítulo 1: Motor en Frío');
+    UI.showToast('Ciudad Cero v0.5 · Expansión Urbana (6 Barrios)');
   }
 
-  function loadOrInitGame() {
+  function loadOrInitGame(isManualLoad = false) {
     const saved = Save.load();
     if (!saved) {
+      if (isManualLoad) {
+        UI.showToast('No hay ninguna partida guardada disponible');
+        return false;
+      }
       startFreshGame(true);
-      return;
+      return true;
     }
 
     state.money = typeof saved.money === 'number' ? saved.money : 500;
     state.missionsCompleted = typeof saved.missionsCompleted === 'number' ? saved.missionsCompleted : 0;
     state.player = Entities.createPlayer();
+    if (saved.playerPos && typeof saved.playerPos.x === 'number' && typeof saved.playerPos.y === 'number') {
+      if (!Physics.collidesBuildingCircle(saved.playerPos.x, saved.playerPos.y, state.player.radius)) {
+        state.player.x = Physics.clamp(saved.playerPos.x, 24, Config.WORLD.width - 24);
+        state.player.y = Physics.clamp(saved.playerPos.y, 24, Config.WORLD.height - 24);
+        state.player.angle = saved.playerPos.angle || 0;
+      }
+    }
+
     state.vehicles = [];
     state.pedestrians = [];
     state.npcs = Entities.createStoryNPCs();
     Police.reset();
-    UI.closeGarageModal();
-    UI.closeStoryModal();
-    UI.closeConfirmModal();
-    Input.setBlocked(false);
+    closeAllModals();
 
     Garage.importState(saved.garage, state.vehicles);
     if (state.vehicles.length === 0) {
@@ -172,10 +195,38 @@ CiudadCero.Game = (() => {
     Input.setMode(false);
     updateCamera(1);
     const sum = Story.getProgressSummary();
-    UI.showToast(`Progreso cargado · ${sum.chapterNumber} · Saldo: $ ${state.money}`, 3200);
+    UI.showToast(
+      isManualLoad
+        ? `Partida cargada · ${sum.chapterNumber} · Saldo: $ ${state.money}`
+        : `Progreso cargado · ${sum.chapterNumber} · Saldo: $ ${state.money}`,
+      3200
+    );
+    return true;
+  }
+
+  function closeAllModals() {
+    UI.closeMenuModal();
+    UI.closeMapModal();
+    UI.closeGarageModal();
+    UI.closeStoryModal();
+    UI.closeConfirmModal();
+    Input.setBlocked(false);
+  }
+
+  function syncBlockedState() {
+    const anyOpen =
+      UI.isMenuOpen() ||
+      UI.isMapOpen() ||
+      UI.isGarageOpen() ||
+      UI.isStoryOpen() ||
+      UI.isConfirmOpen() ||
+      Story.isDialogueOpen();
+    Input.setBlocked(anyOpen);
   }
 
   function requestNewGameWithConfirmation() {
+    UI.closeMenuModal();
+    UI.closeStoryModal();
     Input.setBlocked(true);
     UI.openConfirmModal();
   }
@@ -188,9 +239,7 @@ CiudadCero.Game = (() => {
 
   function cancelNewGame() {
     UI.closeConfirmModal();
-    if (!UI.isGarageOpen() && !UI.isStoryOpen() && !Story.isDialogueOpen()) {
-      Input.setBlocked(false);
-    }
+    syncBlockedState();
   }
 
   function findNearestVehicle() {
@@ -318,6 +367,169 @@ CiudadCero.Game = (() => {
     }
   }
 
+  /* ============================================================================
+     SECTIONED MENU & EXPANDED MAP HANDLERS
+     ============================================================================ */
+  function setCustomWaypoint(wp) {
+    state.customWaypoint = wp;
+    if (wp) {
+      UI.showToast(`📍 GPS fijado en ${wp.label || 'destino marcado'}`, 2400);
+    } else {
+      UI.showToast('Destino GPS eliminado', 1800);
+    }
+  }
+
+  function getMenuData() {
+    const p = state.player || { x: Config.PLAYER.startX, y: Config.PLAYER.startY };
+    return {
+      money: state.money,
+      district: World.getDistrictAt(p.x, p.y),
+      summary: Story.getProgressSummary(),
+      fleetCount: Garage.getSlots().length,
+      maxSlots: Garage.getMaxSlots(),
+      hasSavedGame: Save.hasSave(),
+      settings: appSettings
+    };
+  }
+
+  function getMenuHandlers() {
+    return {
+      onCloseMenu: () => {
+        UI.closeMenuModal();
+        syncBlockedState();
+      },
+      onOpenStory: () => {
+        handleStoryAction(false);
+      },
+      onOpenFullMap: () => {
+        handleMapAction(false);
+      },
+      onManualSave: () => {
+        saveCurrentProgress();
+        Audio.playGarageAction();
+        UI.showToast('💾 Partida guardada correctamente');
+      },
+      onManualLoad: () => {
+        loadOrInitGame(true);
+      },
+      onRequestReset: () => {
+        requestNewGameWithConfirmation();
+      },
+      onSetWaypoint: (wp) => {
+        setCustomWaypoint(wp);
+      },
+      onUpdateAudio: (patch, skipRerender = false) => {
+        Object.assign(appSettings.audio, patch);
+        Save.saveSettings(appSettings);
+        applyAllSettings();
+        if (!skipRerender && UI.isMenuOpen()) {
+          UI.renderMenuModal(getMenuData(), getMenuHandlers());
+        }
+      },
+      onUpdateTouch: (patch, skipRerender = false) => {
+        Object.assign(appSettings.touch, patch);
+        Save.saveSettings(appSettings);
+        applyAllSettings();
+        if (!skipRerender && UI.isMenuOpen()) {
+          UI.renderMenuModal(getMenuData(), getMenuHandlers());
+        }
+      },
+      onUpdateGeneral: (patch) => {
+        Object.assign(appSettings.general, patch);
+        Save.saveSettings(appSettings);
+        applyAllSettings();
+        if (UI.isMenuOpen()) {
+          UI.renderMenuModal(getMenuData(), getMenuHandlers());
+        }
+      },
+      onResetSettings: () => {
+        appSettings = Save.resetSettings();
+        applyAllSettings();
+        UI.showToast('Ajustes restaurados por defecto');
+        if (UI.isMenuOpen()) {
+          UI.renderMenuModal(getMenuData(), getMenuHandlers());
+        }
+      }
+    };
+  }
+
+  function handleMenuAction(isEscape = false) {
+    if (isEscape) {
+      if (UI.isConfirmOpen()) {
+        cancelNewGame();
+        return;
+      }
+      if (UI.isMapOpen()) {
+        UI.closeMapModal();
+        syncBlockedState();
+        return;
+      }
+      if (UI.isGarageOpen()) {
+        UI.closeGarageModal();
+        syncBlockedState();
+        return;
+      }
+      if (UI.isStoryOpen()) {
+        UI.closeStoryModal();
+        syncBlockedState();
+        return;
+      }
+      if (UI.isMenuOpen()) {
+        UI.closeMenuModal();
+        syncBlockedState();
+        return;
+      }
+    }
+
+    if (UI.isMenuOpen()) {
+      UI.closeMenuModal();
+      syncBlockedState();
+      return;
+    }
+
+    UI.closeMapModal();
+    UI.closeGarageModal();
+    UI.closeStoryModal();
+    Input.setBlocked(true);
+    UI.openMenuModal('hub', getMenuData(), getMenuHandlers());
+  }
+
+  function getMapData() {
+    return {
+      player: state.player,
+      npcs: state.npcs,
+      mission: Story.state.activeMission,
+      customWaypoint: state.customWaypoint
+    };
+  }
+
+  function getMapHandlers() {
+    return {
+      onSetWaypoint: (wp) => {
+        setCustomWaypoint(wp);
+        if (UI.isMapOpen()) {
+          UI.openMapModal(getMapData(), getMapHandlers());
+        }
+      }
+    };
+  }
+
+  function handleMapAction(forceClose = false) {
+    if (forceClose || UI.isMapOpen()) {
+      UI.closeMapModal();
+      syncBlockedState();
+      return;
+    }
+    UI.closeMenuModal();
+    UI.closeGarageModal();
+    UI.closeStoryModal();
+    Input.setBlocked(true);
+    UI.openMapModal(getMapData(), getMapHandlers());
+  }
+
+  /* ============================================================================
+     GARAGE & STORY HANDLERS
+     ============================================================================ */
   function getActiveGarageContext() {
     const p = state.player;
     const g = World.getGarageAt(p.x, p.y, 26);
@@ -345,7 +557,7 @@ CiudadCero.Game = (() => {
     const ctxData = getActiveGarageContext();
     if (!ctxData) {
       UI.closeGarageModal();
-      Input.setBlocked(false);
+      syncBlockedState();
       return;
     }
 
@@ -404,7 +616,7 @@ CiudadCero.Game = (() => {
         if (res.ok) {
           Input.setMode(true);
           UI.closeGarageModal();
-          Input.setBlocked(false);
+          syncBlockedState();
         } else {
           refreshGarageModal();
         }
@@ -423,7 +635,7 @@ CiudadCero.Game = (() => {
         if (res.ok) {
           Input.setMode(true);
           UI.closeGarageModal();
-          Input.setBlocked(false);
+          syncBlockedState();
         } else {
           refreshGarageModal();
         }
@@ -442,7 +654,7 @@ CiudadCero.Game = (() => {
         if (res.ok) {
           Input.setMode(true);
           UI.closeGarageModal();
-          Input.setBlocked(false);
+          syncBlockedState();
         } else {
           refreshGarageModal();
         }
@@ -453,11 +665,13 @@ CiudadCero.Game = (() => {
   function handleGarageAction(forceClose = false) {
     if (forceClose || UI.isGarageOpen()) {
       UI.closeGarageModal();
-      if (!UI.isStoryOpen() && !UI.isConfirmOpen()) Input.setBlocked(false);
+      syncBlockedState();
       return;
     }
 
-    if (UI.isStoryOpen()) UI.closeStoryModal();
+    UI.closeMenuModal();
+    UI.closeMapModal();
+    UI.closeStoryModal();
 
     const ctxData = getActiveGarageContext();
     if (!ctxData) {
@@ -486,7 +700,7 @@ CiudadCero.Game = (() => {
       onStartSide: (sideId) => {
         Story.startSideMission(sideId, getStoryContext());
         UI.closeStoryModal();
-        Input.setBlocked(false);
+        syncBlockedState();
       },
       onAbandonSide: () => {
         Story.abandonSideMission(getStoryContext());
@@ -498,15 +712,20 @@ CiudadCero.Game = (() => {
   function handleStoryAction(forceClose = false) {
     if (forceClose || UI.isStoryOpen()) {
       UI.closeStoryModal();
-      if (!UI.isGarageOpen() && !UI.isConfirmOpen()) Input.setBlocked(false);
+      syncBlockedState();
       return;
     }
 
-    if (UI.isGarageOpen()) UI.closeGarageModal();
+    UI.closeMenuModal();
+    UI.closeMapModal();
+    UI.closeGarageModal();
     Input.setBlocked(true);
     refreshStoryModal();
   }
 
+  /* ============================================================================
+     GAMEPLAY SIMULATION
+     ============================================================================ */
   function updatePlayerOnFoot(dt) {
     const p = state.player;
     const move = Input.getFootInput();
@@ -606,6 +825,24 @@ CiudadCero.Game = (() => {
     Input.setNearbyNPC(false);
   }
 
+  function isStoppedByRedLight(v) {
+    if (v.isPolice && v.sirenActive) return false;
+    const rw = Config.WORLD.roadWidth;
+    for (let i = 0; i < World.trafficLights.length; i++) {
+      const tl = World.trafficLights[i];
+      if (Math.abs(tl.x - v.x) > 130 || Math.abs(tl.y - v.y) > 130) continue;
+      const st = World.getTrafficLightState(tl, simTime);
+      if (v.aiAxis === 'h' && st.h === 'red') {
+        if (v.aiDir > 0 && v.x < tl.ix && tl.ix - v.x < 46) return true;
+        if (v.aiDir < 0 && v.x > tl.ix + rw && v.x - (tl.ix + rw) < 46) return true;
+      } else if (v.aiAxis === 'v' && st.v === 'red') {
+        if (v.aiDir > 0 && v.y < tl.iy && tl.iy - v.y < 46) return true;
+        if (v.aiDir < 0 && v.y > tl.iy + rw && v.y - (tl.iy + rw) < 46) return true;
+      }
+    }
+    return false;
+  }
+
   function updateTrafficVehicle(v, dt) {
     if (!v.isAI || v.isParked) {
       v.vx *= Math.pow(0.1, dt);
@@ -672,19 +909,21 @@ CiudadCero.Game = (() => {
 
     const forwardX = Math.cos(v.angle);
     const forwardY = Math.sin(v.angle);
-    let obstacleAhead = false;
+    let obstacleAhead = isStoppedByRedLight(v);
 
-    for (let i = 0; i < state.vehicles.length; i++) {
-      const other = state.vehicles[i];
-      if (other === v) continue;
-      const dx = other.x - v.x;
-      const dy = other.y - v.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < Config.TRAFFIC.lookAheadDist) {
-        const dot = (dx * forwardX + dy * forwardY) / (dist || 1);
-        if (dot > 0.72) {
-          obstacleAhead = true;
-          break;
+    if (!obstacleAhead) {
+      for (let i = 0; i < state.vehicles.length; i++) {
+        const other = state.vehicles[i];
+        if (other === v) continue;
+        const dx = other.x - v.x;
+        const dy = other.y - v.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < Config.TRAFFIC.lookAheadDist) {
+          const dot = (dx * forwardX + dy * forwardY) / (dist || 1);
+          if (dot > 0.72) {
+            obstacleAhead = true;
+            break;
+          }
         }
       }
     }
@@ -711,6 +950,25 @@ CiudadCero.Game = (() => {
     v.vy = forwardY * v.speed;
     v.x += v.vx * dt;
     v.y += v.vy * dt;
+  }
+
+  function maintainAmbientPopulation() {
+    // Keep traffic lively around the player's current barrio across the 4800x3600 map
+    let activeTraffic = 0;
+    for (let i = state.vehicles.length - 1; i >= 0; i--) {
+      const v = state.vehicles[i];
+      if (v.isAI && !v.isPolice && !v.isChaseTarget && !v.isMissionTarget) {
+        activeTraffic++;
+        if (Math.hypot(v.x - state.player.x, v.y - state.player.y) > 2350 && Math.random() < 0.03) {
+          state.vehicles.splice(i, 1);
+          activeTraffic--;
+        }
+      }
+    }
+    if (activeTraffic < Config.TRAFFIC.targetVehicles) {
+      const spawned = Entities.spawnTrafficVehicle(state.vehicles, state.player, true);
+      if (spawned) state.vehicles.push(spawned);
+    }
   }
 
   function updatePedestrians(dt) {
@@ -817,10 +1075,19 @@ CiudadCero.Game = (() => {
 
   function update(dt) {
     const dialogueOpen = Story.isDialogueOpen();
-    if (UI.isGarageOpen() || UI.isStoryOpen() || UI.isConfirmOpen() || dialogueOpen) {
+    if (
+      UI.isMenuOpen() ||
+      UI.isMapOpen() ||
+      UI.isGarageOpen() ||
+      UI.isStoryOpen() ||
+      UI.isConfirmOpen() ||
+      dialogueOpen
+    ) {
       UI.renderDialogue(Story.getCurrentDialogueLine());
       return;
     }
+
+    simTime += dt;
 
     if (state.player.inCar) {
       updatePlayerVehicle(dt);
@@ -834,6 +1101,8 @@ CiudadCero.Game = (() => {
         updateTrafficVehicle(v, dt);
       }
     }
+
+    maintainAmbientPopulation();
 
     Police.update(dt, state.vehicles, state.player, {
       updateCivilTraffic: updateTrafficVehicle,
@@ -903,6 +1172,15 @@ CiudadCero.Game = (() => {
       state.player.y = state.player.vehicle.y;
     }
 
+    // Check custom GPS waypoint arrival
+    if (state.customWaypoint) {
+      const wpDist = Math.hypot(state.player.x - state.customWaypoint.x, state.player.y - state.customWaypoint.y);
+      if (wpDist < 55) {
+        UI.showToast(`📍 Llegaste a destino GPS (${state.customWaypoint.label || 'Punto marcado'})`);
+        state.customWaypoint = null;
+      }
+    }
+
     updatePedestrians(dt);
     Story.update(dt, getStoryContext());
     UI.renderDialogue(Story.getCurrentDialogueLine());
@@ -910,32 +1188,36 @@ CiudadCero.Game = (() => {
     Renderer.updateEffects(dt, state.vehicles);
     updateCamera(dt);
 
-    autoSaveTimer += dt;
-    if (autoSaveTimer >= 12) {
-      autoSaveTimer = 0;
-      saveCurrentProgress();
+    if (appSettings.general.autoSave) {
+      autoSaveTimer += dt;
+      if (autoSaveTimer >= 12) {
+        autoSaveTimer = 0;
+        saveCurrentProgress();
+      }
     }
 
     const p = state.player;
     const v = p.vehicle;
     const nearGarage = Boolean(World.getGarageAt(p.x, p.y, 26));
+    const nearNPC = !p.inCar && Boolean(Story.findNearbyNPC(p, state.npcs));
     Input.setNearbyGarage(nearGarage);
 
     const missionInfo = Story.getDynamicInstruction(p.inCar);
     const dist = missionInfo.hasTarget ? Math.hypot(p.x - missionInfo.x, p.y - missionInfo.y) : 0;
     const speedKmh = v ? Math.abs(v.speed) * 0.42 : 0;
     const vehicleHpPct = v ? (v.hp / v.maxHp) * 100 : 100;
-    const sum = Story.getProgressSummary();
+    const district = World.getDistrictAt(p.x, p.y);
 
     UI.updateHUD({
-      chapterLabel: sum.campaignFinished ? 'MODO LIBRE' : sum.chapterNumber,
       money: state.money,
       inCar: p.inCar,
       vehicleName: v ? v.name : '',
-      missionsCompleted: state.missionsCompleted,
       wanted: Police.state.wanted,
       policeHUD: Police.getHUDState(),
       nearGarage,
+      nearNPC,
+      district,
+      showDistrictBadge: appSettings.general.showDistrictBadge,
       missionInfo,
       missionDist: dist,
       speedKmh,
@@ -950,12 +1232,14 @@ CiudadCero.Game = (() => {
     update(dt);
     const missionInfo = Story.getDynamicInstruction(state.player.inCar);
     Renderer.render(ctx, viewW, viewH, {
+      simTime,
       player: state.player,
       vehicles: state.vehicles,
       pedestrians: state.pedestrians,
       npcs: state.npcs,
       mission: Story.state.activeMission,
       missionInfo,
+      customWaypoint: state.customWaypoint,
       camera: state.camera,
       policeHUD: Police.getHUDState(),
       roadblocks: Police.state.roadblocks
@@ -966,46 +1250,74 @@ CiudadCero.Game = (() => {
 
   function init() {
     UI.init();
+    applyAllSettings();
+
     Input.init({
       onEnterExit: toggleEnterExitVehicle,
-      onReset: requestNewGameWithConfirmation,
       onHorn: triggerHorn,
       onGarage: handleGarageAction,
       onStory: handleStoryAction,
       onTalk: handleTalkAction,
+      onMenu: handleMenuAction,
+      onMap: () => handleMapAction(false),
       onAdvanceDialogue: handleAdvanceDialogue
     });
+
+    // Tap/Click on Minimap opens Expanded Map
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!appSettings.general.showMinimap) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const mapW = rect.width < 640 ? 128 : 164;
+      const mapH = rect.width < 640 ? 96 : 122;
+      if (x >= rect.width - mapW - 18 && y <= mapH + 18) {
+        e.preventDefault();
+        handleMapAction(false);
+      }
+    });
+
+    const btnMenuOpen = document.getElementById('btn-menu-open');
+    if (btnMenuOpen) {
+      btnMenuOpen.addEventListener('click', () => handleMenuAction(false));
+    }
+
+    const btnMenuClose = document.getElementById('btn-menu-close');
+    if (btnMenuClose) {
+      btnMenuClose.addEventListener('click', () => handleMenuAction(true));
+    }
+
+    const btnMapClose = document.getElementById('btn-map-close');
+    if (btnMapClose) {
+      btnMapClose.addEventListener('click', () => handleMapAction(true));
+    }
+
+    const btnMapZoomIn = document.getElementById('btn-map-zoom-in');
+    if (btnMapZoomIn) btnMapZoomIn.addEventListener('click', () => UI.zoomFullMap(0.3));
+
+    const btnMapZoomOut = document.getElementById('btn-map-zoom-out');
+    if (btnMapZoomOut) btnMapZoomOut.addEventListener('click', () => UI.zoomFullMap(-0.3));
+
+    const btnMapCenter = document.getElementById('btn-map-center');
+    if (btnMapCenter) btnMapCenter.addEventListener('click', () => UI.centerFullMap());
+
+    const btnMapClearGps = document.getElementById('btn-map-clear-gps');
+    if (btnMapClearGps) {
+      btnMapClearGps.addEventListener('click', () => {
+        setCustomWaypoint(null);
+        UI.redrawFullMap();
+      });
+    }
+
+    const btnTalkQuick = document.getElementById('btn-talk-quick');
+    if (btnTalkQuick) btnTalkQuick.addEventListener('click', handleTalkAction);
+
+    const btnGarageQuick = document.getElementById('btn-garage-quick');
+    if (btnGarageQuick) btnGarageQuick.addEventListener('click', () => handleGarageAction(false));
 
     const btnDialogueNext = document.getElementById('btn-dialogue-next');
     if (btnDialogueNext) {
       btnDialogueNext.addEventListener('click', handleAdvanceDialogue);
-    }
-
-    const btnAudio = document.getElementById('btn-audio');
-    if (btnAudio) {
-      btnAudio.addEventListener('click', () => {
-        const enabled = Audio.toggle();
-        UI.updateAudioButton(enabled);
-      });
-    }
-
-    const btnTouch = document.getElementById('btn-touch-toggle');
-    if (btnTouch) {
-      btnTouch.addEventListener('click', () => {
-        const mode = Input.cycleTouchMode();
-        UI.updateTouchButton(Input.getTouchModeLabel(), mode);
-      });
-      UI.updateTouchButton(Input.getTouchModeLabel(), 'auto');
-    }
-
-    const btnReset = document.getElementById('btn-reset');
-    if (btnReset) {
-      btnReset.addEventListener('click', requestNewGameWithConfirmation);
-    }
-
-    const btnStoryTop = document.getElementById('btn-story-top');
-    if (btnStoryTop) {
-      btnStoryTop.addEventListener('click', () => handleStoryAction(false));
     }
 
     const btnStoryClose = document.getElementById('btn-story-close');
@@ -1031,11 +1343,6 @@ CiudadCero.Game = (() => {
       btnConfirmNo.addEventListener('click', cancelNewGame);
     }
 
-    const btnGarageTop = document.getElementById('btn-garage-top');
-    if (btnGarageTop) {
-      btnGarageTop.addEventListener('click', () => handleGarageAction(false));
-    }
-
     const btnGarageClose = document.getElementById('btn-garage-close');
     if (btnGarageClose) {
       btnGarageClose.addEventListener('click', () => handleGarageAction(true));
@@ -1047,7 +1354,7 @@ CiudadCero.Game = (() => {
     });
 
     resizeCanvas();
-    loadOrInitGame();
+    loadOrInitGame(false);
     lastTime = performance.now();
     requestAnimationFrame(loop);
   }

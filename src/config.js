@@ -4,13 +4,13 @@ CiudadCero.Config = {
   GAME_INFO: {
     title: 'Ciudad Cero',
     installment: 1,
-    version: '0.4',
-    subtitle: 'Historia y Campaña'
+    version: '0.5',
+    subtitle: 'Expansión Urbana e Interfaz Total'
   },
 
   WORLD: {
-    width: 2400,
-    height: 1800,
+    width: 4800,
+    height: 3600,
     roadWidth: 150,
     blockSize: 300,
     sidewalkWidth: 22
@@ -19,14 +19,217 @@ CiudadCero.Config = {
   PLAYER: {
     startX: 380,
     startY: 390,
-    walkSpeed: 148,
-    sprintSpeed: 225,
+    walkSpeed: 152,
+    sprintSpeed: 230,
     radius: 9,
     enterRadius: 58,
-    talkRadius: 68
+    talkRadius: 72
   },
 
+  DISTRICTS: [
+    {
+      id: 'residencial',
+      name: 'Barrio Residencial',
+      shortName: 'RESIDENCIAL',
+      color: '#8bc34a',
+      groundTint: '#364137',
+      blockTint: '#727d6e',
+      description: 'Avenidas arboladas, viviendas de ladrillo, Parque Central y el taller de Nora en Avenida Cero.',
+      bounds: { x1: 0, y1: 0, x2: 1500, y2: 1500 },
+      center: { x: 750, y: 750 },
+      avenueLabel: 'Av. Cero y Calle del Parque'
+    },
+    {
+      id: 'centro',
+      name: 'Centro Urbano',
+      shortName: 'CENTRO URBANO',
+      color: '#6cb2d1',
+      groundTint: '#31393c',
+      blockTint: '#687378',
+      description: 'Rascacielos corporativos, plazas financieras, tráfico intenso y vigilancia policial constante.',
+      bounds: { x1: 1500, y1: 0, x2: 3300, y2: 1500 },
+      center: { x: 2400, y: 750 },
+      avenueLabel: 'Av. Central y Torre Cero'
+    },
+    {
+      id: 'comercial',
+      name: 'Barrio Comercial',
+      shortName: 'COMERCIAL',
+      color: '#f5d94b',
+      groundTint: '#383834',
+      blockTint: '#777469',
+      description: 'Galerías iluminadas, tiendas con toldos de color, carteles de neón y amplios estacionamientos.',
+      bounds: { x1: 3300, y1: 0, x2: 4800, y2: 1800 },
+      center: { x: 4050, y: 900 },
+      avenueLabel: 'Bulevar Comercial Este'
+    },
+    {
+      id: 'portuaria',
+      name: 'Zona Portuaria',
+      shortName: 'ZONA PORTUARIA',
+      color: '#4de0b5',
+      groundTint: '#2d3738',
+      blockTint: '#626f70',
+      description: 'Muelles del sur, dársenas de contenedores, grúas de carga y almacenes aduaneros.',
+      bounds: { x1: 0, y1: 1500, x2: 1800, y2: 3000 },
+      center: { x: 900, y: 2250 },
+      avenueLabel: 'Av. de los Muelles Sur'
+    },
+    {
+      id: 'industrial',
+      name: 'Zona Industrial',
+      shortName: 'ZONA INDUSTRIAL',
+      color: '#e68a3e',
+      groundTint: '#393430',
+      blockTint: '#6e6760',
+      description: 'Naves metálicas, silos de combustible, patios de maniobra y talleres pesados.',
+      bounds: { x1: 1800, y1: 1500, x2: 3600, y2: 3000 },
+      center: { x: 2700, y: 2250 },
+      avenueLabel: 'Ruta Industrial Pesada'
+    },
+    {
+      id: 'periferia',
+      name: 'Periferia de la Ciudad',
+      shortName: 'PERIFERIA',
+      color: '#a3c977',
+      groundTint: '#364233',
+      blockTint: '#697861',
+      description: 'Rectas abiertas de alta velocidad, miradores verdes, estaciones de ruta y galpones aislados.',
+      bounds: { x1: 0, y1: 3000, x2: 4800, y2: 3600 },
+      extraBounds: { x1: 3600, y1: 1800, x2: 4800, y2: 3600 },
+      center: { x: 2700, y: 3300 },
+      avenueLabel: 'Autopista Periférica Sur'
+    }
+  ],
+
+  LANDMARKS: [
+    {
+      id: 'lm_garage_central',
+      name: 'Garaje Central Cero',
+      districtId: 'residencial',
+      x: 525,
+      y: 505,
+      icon: '🔧',
+      desc: 'Base de operaciones de Mateo y taller principal de Nora Salgado.'
+    },
+    {
+      id: 'lm_parque_central',
+      name: 'Parque Central',
+      districtId: 'residencial',
+      x: 825,
+      y: 825,
+      icon: '🌳',
+      desc: 'Pulmón verde del barrio residencial y punto de encuentro de Ramiro.'
+    },
+    {
+      id: 'lm_torre_cero',
+      name: 'Plaza Torre Cero',
+      districtId: 'centro',
+      x: 2325,
+      y: 825,
+      icon: '🏙️',
+      desc: 'Corazón financiero del Centro Urbano con rotonda y edificios de cristal.'
+    },
+    {
+      id: 'lm_comisaria',
+      name: 'Comisaría Central',
+      districtId: 'centro',
+      x: 2925,
+      y: 525,
+      icon: '🚔',
+      desc: 'Cuartel táctico de operaciones policiales en el noreste del centro.'
+    },
+    {
+      id: 'lm_galerias_este',
+      name: 'Galerías Bulevar Este',
+      districtId: 'comercial',
+      x: 3825,
+      y: 825,
+      icon: '🛍️',
+      desc: 'Paseo comercial con tiendas iluminadas, cafés y estacionamiento.'
+    },
+    {
+      id: 'lm_mirador_este',
+      name: 'Plaza Neón Oriental',
+      districtId: 'comercial',
+      x: 4425,
+      y: 1125,
+      icon: '✨',
+      desc: 'Zona nocturna del distrito comercial con carteles luminosos.'
+    },
+    {
+      id: 'lm_muelles_sur',
+      name: 'Terminal de Contenedores',
+      districtId: 'portuaria',
+      x: 825,
+      y: 2325,
+      icon: '🚢',
+      desc: 'Dársena portuaria con contenedores apilados y grúas de descarga.'
+    },
+    {
+      id: 'lm_faro_puerto',
+      name: 'Muelle Oeste del Canal',
+      districtId: 'portuaria',
+      x: 425,
+      y: 2625,
+      icon: '⚓',
+      desc: 'Paseo costero sobre el canal navegable de Ciudad Cero.'
+    },
+    {
+      id: 'lm_refineria',
+      name: 'Complejo de Silos Norte',
+      districtId: 'industrial',
+      x: 2325,
+      y: 2025,
+      icon: '🏭',
+      desc: 'Planta industrial con tanques de almacenamiento y patio de carga.'
+    },
+    {
+      id: 'lm_patio_carga',
+      name: 'Patio Logístico Sur',
+      districtId: 'industrial',
+      x: 2925,
+      y: 2625,
+      icon: '📦',
+      desc: 'Centro de distribución de furgonetas y camiones pesados.'
+    },
+    {
+      id: 'lm_estacion_ruta',
+      name: 'Parador Ruta 0',
+      districtId: 'periferia',
+      x: 2325,
+      y: 3225,
+      icon: '⛽',
+      desc: 'Estación de servicio y descanso sobre la Autopista Periférica.'
+    },
+    {
+      id: 'lm_mirador_colinas',
+      name: 'Mirador de las Colinas',
+      districtId: 'periferia',
+      x: 4125,
+      y: 2925,
+      icon: '🌄',
+      desc: 'Parque abierto en la periferia oriental con vistas a toda la ciudad.'
+    }
+  ],
+
   VEHICLE_TYPES: {
+    compact: {
+      id: 'compact',
+      name: 'COMPACTO URBANO',
+      length: 36,
+      width: 19,
+      maxSpeed: 268,
+      turboSpeed: 318,
+      reverseSpeed: 118,
+      accel: 245,
+      brake: 345,
+      turnRate: 3.05,
+      grip: 0.92,
+      mass: 0.9,
+      maxHp: 100,
+      colors: ['#58b368', '#e86f52', '#f4d35e', '#5fa8d3', '#eaeaea']
+    },
     coupe: {
       id: 'coupe',
       name: 'COUPÉ GT',
@@ -42,6 +245,22 @@ CiudadCero.Config = {
       mass: 1.0,
       maxHp: 110,
       colors: ['#d94f3d', '#2b7de9', '#e3b42b', '#22a37a']
+    },
+    muscle: {
+      id: 'muscle',
+      name: 'MUSCLE V8 CLÁSICO',
+      length: 43,
+      width: 21,
+      maxSpeed: 332,
+      turboSpeed: 392,
+      reverseSpeed: 128,
+      accel: 285,
+      brake: 355,
+      turnRate: 2.72,
+      grip: 0.89,
+      mass: 1.3,
+      maxHp: 135,
+      colors: ['#1e2226', '#c83e2b', '#d98a26', '#28587b']
     },
     sedan: {
       id: 'sedan',
@@ -107,6 +326,22 @@ CiudadCero.Config = {
       maxHp: 185,
       colors: ['#e5e9e3', '#3b6d8c', '#c97e38']
     },
+    truck: {
+      id: 'truck',
+      name: 'CAMIÓN PORTUARIO',
+      length: 54,
+      width: 24,
+      maxSpeed: 205,
+      turboSpeed: 240,
+      reverseSpeed: 88,
+      accel: 160,
+      brake: 280,
+      turnRate: 1.85,
+      grip: 0.95,
+      mass: 2.45,
+      maxHp: 230,
+      colors: ['#b84a39', '#2e5d7c', '#d19a34', '#4e5d52']
+    },
     police_patrol: {
       id: 'police_patrol',
       name: 'PATRULLA CC-01',
@@ -165,6 +400,14 @@ CiudadCero.Config = {
 
   VEHICLE_CATALOG: [
     {
+      typeId: 'compact',
+      price: 240,
+      defaultUnlocked: true,
+      unlockHint: 'Disponible desde el inicio',
+      color: '#58b368',
+      desc: 'Ágil y maniobrable para callejones y tráfico denso.'
+    },
+    {
       typeId: 'sedan',
       price: 300,
       defaultUnlocked: true,
@@ -197,12 +440,28 @@ CiudadCero.Config = {
       desc: 'Gran masa e integridad estructural para choques pesados.'
     },
     {
+      typeId: 'muscle',
+      price: 820,
+      defaultUnlocked: true,
+      unlockHint: 'Disponible desde el inicio',
+      color: '#c83e2b',
+      desc: 'Potencia bruta V8 ideal para rectas de la periferia y persecuciones.'
+    },
+    {
       typeId: 'suv',
       price: 750,
       defaultUnlocked: false,
       unlockHint: 'Completa el Capítulo 2 (Corte de Señal)',
       color: '#2c3330',
       desc: 'Tracción pesada capaz de abrirse paso entre bloqueos.'
+    },
+    {
+      typeId: 'truck',
+      price: 920,
+      defaultUnlocked: true,
+      unlockHint: 'Disponible desde el inicio',
+      color: '#b84a39',
+      desc: 'Camión pesado de carga con blindaje natural de chasis.'
     },
     {
       typeId: 'police_interceptor',
@@ -238,15 +497,15 @@ CiudadCero.Config = {
   },
 
   TRAFFIC: {
-    targetVehicles: 13,
-    parkedVehicles: 9,
-    targetPedestrians: 24,
-    aiCruiseSpeed: 118,
-    lookAheadDist: 78
+    targetVehicles: 26,
+    parkedVehicles: 22,
+    targetPedestrians: 48,
+    aiCruiseSpeed: 120,
+    lookAheadDist: 82
   },
 
   POLICE: {
-    ambientPatrols: 2,
+    ambientPatrols: 4,
     sightRange: 390,
     hideoutSightRange: 125,
     searchRadiusBase: 360,
@@ -301,6 +560,7 @@ CiudadCero.Config = {
     {
       id: 'garage_central',
       name: 'GARAJE CENTRAL CERO',
+      districtId: 'residencial',
       gx: 1,
       gy: 1,
       x: 525,
@@ -314,6 +574,7 @@ CiudadCero.Config = {
     {
       id: 'garage_east',
       name: 'TALLER DISTRITO ESTE',
+      districtId: 'centro',
       gx: 5,
       gy: 2,
       x: 1725,
@@ -327,6 +588,7 @@ CiudadCero.Config = {
     {
       id: 'garage_south',
       name: 'GARAJE PUERTO SUR',
+      districtId: 'portuaria',
       gx: 2,
       gy: 4,
       x: 825,
@@ -335,6 +597,34 @@ CiudadCero.Config = {
       h: 76,
       spawnX: 825,
       spawnY: 1392,
+      spawnAngle: -Math.PI / 2
+    },
+    {
+      id: 'garage_commercial',
+      name: 'TALLER BULEVAR ESTE',
+      districtId: 'comercial',
+      gx: 13,
+      gy: 3,
+      x: 4125,
+      y: 1105,
+      w: 96,
+      h: 76,
+      spawnX: 4125,
+      spawnY: 1092,
+      spawnAngle: -Math.PI / 2
+    },
+    {
+      id: 'garage_industrial',
+      name: 'TALLER ZONA INDUSTRIAL',
+      districtId: 'industrial',
+      gx: 9,
+      gy: 6,
+      x: 2925,
+      y: 2005,
+      w: 96,
+      h: 76,
+      spawnX: 2925,
+      spawnY: 1992,
       spawnAngle: -Math.PI / 2
     }
   ],
@@ -349,6 +639,7 @@ CiudadCero.Config = {
     {
       id: 'hideout_west',
       name: 'Callejón Cubierto Oeste',
+      districtId: 'residencial',
       gx: 1,
       gy: 3,
       openSide: 'west',
@@ -360,6 +651,7 @@ CiudadCero.Config = {
     {
       id: 'hideout_north',
       name: 'Depósito Cubierto Norte',
+      districtId: 'centro',
       gx: 4,
       gy: 1,
       openSide: 'north',
@@ -371,11 +663,36 @@ CiudadCero.Config = {
     {
       id: 'hideout_south',
       name: 'Cochera Oculta Sur',
+      districtId: 'industrial',
       gx: 6,
       gy: 4,
       openSide: 'east',
       x: 2034,
       y: 1425,
+      w: 68,
+      h: 68
+    },
+    {
+      id: 'hideout_port',
+      name: 'Almacén Muelle Sur',
+      districtId: 'portuaria',
+      gx: 3,
+      gy: 7,
+      openSide: 'south',
+      x: 1125,
+      y: 2334,
+      w: 68,
+      h: 68
+    },
+    {
+      id: 'hideout_periphery',
+      name: 'Galpón Periferia Este',
+      districtId: 'periferia',
+      gx: 14,
+      gy: 8,
+      openSide: 'west',
+      x: 4416,
+      y: 2625,
       w: 68,
       h: 68
     }
@@ -411,7 +728,7 @@ CiudadCero.Config = {
       ambientLines: [
         'Si abollas el Coupé, tráelo a la bahía antes de que eche humo.',
         'Recuerda: los callejones marcados en verde en el radar enfrían rápido el rastro policial.',
-        'Tu hermano Julián siempre decía que en Ciudad Cero manda quien conoce los atajos.'
+        'Ahora tenemos talleres socios en el Bulevar Este y en la Zona Industrial.'
       ]
     },
     ramiro: {
@@ -447,6 +764,40 @@ CiudadCero.Config = {
       ambientLines: [
         'Tengo los escáneres abiertos: si Dávila mueve un convoy, lo sabremos al instante.',
         'Los Interceptores V8 son rápidos en recta, pero pierden agarre si encadenas curvas cerradas.'
+      ]
+    },
+    donato: {
+      id: 'donato',
+      name: 'Donato "Muelle" Ríos',
+      role: 'Capataz Portuario · Muelles del Sur',
+      color: '#e68a3e',
+      shirt: '#c97e38',
+      hair: '#3d352e',
+      x: 825,
+      y: 2295,
+      inWorld: true,
+      personality: 'Directo, curtido en los muelles y buen conocedor de las rutas de carga.',
+      bio: 'Supervisa los contenedores de la Zona Portuaria y conoce cada camión que entra o sale del puerto.',
+      ambientLines: [
+        'Los camiones portuarios aguantan golpes duros, pero tómate las curvas con calma.',
+        'Si buscas velocidad pura, sal hacia la Autopista Periférica al sur.'
+      ]
+    },
+    elena: {
+      id: 'elena',
+      name: 'Elena "Ruta" Vargas',
+      role: 'Promotora de Carreras · Barrio Comercial',
+      color: '#f48fb1',
+      shirt: '#c25975',
+      hair: '#241c21',
+      x: 3825,
+      y: 805,
+      inWorld: true,
+      personality: 'Competitiva, carismática y siempre buscando los pilotos más rápidos.',
+      bio: 'Organiza circuitos callejeros nocturnos entre las galerías del Barrio Comercial y la periferia.',
+      ambientLines: [
+        'El Bulevar Comercial de noche es el mejor escaparate para un buen deportivo.',
+        'Consulta el mapa ampliado para trazar tus atajos entre barrios.'
       ]
     },
     davila: {
@@ -866,6 +1217,75 @@ CiudadCero.Config = {
       y: 1575,
       radius: 34,
       reward: 420
+    },
+    {
+      id: 'side_commercial_sprint',
+      code: 'SEC-05',
+      type: 'checkpoints',
+      title: 'Sprint Bulevar Comercial',
+      desc: 'Recorre a fondo las avenidas iluminadas del Barrio Comercial (4 puntos).',
+      helpFoot: 'Sube a un vehículo para correr en el Barrio Comercial.',
+      helpCar: 'Cruza los 4 puntos de control del Bulevar Este.',
+      startX: 3375,
+      startY: 675,
+      checkpoints: [
+        { x: 3975, y: 675 },
+        { x: 4575, y: 675 },
+        { x: 4575, y: 1275 },
+        { x: 3675, y: 1275 }
+      ],
+      x: 3375,
+      y: 675,
+      radius: 36,
+      timeLimit: 58,
+      reward: 480
+    },
+    {
+      id: 'side_port_delivery',
+      code: 'SEC-06',
+      type: 'deliver_package',
+      pickupNpcId: 'donato',
+      title: 'Manifiesto de Carga Portuaria',
+      desc: 'Recoge documentación aduanera en Muelles del Sur y llévala a Zona Industrial.',
+      helpFoot: 'Ve a los Muelles del Sur para recoger el manifiesto de Donato.',
+      helpCar: 'Entrega el manifiesto en el Taller Zona Industrial.',
+      pickupX: 825,
+      pickupY: 2295,
+      x: 825,
+      y: 2295,
+      dropX: 2925,
+      dropY: 2005,
+      radius: 36,
+      timeLimit: 72,
+      reward: 520,
+      pickupDialogue: [
+        {
+          speaker: 'donato',
+          text: 'Lleva estos papeles sellados al Taller de la Zona Industrial antes del cierre de turno.'
+        }
+      ]
+    },
+    {
+      id: 'side_periphery_tour',
+      code: 'SEC-07',
+      type: 'checkpoints',
+      title: 'Contrarreloj Autopista Periférica',
+      desc: 'Prueba la velocidad punta de tu auto a lo largo de toda la periferia sur.',
+      helpFoot: 'Consigue un auto rápido para la Autopista Periférica.',
+      helpCar: 'Cruza los 4 puntos de control de la periferia antes del límite.',
+      startX: 975,
+      startY: 3075,
+      checkpoints: [
+        { x: 2175, y: 3075 },
+        { x: 3375, y: 3075 },
+        { x: 4275, y: 3075 },
+        { x: 4275, y: 2475 }
+      ],
+      x: 975,
+      y: 3075,
+      radius: 38,
+      timeLimit: 66,
+      reward: 600
     }
   ]
 };

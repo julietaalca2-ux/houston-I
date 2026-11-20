@@ -11,18 +11,33 @@ CiudadCero.Input = (() => {
     steerLeft: false,
     steerRight: false,
     gas: false,
-    brake: false
+    brake: false,
+    dpadUp: false,
+    dpadDown: false,
+    dpadLeft: false,
+    dpadRight: false
   };
 
-  let touchMode = 'auto';
+  const settings = {
+    mode: 'auto',
+    showJoystick: true,
+    sensitivity: 1.0,
+    buttonSize: 'normal',
+    opacity: 0.85,
+    carSteerMode: 'buttons',
+    swapSides: false
+  };
+
   let blocked = false;
+  let currentInCar = false;
   let callbacks = {
     onEnterExit: null,
-    onReset: null,
     onHorn: null,
     onGarage: null,
     onStory: null,
     onTalk: null,
+    onMenu: null,
+    onMap: null,
     onAdvanceDialogue: null
   };
 
@@ -36,11 +51,32 @@ CiudadCero.Input = (() => {
     );
   }
 
-  function updateTouchVisibility() {
+  function applyTouchVisualSettings() {
     if (!dom.touchLayer) return;
     const shouldShow =
-      touchMode === 'on' || (touchMode === 'auto' && isTouchDevice());
+      settings.mode === 'on' || (settings.mode === 'auto' && isTouchDevice());
     dom.touchLayer.classList.toggle('visible', shouldShow);
+    dom.touchLayer.classList.toggle('swap-sides', Boolean(settings.swapSides));
+    dom.touchLayer.dataset.steerMode = settings.carSteerMode || 'buttons';
+
+    const scaleMap = { compact: '0.86', normal: '1', large: '1.14' };
+    dom.touchLayer.style.setProperty('--touch-scale', scaleMap[settings.buttonSize] || '1');
+    dom.touchLayer.style.setProperty('--touch-opacity', String(settings.opacity));
+
+    if (dom.joyZone) {
+      dom.joyZone.classList.toggle('hidden', !settings.showJoystick);
+    }
+    if (dom.dpadZone) {
+      dom.dpadZone.classList.toggle('hidden', Boolean(settings.showJoystick));
+    }
+    if (dom.carJoyZone) {
+      const useCarJoy = currentInCar && settings.carSteerMode === 'joystick' && settings.showJoystick;
+      dom.carJoyZone.classList.toggle('hidden', !useCarJoy);
+    }
+    if (dom.steerGroup) {
+      const hideSteerBtns = currentInCar && settings.carSteerMode === 'joystick' && settings.showJoystick;
+      dom.steerGroup.classList.toggle('hidden', hideSteerBtns);
+    }
   }
 
   function bindHoldButton(el, propName) {
@@ -83,12 +119,8 @@ CiudadCero.Input = (() => {
     el.addEventListener('pointercancel', clear);
   }
 
-  function setupJoystick() {
-    const zone = dom.joyZone;
-    const base = dom.joyBase;
-    const stick = dom.joyStick;
-    if (!zone || !base || !stick) return;
-
+  function setupJoystickInstance(zone, base, stick) {
+    if (!zone || !base || !stick) return () => {};
     let pointerId = null;
     const maxRadius = 38;
 
@@ -105,9 +137,14 @@ CiudadCero.Input = (() => {
       }
       stick.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
 
-      const normX = dx / maxRadius;
-      const normY = dy / maxRadius;
+      const sens = Math.max(0.5, Math.min(2.0, Number(settings.sensitivity) || 1.0));
+      let normX = (dx / maxRadius) * sens;
+      let normY = (dy / maxRadius) * sens;
       const mag = Math.hypot(normX, normY);
+      if (mag > 1) {
+        normX /= mag;
+        normY /= mag;
+      }
       if (mag < 0.14) {
         touch.joyX = 0;
         touch.joyY = 0;
@@ -152,7 +189,12 @@ CiudadCero.Input = (() => {
     zone.addEventListener('pointerup', resetStick);
     zone.addEventListener('pointercancel', resetStick);
     zone.addEventListener('lostpointercapture', resetStick);
+
+    return () => resetStick({});
   }
+
+  let resetFootJoyFn = () => {};
+  let resetCarJoyFn = () => {};
 
   return {
     init(handlers) {
@@ -164,6 +206,15 @@ CiudadCero.Input = (() => {
         joyZone: document.getElementById('joy-zone'),
         joyBase: document.getElementById('joy-base'),
         joyStick: document.getElementById('joy-stick'),
+        dpadZone: document.getElementById('dpad-zone'),
+        btnDpadUp: document.getElementById('btn-dpad-up'),
+        btnDpadDown: document.getElementById('btn-dpad-down'),
+        btnDpadLeft: document.getElementById('btn-dpad-left'),
+        btnDpadRight: document.getElementById('btn-dpad-right'),
+        carJoyZone: document.getElementById('car-joy-zone'),
+        carJoyBase: document.getElementById('car-joy-base'),
+        carJoyStick: document.getElementById('car-joy-stick'),
+        steerGroup: document.getElementById('steer-group'),
         btnSprint: document.getElementById('btn-sprint'),
         btnEnterFoot: document.getElementById('btn-enter-foot'),
         btnSteerLeft: document.getElementById('btn-steer-left'),
@@ -191,16 +242,23 @@ CiudadCero.Input = (() => {
             return;
           }
 
-          if (k === 'g' || k === 'escape') {
-            if (callbacks.onGarage) callbacks.onGarage(k === 'escape');
+          if (k === 'escape' || k === 'p') {
+            if (callbacks.onMenu) callbacks.onMenu(k === 'escape');
+            return;
           }
-          if (k === 'h' || k === 'escape') {
-            if (callbacks.onStory) callbacks.onStory(k === 'escape');
+          if (k === 'm') {
+            if (callbacks.onMap) callbacks.onMap();
+            return;
+          }
+          if (k === 'g') {
+            if (callbacks.onGarage) callbacks.onGarage(false);
+          }
+          if (k === 'h') {
+            if (callbacks.onStory) callbacks.onStory(false);
           }
           if (!blocked) {
             if (k === 'e' && callbacks.onEnterExit) callbacks.onEnterExit();
             if (k === 'f' && callbacks.onTalk) callbacks.onTalk();
-            if (k === 'r' && callbacks.onReset) callbacks.onReset();
             if (k === ' ' && callbacks.onHorn) callbacks.onHorn();
           }
         }
@@ -222,12 +280,18 @@ CiudadCero.Input = (() => {
         dom.gameFrame.addEventListener('gesturechange', (e) => e.preventDefault());
       }
 
-      setupJoystick();
+      resetFootJoyFn = setupJoystickInstance(dom.joyZone, dom.joyBase, dom.joyStick);
+      resetCarJoyFn = setupJoystickInstance(dom.carJoyZone, dom.carJoyBase, dom.carJoyStick);
+
       bindHoldButton(dom.btnSprint, 'sprint');
       bindHoldButton(dom.btnSteerLeft, 'steerLeft');
       bindHoldButton(dom.btnSteerRight, 'steerRight');
       bindHoldButton(dom.btnGas, 'gas');
       bindHoldButton(dom.btnBrake, 'brake');
+      bindHoldButton(dom.btnDpadUp, 'dpadUp');
+      bindHoldButton(dom.btnDpadDown, 'dpadDown');
+      bindHoldButton(dom.btnDpadLeft, 'dpadLeft');
+      bindHoldButton(dom.btnDpadRight, 'dpadRight');
 
       bindTapButton(dom.btnEnterFoot, () => {
         if (!blocked && callbacks.onEnterExit) callbacks.onEnterExit();
@@ -245,8 +309,52 @@ CiudadCero.Input = (() => {
         if (!blocked && callbacks.onTalk) callbacks.onTalk();
       });
 
-      window.addEventListener('resize', updateTouchVisibility);
-      updateTouchVisibility();
+      window.addEventListener('resize', applyTouchVisualSettings);
+      applyTouchVisualSettings();
+    },
+
+    applySettings(touchSettings) {
+      if (!touchSettings) return;
+      Object.assign(settings, touchSettings);
+      applyTouchVisualSettings();
+    },
+
+    getSettings() {
+      return Object.assign({}, settings);
+    },
+
+    setTouchMode(mode) {
+      settings.mode = mode;
+      applyTouchVisualSettings();
+    },
+
+    setJoystickVisible(visible) {
+      settings.showJoystick = Boolean(visible);
+      applyTouchVisualSettings();
+    },
+
+    setJoystickSensitivity(sens) {
+      settings.sensitivity = Math.max(0.5, Math.min(2.0, Number(sens) || 1.0));
+    },
+
+    setButtonSize(size) {
+      settings.buttonSize = size;
+      applyTouchVisualSettings();
+    },
+
+    setOpacity(val) {
+      settings.opacity = Math.max(0.35, Math.min(1.0, Number(val) || 0.85));
+      applyTouchVisualSettings();
+    },
+
+    setCarSteerMode(mode) {
+      settings.carSteerMode = mode === 'joystick' ? 'joystick' : 'buttons';
+      applyTouchVisualSettings();
+    },
+
+    setSwapSides(swap) {
+      settings.swapSides = Boolean(swap);
+      applyTouchVisualSettings();
     },
 
     setBlocked(isBlocked) {
@@ -266,17 +374,24 @@ CiudadCero.Input = (() => {
       touch.steerRight = false;
       touch.gas = false;
       touch.brake = false;
-      if (dom.joyStick) dom.joyStick.style.transform = 'translate(0px, 0px)';
+      touch.dpadUp = false;
+      touch.dpadDown = false;
+      touch.dpadLeft = false;
+      touch.dpadRight = false;
+      resetFootJoyFn();
+      resetCarJoyFn();
       document.querySelectorAll('.t-btn.pressed').forEach((b) => b.classList.remove('pressed'));
     },
 
     setMode(inCar) {
+      currentInCar = Boolean(inCar);
       if (!dom.touchLayer) return;
-      const nextMode = inCar ? 'car' : 'foot';
+      const nextMode = currentInCar ? 'car' : 'foot';
       if (dom.touchLayer.dataset.mode !== nextMode) {
         this.clearTouchState();
         dom.touchLayer.dataset.mode = nextMode;
       }
+      applyTouchVisualSettings();
     },
 
     setNearbyVehicle(isNear) {
@@ -297,30 +412,16 @@ CiudadCero.Input = (() => {
       }
     },
 
-    cycleTouchMode() {
-      if (touchMode === 'auto') touchMode = 'on';
-      else if (touchMode === 'on') touchMode = 'off';
-      else touchMode = 'auto';
-      updateTouchVisibility();
-      return touchMode;
-    },
-
-    getTouchModeLabel() {
-      if (touchMode === 'on') return 'TÁCTIL: ON';
-      if (touchMode === 'off') return 'TÁCTIL: OFF';
-      return 'TÁCTIL: AUTO';
-    },
-
     getFootInput() {
       if (blocked) return { dx: 0, dy: 0, sprint: false };
       let dx = 0;
       let dy = 0;
-      if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
-      if (keys.has('d') || keys.has('arrowright')) dx += 1;
-      if (keys.has('w') || keys.has('arrowup')) dy -= 1;
-      if (keys.has('s') || keys.has('arrowdown')) dy += 1;
+      if (keys.has('a') || keys.has('arrowleft') || touch.dpadLeft) dx -= 1;
+      if (keys.has('d') || keys.has('arrowright') || touch.dpadRight) dx += 1;
+      if (keys.has('w') || keys.has('arrowup') || touch.dpadUp) dy -= 1;
+      if (keys.has('s') || keys.has('arrowdown') || touch.dpadDown) dy += 1;
 
-      if (Math.abs(touch.joyX) > 0 || Math.abs(touch.joyY) > 0) {
+      if (settings.showJoystick && (Math.abs(touch.joyX) > 0 || Math.abs(touch.joyY) > 0)) {
         dx = touch.joyX;
         dy = touch.joyY;
       }
@@ -346,6 +447,9 @@ CiudadCero.Input = (() => {
       let steer = 0;
       if (keys.has('a') || keys.has('arrowleft') || touch.steerLeft) steer -= 1;
       if (keys.has('d') || keys.has('arrowright') || touch.steerRight) steer += 1;
+      if (settings.carSteerMode === 'joystick' && settings.showJoystick && Math.abs(touch.joyX) > 0.05) {
+        steer = Math.max(-1, Math.min(1, touch.joyX));
+      }
       const turbo = keys.has('shift');
       const handbrake = keys.has(' ');
       return { throttle, brake, steer, turbo, handbrake };

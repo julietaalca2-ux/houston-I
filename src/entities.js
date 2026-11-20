@@ -25,7 +25,7 @@ CiudadCero.Entities = (() => {
   }
 
   function createVehicle(opts = {}) {
-    const civilKeys = ['coupe', 'sedan', 'taxi', 'suv', 'van'];
+    const civilKeys = ['compact', 'coupe', 'muscle', 'sedan', 'taxi', 'suv', 'van', 'truck'];
     const typeKey = opts.typeId || randomItem(civilKeys);
     const spec = Config.VEHICLE_TYPES[typeKey] || Config.VEHICLE_TYPES.sedan;
     const color = opts.color || randomItem(spec.colors);
@@ -80,20 +80,31 @@ CiudadCero.Entities = (() => {
     };
   }
 
-  function spawnTrafficVehicle(existingVehicles, playerRef) {
+  function spawnTrafficVehicle(existingVehicles, playerRef, preferNearPlayer = false) {
     const lanes = World.getLaneCoords();
-    const weightedTypes = ['sedan', 'sedan', 'taxi', 'coupe', 'suv', 'van'];
+    const weightedTypes = [
+      'sedan', 'sedan', 'compact', 'compact',
+      'taxi', 'coupe', 'muscle', 'suv', 'van', 'truck'
+    ];
 
-    for (let attempt = 0; attempt < 25; attempt++) {
+    for (let attempt = 0; attempt < 30; attempt++) {
       const lane = randomItem(lanes);
       let x, y, angle;
       if (lane.axis === 'h') {
-        x = 90 + Math.random() * (Config.WORLD.width - 180);
+        if (preferNearPlayer && playerRef) {
+          x = Math.max(90, Math.min(Config.WORLD.width - 90, playerRef.x + (Math.random() - 0.5) * 2200));
+        } else {
+          x = 90 + Math.random() * (Config.WORLD.width - 180);
+        }
         y = lane.pos;
         angle = lane.dir > 0 ? 0 : Math.PI;
       } else {
         x = lane.pos;
-        y = 90 + Math.random() * (Config.WORLD.height - 180);
+        if (preferNearPlayer && playerRef) {
+          y = Math.max(90, Math.min(Config.WORLD.height - 90, playerRef.y + (Math.random() - 0.5) * 2000));
+        } else {
+          y = 90 + Math.random() * (Config.WORLD.height - 180);
+        }
         angle = lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       }
 
@@ -139,7 +150,7 @@ CiudadCero.Entities = (() => {
 
       const distToPlayer = playerRef ? Math.hypot(x - playerRef.x, y - playerRef.y) : 500;
       if (distToPlayer < 260) continue;
-      if (nearPlayer && distToPlayer > 720) continue;
+      if (nearPlayer && distToPlayer > 780) continue;
 
       const tooClose = existingVehicles.some(
         (v) => Math.hypot(v.x - x, v.y - y) < 110
@@ -166,20 +177,48 @@ CiudadCero.Entities = (() => {
   }
 
   function createPedestrian() {
-    const outfits = [
-      { shirt: '#d9e6a2', hair: '#2a241e' },
-      { shirt: '#6cb2d1', hair: '#3b281c' },
-      { shirt: '#e07a5f', hair: '#1d1d1d' },
-      { shirt: '#f2cc8f', hair: '#5a3e2b' },
-      { shirt: '#9b8ec4', hair: '#232026' },
-      { shirt: '#81b29a', hair: '#382b22' }
-    ];
-    const look = randomItem(outfits);
     const loop = randomItem(World.sidewalkNodes);
     const startIdx = Math.floor(Math.random() * loop.length);
     const startNode = loop[startIdx];
     const dir = Math.random() < 0.5 ? 1 : -1;
     const nextIdx = (startIdx + dir + loop.length) % loop.length;
+    const dId = startNode.districtId || 'residencial';
+
+    const districtOutfits = {
+      centro: [
+        { shirt: '#2b3a4a', hair: '#1c1f24', hatType: 'none', hasBag: true, role: 'executive' },
+        { shirt: '#495867', hair: '#3b281c', hatType: 'none', hasBag: false, role: 'executive' },
+        { shirt: '#d8e2dc', hair: '#2a241e', hatType: 'none', hasBag: true, role: 'executive' }
+      ],
+      industrial: [
+        { shirt: '#e68a3e', hair: '#222222', hatType: 'hardhat', hasBag: false, role: 'worker' },
+        { shirt: '#f5d94b', hair: '#3a2b1d', hatType: 'hardhat', hasBag: false, role: 'worker' },
+        { shirt: '#4a6670', hair: '#1e1e1e', hatType: 'cap', hasBag: false, role: 'worker' }
+      ],
+      portuaria: [
+        { shirt: '#3b6d8c', hair: '#232026', hatType: 'cap', hasBag: false, role: 'worker' },
+        { shirt: '#d97e38', hair: '#382b22', hatType: 'hardhat', hasBag: false, role: 'worker' },
+        { shirt: '#81b29a', hair: '#1d1d1d', hatType: 'cap', hasBag: false, role: 'worker' }
+      ],
+      comercial: [
+        { shirt: '#e07a5f', hair: '#2a241e', hatType: 'none', hasBag: true, role: 'shopper' },
+        { shirt: '#9b8ec4', hair: '#4a1f2d', hatType: 'none', hasBag: true, role: 'shopper' },
+        { shirt: '#f2cc8f', hair: '#5a3e2b', hatType: 'cap', hasBag: true, role: 'shopper' }
+      ],
+      residencial: [
+        { shirt: '#d9e6a2', hair: '#2a241e', hatType: 'none', hasBag: false, role: 'resident' },
+        { shirt: '#6cb2d1', hair: '#3b281c', hatType: 'cap', hasBag: false, role: 'resident' },
+        { shirt: '#81b29a', hair: '#382b22', hatType: 'none', hasBag: true, role: 'resident' }
+      ],
+      periferia: [
+        { shirt: '#a3c977', hair: '#3b281c', hatType: 'cap', hasBag: false, role: 'resident' },
+        { shirt: '#f2cc8f', hair: '#2a241e', hatType: 'none', hasBag: false, role: 'resident' },
+        { shirt: '#e07a5f', hair: '#1d1d1d', hatType: 'cap', hasBag: false, role: 'resident' }
+      ]
+    };
+
+    const pool = districtOutfits[dId] || districtOutfits.residencial;
+    const look = randomItem(pool);
 
     return {
       id: nextPedId++,
@@ -190,6 +229,9 @@ CiudadCero.Entities = (() => {
       speed: 36 + Math.random() * 18,
       shirt: look.shirt,
       hair: look.hair,
+      hatType: look.hatType || 'none',
+      hasBag: Boolean(look.hasBag),
+      role: look.role || 'resident',
       loop,
       targetIdx: nextIdx,
       loopDir: dir,

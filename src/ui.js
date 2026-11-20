@@ -5,13 +5,21 @@ CiudadCero.UI = (() => {
   let toastTimer = null;
   let rewardTimer = null;
   let currentStoryTab = 'chapters';
+  let currentMenuSection = 'hub';
+  let lastStoryArgs = null;
+  let lastMenuArgs = null;
+  let lastMapArgs = null;
+
+  const mapView = {
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    lastTransform: null
+  };
 
   function init() {
     dom = {
-      chapterBadge: document.getElementById('chapter-badge'),
       money: document.getElementById('money'),
-      status: document.getElementById('status'),
-      missionsCount: document.getElementById('missions-count'),
       wanted: document.getElementById('wanted'),
       missionTag: document.getElementById('mission-tag'),
       missionTimer: document.getElementById('mission-timer'),
@@ -20,6 +28,12 @@ CiudadCero.UI = (() => {
       missionDist: document.getElementById('mission-dist'),
       targetHpWrap: document.getElementById('target-hp-wrap'),
       targetHpBar: document.getElementById('target-hp-bar'),
+      districtPill: document.getElementById('district-pill'),
+      districtDot: document.getElementById('district-dot'),
+      districtName: document.getElementById('district-name'),
+      districtAvenue: document.getElementById('district-avenue'),
+      btnTalkQuick: document.getElementById('btn-talk-quick'),
+      btnGarageQuick: document.getElementById('btn-garage-quick'),
       policeHud: document.getElementById('police-hud'),
       policeStateLabel: document.getElementById('police-state-label'),
       policeUnits: document.getElementById('police-units'),
@@ -41,10 +55,15 @@ CiudadCero.UI = (() => {
       dialogueText: document.getElementById('dialogue-text'),
       dialogueCounter: document.getElementById('dialogue-counter'),
       btnDialogueNext: document.getElementById('btn-dialogue-next'),
-      btnAudio: document.getElementById('btn-audio'),
-      btnTouchToggle: document.getElementById('btn-touch-toggle'),
-      btnGarageTop: document.getElementById('btn-garage-top'),
-      btnStoryTop: document.getElementById('btn-story-top'),
+      menuModal: document.getElementById('menu-modal'),
+      menuModalTag: document.getElementById('menu-modal-tag'),
+      menuModalTitle: document.getElementById('menu-modal-title'),
+      btnMenuBack: document.getElementById('btn-menu-back'),
+      menuContent: document.getElementById('menu-content'),
+      mapModal: document.getElementById('map-modal'),
+      fullMapCanvas: document.getElementById('full-map-canvas'),
+      mapDistrictsStrip: document.getElementById('map-districts-strip'),
+      btnMapClearGps: document.getElementById('btn-map-clear-gps'),
       garageModal: document.getElementById('garage-modal'),
       garageModalTitle: document.getElementById('garage-modal-title'),
       garageCurrentBox: document.getElementById('garage-current-box'),
@@ -58,6 +77,15 @@ CiudadCero.UI = (() => {
       confirmModal: document.getElementById('confirm-modal')
     };
 
+    if (dom.btnMenuBack) {
+      dom.btnMenuBack.addEventListener('click', () => {
+        currentMenuSection = 'hub';
+        if (lastMenuArgs) {
+          renderMenuModal(lastMenuArgs.data, lastMenuArgs.handlers);
+        }
+      });
+    }
+
     document.querySelectorAll('[data-story-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         currentStoryTab = btn.dataset.storyTab || 'chapters';
@@ -69,9 +97,73 @@ CiudadCero.UI = (() => {
         }
       });
     });
+
+    setupFullMapInteractions();
   }
 
-  let lastStoryArgs = null;
+  function setupFullMapInteractions() {
+    const c = dom.fullMapCanvas;
+    if (!c) return;
+
+    let dragging = false;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let origPanX = 0;
+    let origPanY = 0;
+
+    c.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      dragging = true;
+      moved = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      origPanX = mapView.panX;
+      origPanY = mapView.panY;
+      try { c.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+
+    c.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.hypot(dx, dy) > 6) moved = true;
+      if (moved) {
+        mapView.panX = origPanX + dx;
+        mapView.panY = origPanY + dy;
+        redrawFullMap();
+      }
+    });
+
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      if (!moved && mapView.lastTransform && lastMapArgs && lastMapArgs.handlers) {
+        const rect = c.getBoundingClientRect();
+        const scaleX = c.width / rect.width;
+        const scaleY = c.height / rect.height;
+        const cx = (e.clientX - rect.left) * scaleX;
+        const cy = (e.clientY - rect.top) * scaleY;
+        const tr = mapView.lastTransform;
+        const wx = (cx - tr.offsetX) / tr.scale;
+        const wy = (cy - tr.offsetY) / tr.scale;
+        if (wx >= 0 && wx <= tr.worldW && wy >= 0 && wy <= tr.worldH) {
+          const distObj = CiudadCero.World.getDistrictAt(wx, wy);
+          if (lastMapArgs.handlers.onSetWaypoint) {
+            lastMapArgs.handlers.onSetWaypoint({
+              x: Math.round(wx),
+              y: Math.round(wy),
+              label: distObj.shortName
+            });
+          }
+          redrawFullMap();
+        }
+      }
+    };
+
+    c.addEventListener('pointerup', endDrag);
+    c.addEventListener('pointercancel', endDrag);
+  }
 
   function showToast(text, duration = 2600) {
     if (!dom.toast) return;
@@ -114,17 +206,26 @@ CiudadCero.UI = (() => {
   }
 
   function updateHUD(data) {
-    if (dom.chapterBadge && data.chapterLabel) {
-      dom.chapterBadge.textContent = data.chapterLabel;
-    }
     if (dom.money) dom.money.textContent = `$ ${data.money}`;
-    if (dom.status) {
-      dom.status.textContent = data.inCar ? `EN ${data.vehicleName}` : 'A PIE';
-    }
-    if (dom.missionsCount) dom.missionsCount.textContent = String(data.missionsCompleted);
     if (dom.wanted) {
       dom.wanted.textContent = formatStars(data.wanted);
       dom.wanted.classList.toggle('active-alert', data.wanted > 0);
+    }
+
+    if (dom.districtPill) {
+      dom.districtPill.classList.toggle('hidden', data.showDistrictBadge === false);
+      if (data.district) {
+        if (dom.districtDot) dom.districtDot.style.background = data.district.color || '#d6f36a';
+        if (dom.districtName) dom.districtName.textContent = data.district.shortName || data.district.name;
+        if (dom.districtAvenue) dom.districtAvenue.textContent = data.district.avenueLabel || '';
+      }
+    }
+
+    if (dom.btnGarageQuick) {
+      dom.btnGarageQuick.classList.toggle('hidden', !data.nearGarage);
+    }
+    if (dom.btnTalkQuick) {
+      dom.btnTalkQuick.classList.toggle('hidden', !data.nearNPC);
     }
 
     if (data.missionInfo && dom.missionTitle) {
@@ -182,10 +283,6 @@ CiudadCero.UI = (() => {
       }
     }
 
-    if (dom.btnGarageTop) {
-      dom.btnGarageTop.classList.toggle('garage-ready', Boolean(data.nearGarage));
-    }
-
     if (dom.vehicleHud) {
       if (data.inCar) {
         dom.vehicleHud.classList.remove('hidden');
@@ -234,18 +331,619 @@ CiudadCero.UI = (() => {
     }
   }
 
-  function updateAudioButton(enabled) {
-    if (!dom.btnAudio) return;
-    dom.btnAudio.textContent = enabled ? 'SONIDO: ON' : 'SONIDO: OFF';
-    dom.btnAudio.classList.toggle('active', enabled);
+  /* ============================================================================
+     SECTIONED IN-GAME MENU
+     ============================================================================ */
+  function isMenuOpen() {
+    return dom.menuModal && !dom.menuModal.classList.contains('hidden');
   }
 
-  function updateTouchButton(label, mode) {
-    if (!dom.btnTouchToggle) return;
-    dom.btnTouchToggle.textContent = label;
-    dom.btnTouchToggle.classList.toggle('active', mode === 'on');
+  function openMenuModal(section, data, handlers) {
+    currentMenuSection = section || 'hub';
+    renderMenuModal(data, handlers);
   }
 
+  function closeMenuModal() {
+    if (dom.menuModal) dom.menuModal.classList.add('hidden');
+  }
+
+  function makeToggleRow(title, desc, isOn, onLabel, offLabel, onClick) {
+    const row = document.createElement('div');
+    row.className = 'setting-row';
+    row.innerHTML = `<div class="setting-info"><strong>${title}</strong><small>${desc}</small></div>`;
+    const ctrl = document.createElement('div');
+    ctrl.className = 'setting-ctrl';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = isOn ? 'g-btn' : 'hud-btn';
+    btn.textContent = isOn ? onLabel : offLabel;
+    btn.addEventListener('click', onClick);
+    ctrl.appendChild(btn);
+    row.appendChild(ctrl);
+    return row;
+  }
+
+  function makeChoiceRow(title, desc, options, activeVal, onSelect) {
+    const row = document.createElement('div');
+    row.className = 'setting-row';
+    row.innerHTML = `<div class="setting-info"><strong>${title}</strong><small>${desc}</small></div>`;
+    const ctrl = document.createElement('div');
+    ctrl.className = 'setting-ctrl';
+    options.forEach((opt) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = opt.value === activeVal ? 'g-btn' : 'hud-btn';
+      btn.textContent = opt.label;
+      btn.addEventListener('click', () => onSelect(opt.value));
+      ctrl.appendChild(btn);
+    });
+    row.appendChild(ctrl);
+    return row;
+  }
+
+  function makeSliderRow(title, desc, min, max, value, formatFn, onChange) {
+    const row = document.createElement('div');
+    row.className = 'setting-row';
+    row.innerHTML = `<div class="setting-info"><strong>${title}</strong><small>${desc}</small></div>`;
+    const ctrl = document.createElement('div');
+    ctrl.className = 'setting-ctrl';
+
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.className = 'setting-slider';
+    input.min = String(min);
+    input.max = String(max);
+    input.value = String(value);
+
+    const valSpan = document.createElement('span');
+    valSpan.className = 'setting-val';
+    valSpan.textContent = formatFn(value);
+
+    input.addEventListener('input', () => {
+      const num = Number(input.value);
+      valSpan.textContent = formatFn(num);
+      onChange(num);
+    });
+
+    ctrl.appendChild(input);
+    ctrl.appendChild(valSpan);
+    row.appendChild(ctrl);
+    return row;
+  }
+
+  function renderMenuModal(data, handlers) {
+    if (!dom.menuModal || !dom.menuContent) return;
+    lastMenuArgs = { data, handlers };
+    dom.menuModal.classList.remove('hidden');
+
+    const isHub = currentMenuSection === 'hub';
+    if (dom.btnMenuBack) {
+      dom.btnMenuBack.classList.toggle('hidden', isHub);
+    }
+
+    const sectionTitles = {
+      hub: { tag: 'CIUDAD CERO · v0.5 · PANTALLA COMPLETA', title: 'MENÚ DEL JUEGO' },
+      partida: { tag: 'SECCIÓN · GESTIÓN DE PROGRESO', title: 'PARTIDA Y GUARDADO' },
+      sonido: { tag: 'SECCIÓN · AUDIO DEL JUEGO', title: 'SONIDO Y MÚSICA' },
+      controles: { tag: 'SECCIÓN · ERGONOMÍA MÓVIL Y TÁCTIL', title: 'CONTROLES TÁCTILES' },
+      mapa: { tag: 'SECCIÓN · CIUDAD EXPANDIDA (6 BARRIOS)', title: 'MAPA Y UBICACIONES' },
+      configuracion: { tag: 'SECCIÓN · PREFERENCIAS DEL SISTEMA', title: 'CONFIGURACIÓN GENERAL' }
+    };
+
+    const meta = sectionTitles[currentMenuSection] || sectionTitles.hub;
+    if (dom.menuModalTag) dom.menuModalTag.textContent = meta.tag;
+    if (dom.menuModalTitle) dom.menuModalTitle.textContent = meta.title;
+
+    dom.menuContent.innerHTML = '';
+
+    // 1. HUB VIEW
+    if (currentMenuSection === 'hub') {
+      const grid = document.createElement('div');
+      grid.className = 'menu-hub-grid';
+
+      const sections = [
+        { id: 'partida', icon: '💾', title: 'PARTIDA', desc: 'Guardar, cargar, ver progreso y reiniciar partida.' },
+        { id: 'sonido', icon: '🔊', title: 'SONIDO', desc: 'Activar sonido, volumen, música y efectos.' },
+        { id: 'controles', icon: '🎮', title: 'CONTROLES TÁCTILES', desc: 'Joystick, sensibilidad y disposición de botones.' },
+        { id: 'mapa', icon: '🗺️', title: 'MAPA', desc: 'Abrir mapa ampliado y consultar los 6 barrios.' },
+        { id: 'configuracion', icon: '⚙️', title: 'CONFIGURACIÓN', desc: 'Opciones generales, minimapa y rendimiento.' },
+        { id: 'historia_shortcut', icon: '📖', title: 'HISTORIA Y MISIONES', desc: 'Capítulos, personajes y encargos secundarios.' }
+      ];
+
+      sections.forEach((sec) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'menu-section-btn';
+        btn.innerHTML = `
+          <span class="menu-sec-icon">${sec.icon}</span>
+          <span class="menu-sec-text">
+            <strong>${sec.title}</strong>
+            <small>${sec.desc}</small>
+          </span>
+        `;
+        btn.addEventListener('click', () => {
+          if (sec.id === 'historia_shortcut') {
+            closeMenuModal();
+            if (handlers.onOpenStory) handlers.onOpenStory();
+          } else {
+            currentMenuSection = sec.id;
+            renderMenuModal(data, handlers);
+          }
+        });
+        grid.appendChild(btn);
+      });
+
+      dom.menuContent.appendChild(grid);
+
+      const resumeBar = document.createElement('div');
+      resumeBar.className = 'menu-resume-bar';
+      resumeBar.innerHTML = `<small>${data.summary.chapterNumber} · ${data.district.name} · Saldo: $ ${data.money}</small>`;
+      const resumeBtn = document.createElement('button');
+      resumeBtn.type = 'button';
+      resumeBtn.className = 'g-btn';
+      resumeBtn.textContent = '▶ VOLVER AL JUEGO';
+      resumeBtn.addEventListener('click', () => handlers.onCloseMenu && handlers.onCloseMenu());
+      resumeBar.appendChild(resumeBtn);
+      dom.menuContent.appendChild(resumeBar);
+      return;
+    }
+
+    // 2. PARTIDA SECTION
+    if (currentMenuSection === 'partida') {
+      const progGrid = document.createElement('div');
+      progGrid.className = 'progress-grid';
+
+      const items = [
+        { label: 'CAMPAÑA ACTUAL', val: `${data.summary.chapterNumber}: ${data.summary.chapterTitle}` },
+        { label: 'MISIONES PRINCIPALES', val: `${data.summary.completedMainCount} / ${data.summary.totalMain} COMPLETADAS` },
+        { label: 'MISIONES SECUNDARIAS', val: `${data.summary.completedSideCount} / ${(CiudadCero.Config.SIDE_MISSIONS || []).length} COMPLETADAS` },
+        { label: 'DINERO EN CUENTA', val: `$ ${data.money}` },
+        { label: 'VEHÍCULOS EN FLOTA', val: `${data.fleetCount} / ${data.maxSlots} GUARDADOS` },
+        { label: 'UBICACIÓN ACTUAL', val: data.district.name.toUpperCase() }
+      ];
+
+      items.forEach((it) => {
+        const box = document.createElement('div');
+        box.className = 'prog-box';
+        box.innerHTML = `<small>${it.label}</small><strong>${it.val}</strong>`;
+        progGrid.appendChild(box);
+      });
+
+      dom.menuContent.appendChild(progGrid);
+
+      const panel = document.createElement('div');
+      panel.className = 'setting-panel';
+
+      const statusLine = document.createElement('small');
+      statusLine.style.color = '#a9b8a7';
+      statusLine.textContent = data.hasSavedGame
+        ? 'Estado de almacenamiento: Partida guardada detectada en este dispositivo.'
+        : 'Estado de almacenamiento: Aún no has guardado manualmente en esta sesión.';
+      panel.appendChild(statusLine);
+
+      const btnGrid = document.createElement('div');
+      btnGrid.className = 'action-btn-grid';
+
+      const btnSave = document.createElement('button');
+      btnSave.type = 'button';
+      btnSave.className = 'g-btn';
+      btnSave.textContent = '💾 GUARDAR PARTIDA';
+      btnSave.addEventListener('click', () => {
+        if (handlers.onManualSave) handlers.onManualSave();
+        renderMenuModal(Object.assign({}, data, { hasSavedGame: true }), handlers);
+      });
+
+      const btnLoad = document.createElement('button');
+      btnLoad.type = 'button';
+      btnLoad.className = 'g-btn g-btn-sky';
+      btnLoad.textContent = '📂 CARGAR PARTIDA';
+      btnLoad.disabled = !data.hasSavedGame;
+      btnLoad.addEventListener('click', () => {
+        if (handlers.onManualLoad) handlers.onManualLoad();
+      });
+
+      const btnReset = document.createElement('button');
+      btnReset.type = 'button';
+      btnReset.className = 'g-btn g-btn-danger';
+      btnReset.textContent = '🔄 REINICIAR PARTIDA';
+      btnReset.addEventListener('click', () => {
+        if (handlers.onRequestReset) handlers.onRequestReset();
+      });
+
+      const btnBack = document.createElement('button');
+      btnBack.type = 'button';
+      btnBack.className = 'hud-btn';
+      btnBack.textContent = '▶ VOLVER AL JUEGO';
+      btnBack.addEventListener('click', () => {
+        if (handlers.onCloseMenu) handlers.onCloseMenu();
+      });
+
+      btnGrid.appendChild(btnSave);
+      btnGrid.appendChild(btnLoad);
+      btnGrid.appendChild(btnReset);
+      btnGrid.appendChild(btnBack);
+      panel.appendChild(btnGrid);
+      dom.menuContent.appendChild(panel);
+      return;
+    }
+
+    // 3. SONIDO SECTION
+    if (currentMenuSection === 'sonido') {
+      const aud = data.settings.audio;
+      const panel = document.createElement('div');
+      panel.className = 'setting-panel';
+
+      panel.appendChild(
+        makeToggleRow(
+          'Sonido General',
+          'Activa o silencia todo el audio de Ciudad Cero.',
+          aud.enabled,
+          'ACTIVADO',
+          'SILENCIADO',
+          () => {
+            handlers.onUpdateAudio({ enabled: !aud.enabled });
+          }
+        )
+      );
+
+      panel.appendChild(
+        makeSliderRow(
+          'Control de Volumen',
+          'Ajusta el nivel general de volumen (0% a 100%).',
+          0,
+          100,
+          Math.round((aud.masterVolume ?? 0.85) * 100),
+          (v) => `${v}%`,
+          (v) => {
+            handlers.onUpdateAudio({ masterVolume: v / 100 }, true);
+          }
+        )
+      );
+
+      panel.appendChild(
+        makeToggleRow(
+          'Música del Juego',
+          'Ambiente sintetizado urbano durante la exploración.',
+          aud.musicEnabled,
+          'ACTIVADA',
+          'DESACTIVADA',
+          () => {
+            handlers.onUpdateAudio({ musicEnabled: !aud.musicEnabled });
+          }
+        )
+      );
+
+      panel.appendChild(
+        makeToggleRow(
+          'Efectos de Sonido (SFX)',
+          'Puertas, bocinas, sirenas policiales, choques y misiones.',
+          aud.sfxEnabled,
+          'ACTIVADOS',
+          'DESACTIVADOS',
+          () => {
+            handlers.onUpdateAudio({ sfxEnabled: !aud.sfxEnabled });
+          }
+        )
+      );
+
+      dom.menuContent.appendChild(panel);
+      return;
+    }
+
+    // 4. CONTROLES TÁCTILES SECTION
+    if (currentMenuSection === 'controles') {
+      const tch = data.settings.touch;
+      const panel = document.createElement('div');
+      panel.className = 'setting-panel';
+
+      panel.appendChild(
+        makeChoiceRow(
+          'Activar Controles Táctiles',
+          'Auto los muestra en celulares y tablets táctiles.',
+          [
+            { value: 'auto', label: 'AUTO' },
+            { value: 'on', label: 'ACTIVADOS' },
+            { value: 'off', label: 'DESACTIVADOS' }
+          ],
+          tch.mode,
+          (val) => handlers.onUpdateTouch({ mode: val })
+        )
+      );
+
+      panel.appendChild(
+        makeToggleRow(
+          'Mostrar u Ocultar Joystick',
+          'Alterna entre joystick analógico o cruceta direccional.',
+          tch.showJoystick,
+          'JOYSTICK VISIBLE',
+          'JOYSTICK OCULTO',
+          () => handlers.onUpdateTouch({ showJoystick: !tch.showJoystick })
+        )
+      );
+
+      panel.appendChild(
+        makeSliderRow(
+          'Sensibilidad del Joystick',
+          'Ajusta la respuesta del joystick al caminar o girar.',
+          50,
+          200,
+          Math.round((tch.sensitivity || 1.0) * 100),
+          (v) => `${(v / 100).toFixed(1)}x`,
+          (v) => handlers.onUpdateTouch({ sensitivity: v / 100 }, true)
+        )
+      );
+
+      panel.appendChild(
+        makeChoiceRow(
+          'Tamaño de Botones Táctiles',
+          'Adapta el tamaño de los controles a tu pantalla.',
+          [
+            { value: 'compact', label: 'COMPACTO' },
+            { value: 'normal', label: 'NORMAL' },
+            { value: 'large', label: 'GRANDE' }
+          ],
+          tch.buttonSize || 'normal',
+          (val) => handlers.onUpdateTouch({ buttonSize: val })
+        )
+      );
+
+      panel.appendChild(
+        makeSliderRow(
+          'Opacidad de Controles',
+          'Transparencia de los botones sobre la ciudad.',
+          40,
+          100,
+          Math.round((tch.opacity || 0.85) * 100),
+          (v) => `${v}%`,
+          (v) => handlers.onUpdateTouch({ opacity: v / 100 }, true)
+        )
+      );
+
+      panel.appendChild(
+        makeChoiceRow(
+          'Dirección al Conducir',
+          'Elige botones IZQ/DER o joystick para girar el auto.',
+          [
+            { value: 'buttons', label: 'BOTONES IZQ/DER' },
+            { value: 'joystick', label: 'JOYSTICK' }
+          ],
+          tch.carSteerMode || 'buttons',
+          (val) => handlers.onUpdateTouch({ carSteerMode: val })
+        )
+      );
+
+      panel.appendChild(
+        makeToggleRow(
+          'Disposición de Manos',
+          'Invierte dirección y pedales para mayor comodidad.',
+          tch.swapSides,
+          'INVERTIDO (ZURDO)',
+          'ESTÁNDAR',
+          () => handlers.onUpdateTouch({ swapSides: !tch.swapSides })
+        )
+      );
+
+      dom.menuContent.appendChild(panel);
+      return;
+    }
+
+    // 5. MAPA SECTION
+    if (currentMenuSection === 'mapa') {
+      const topBar = document.createElement('div');
+      topBar.className = 'garage-current';
+      topBar.innerHTML = `
+        <div class="garage-current-info">
+          <strong>MAPA EXPANDIDO DE CIUDAD CERO (6 BARRIOS)</strong>
+          <small>Explora los 6 distritos conectados o marca un punto GPS en el radar.</small>
+        </div>
+      `;
+      const openMapBtn = document.createElement('button');
+      openMapBtn.type = 'button';
+      openMapBtn.className = 'g-btn g-btn-sky';
+      openMapBtn.textContent = '🗺️ ABRIR MAPA AMPLIADO';
+      openMapBtn.addEventListener('click', () => {
+        closeMenuModal();
+        if (handlers.onOpenFullMap) handlers.onOpenFullMap();
+      });
+      topBar.appendChild(openMapBtn);
+      dom.menuContent.appendChild(topBar);
+
+      const list = document.createElement('div');
+      list.className = 'garage-list';
+      (CiudadCero.Config.DISTRICTS || []).forEach((d) => {
+        const row = document.createElement('div');
+        row.className = 'garage-slot';
+        row.innerHTML = `
+          <div class="garage-slot-left">
+            <span class="swatch" style="background:${d.color}"></span>
+            <div class="garage-slot-meta">
+              <strong>${d.name.toUpperCase()} (${d.avenueLabel})</strong>
+              <small>${d.description}</small>
+            </div>
+          </div>
+        `;
+        const btns = document.createElement('div');
+        btns.className = 'garage-slot-btns';
+        const gpsBtn = document.createElement('button');
+        gpsBtn.type = 'button';
+        gpsBtn.className = 'g-btn';
+        gpsBtn.textContent = '📍 MARCAR GPS';
+        gpsBtn.addEventListener('click', () => {
+          if (handlers.onSetWaypoint) {
+            handlers.onSetWaypoint({ x: d.center.x, y: d.center.y, label: d.shortName });
+          }
+          closeMenuModal();
+          if (handlers.onCloseMenu) handlers.onCloseMenu();
+        });
+        btns.appendChild(gpsBtn);
+        row.appendChild(btns);
+        list.appendChild(row);
+      });
+
+      dom.menuContent.appendChild(list);
+      return;
+    }
+
+    // 6. CONFIGURACIÓN GENERAL SECTION
+    if (currentMenuSection === 'configuracion') {
+      const gen = data.settings.general;
+      const panel = document.createElement('div');
+      panel.className = 'setting-panel';
+
+      panel.appendChild(
+        makeToggleRow(
+          'Minimapa en Pantalla',
+          'Muestra el radar compacto en la esquina superior derecha.',
+          gen.showMinimap,
+          'VISIBLE',
+          'OCULTO',
+          () => handlers.onUpdateGeneral({ showMinimap: !gen.showMinimap })
+        )
+      );
+
+      panel.appendChild(
+        makeToggleRow(
+          'Indicador de Barrio y Avenida',
+          'Muestra en qué zona de la ciudad te encuentras.',
+          gen.showDistrictBadge,
+          'VISIBLE',
+          'OCULTO',
+          () => handlers.onUpdateGeneral({ showDistrictBadge: !gen.showDistrictBadge })
+        )
+      );
+
+      panel.appendChild(
+        makeChoiceRow(
+          'Calidad Gráfica y Efectos',
+          'Usa Rendimiento para ahorrar batería en celulares.',
+          [
+            { value: 'high', label: 'ALTA (LUCES)' },
+            { value: 'performance', label: 'RENDIMIENTO' }
+          ],
+          gen.quality || 'high',
+          (val) => handlers.onUpdateGeneral({ quality: val })
+        )
+      );
+
+      panel.appendChild(
+        makeToggleRow(
+          'Guardado Automático',
+          'Guarda tu progreso automáticamente al completar misiones.',
+          gen.autoSave,
+          'ACTIVADO',
+          'DESACTIVADO',
+          () => handlers.onUpdateGeneral({ autoSave: !gen.autoSave })
+        )
+      );
+
+      const footerActions = document.createElement('div');
+      footerActions.className = 'action-btn-grid';
+
+      const resetDefaultsBtn = document.createElement('button');
+      resetDefaultsBtn.type = 'button';
+      resetDefaultsBtn.className = 'hud-btn';
+      resetDefaultsBtn.textContent = 'RESTAURAR AJUSTES POR DEFECTO';
+      resetDefaultsBtn.addEventListener('click', () => {
+        if (handlers.onResetSettings) handlers.onResetSettings();
+      });
+
+      const backToGameBtn = document.createElement('button');
+      backToGameBtn.type = 'button';
+      backToGameBtn.className = 'g-btn';
+      backToGameBtn.textContent = '▶ VOLVER AL JUEGO';
+      backToGameBtn.addEventListener('click', () => {
+        if (handlers.onCloseMenu) handlers.onCloseMenu();
+      });
+
+      footerActions.appendChild(resetDefaultsBtn);
+      footerActions.appendChild(backToGameBtn);
+      panel.appendChild(footerActions);
+
+      dom.menuContent.appendChild(panel);
+    }
+  }
+
+  /* ============================================================================
+     EXPANDED INTERACTIVE MAP MODAL
+     ============================================================================ */
+  function isMapOpen() {
+    return dom.mapModal && !dom.mapModal.classList.contains('hidden');
+  }
+
+  function redrawFullMap() {
+    if (!isMapOpen() || !lastMapArgs) return;
+    mapView.lastTransform = CiudadCero.Renderer.renderFullMap(
+      dom.fullMapCanvas,
+      mapView,
+      lastMapArgs.data
+    );
+    if (dom.btnMapClearGps) {
+      dom.btnMapClearGps.classList.toggle('hidden', !lastMapArgs.data.customWaypoint);
+    }
+  }
+
+  function openMapModal(data, handlers) {
+    if (!dom.mapModal) return;
+    lastMapArgs = { data, handlers };
+    mapView.zoom = 1;
+    mapView.panX = 0;
+    mapView.panY = 0;
+    dom.mapModal.classList.remove('hidden');
+
+    if (dom.mapDistrictsStrip) {
+      dom.mapDistrictsStrip.innerHTML = '';
+      (CiudadCero.Config.DISTRICTS || []).forEach((d) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'district-chip';
+        chip.innerHTML = `
+          <div>
+            <strong style="color:${d.color}">${d.shortName}</strong>
+            <small>${d.avenueLabel}</small>
+          </div>
+          <span style="font-size:10px;color:#38bdf8">GPS ▸</span>
+        `;
+        chip.addEventListener('click', () => {
+          if (handlers && handlers.onSetWaypoint) {
+            handlers.onSetWaypoint({ x: d.center.x, y: d.center.y, label: d.shortName });
+          }
+          redrawFullMap();
+        });
+        dom.mapDistrictsStrip.appendChild(chip);
+      });
+    }
+
+    redrawFullMap();
+  }
+
+  function closeMapModal() {
+    if (dom.mapModal) dom.mapModal.classList.add('hidden');
+  }
+
+  function zoomFullMap(delta) {
+    mapView.zoom = Math.max(0.85, Math.min(2.8, mapView.zoom + delta));
+    redrawFullMap();
+  }
+
+  function centerFullMap() {
+    mapView.zoom = 1.4;
+    mapView.panX = 0;
+    mapView.panY = 0;
+    if (lastMapArgs && lastMapArgs.data && lastMapArgs.data.player && dom.fullMapCanvas) {
+      const p = lastMapArgs.data.player;
+      const cw = dom.fullMapCanvas.width;
+      const ch = dom.fullMapCanvas.height;
+      const baseScale = Math.min(cw / CiudadCero.Config.WORLD.width, ch / CiudadCero.Config.WORLD.height);
+      const scale = baseScale * mapView.zoom;
+      mapView.panX = (CiudadCero.Config.WORLD.width * 0.5 - p.x) * scale;
+      mapView.panY = (CiudadCero.Config.WORLD.height * 0.5 - p.y) * scale;
+    }
+    redrawFullMap();
+  }
+
+  /* ============================================================================
+     GARAGE, STORY & CONFIRM MODALS
+     ============================================================================ */
   function isGarageOpen() {
     return dom.garageModal && !dom.garageModal.classList.contains('hidden');
   }
@@ -631,8 +1329,16 @@ CiudadCero.UI = (() => {
     showRewardBanner,
     updateHUD,
     renderDialogue,
-    updateAudioButton,
-    updateTouchButton,
+    isMenuOpen,
+    openMenuModal,
+    closeMenuModal,
+    renderMenuModal,
+    isMapOpen,
+    openMapModal,
+    closeMapModal,
+    redrawFullMap,
+    zoomFullMap,
+    centerFullMap,
     isGarageOpen,
     closeGarageModal,
     renderGarageModal,

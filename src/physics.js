@@ -71,6 +71,12 @@ CiudadCero.Physics = (() => {
         return true;
       }
     }
+    for (let i = 0; i < World.waterZones.length; i++) {
+      const w = World.waterZones[i];
+      if (x + r > w.x && x - r < w.x + w.w && y + r > w.y && y - r < w.y + w.h) {
+        return true;
+      }
+    }
     return false;
   }
 
@@ -168,6 +174,30 @@ CiudadCero.Physics = (() => {
     };
   }
 
+  function resolveRectObstacles(v, rectList, onHit) {
+    for (let i = 0; i < rectList.length; i++) {
+      const b = rectList[i];
+      const mtv = getAABBOverlap(v, b);
+      if (mtv) {
+        v.x += mtv.nx * mtv.depth;
+        v.y += mtv.ny * mtv.depth;
+
+        const vn = v.vx * mtv.nx + v.vy * mtv.ny;
+        if (vn < 0) {
+          const impact = Math.abs(vn);
+          v.vx -= vn * mtv.nx * 1.15;
+          v.vy -= vn * mtv.ny * 1.15;
+          v.vx *= 0.86;
+          v.vy *= 0.86;
+          const forwardX = Math.cos(v.angle);
+          const forwardY = Math.sin(v.angle);
+          v.speed = v.vx * forwardX + v.vy * forwardY;
+          onHit(impact);
+        }
+      }
+    }
+  }
+
   function resolveVehicleBuildings(v, onImpact) {
     let hitBuilding = false;
     let maxImpact = 0;
@@ -178,28 +208,15 @@ CiudadCero.Physics = (() => {
     if (v.y < margin) { v.y = margin; v.vy = Math.max(0, v.vy); hitBuilding = true; }
     if (v.y > cfg.height - margin) { v.y = cfg.height - margin; v.vy = Math.min(0, v.vy); hitBuilding = true; }
 
-    for (let i = 0; i < World.buildings.length; i++) {
-      const b = World.buildings[i];
-      const mtv = getAABBOverlap(v, b);
-      if (mtv) {
-        v.x += mtv.nx * mtv.depth;
-        v.y += mtv.ny * mtv.depth;
+    resolveRectObstacles(v, World.buildings, (impact) => {
+      if (impact > maxImpact) maxImpact = impact;
+      hitBuilding = true;
+    });
 
-        const vn = v.vx * mtv.nx + v.vy * mtv.ny;
-        if (vn < 0) {
-          const impact = Math.abs(vn);
-          if (impact > maxImpact) maxImpact = impact;
-          v.vx -= vn * mtv.nx * 1.15;
-          v.vy -= vn * mtv.ny * 1.15;
-          v.vx *= 0.86;
-          v.vy *= 0.86;
-          const forwardX = Math.cos(v.angle);
-          const forwardY = Math.sin(v.angle);
-          v.speed = v.vx * forwardX + v.vy * forwardY;
-          hitBuilding = true;
-        }
-      }
-    }
+    resolveRectObstacles(v, World.waterZones, (impact) => {
+      if (impact > maxImpact) maxImpact = impact;
+      hitBuilding = true;
+    });
 
     if (hitBuilding && maxImpact > 70) {
       v.hp = Math.max(15, v.hp - maxImpact * 0.045);
