@@ -31,3 +31,13 @@ Se revisó la sintaxis de JavaScript y la integridad del ZIP. La apariencia y re
 - Joystick pointer events are stopped through release/cancel as well as during movement.
 - Vertical camera drag has a wider pitch range: swipe up to look toward the sky and swipe down to look toward the ground.
 - Camera height is calculated from the orbit distance and clamped above the ground.
+
+
+## V0.8.9 — CHARACTER MODEL UPGRADE
+
+- Rebuilt the 3D humanoid silhouette with clearer head, neck, shoulders, chest, waist, hips, thighs, shins, hands and shoes.
+- Added layered clothing details (jackets, suit lapels, work overalls, reflective vest, police uniform, belts, pockets and seams).
+- Improved hair silhouettes and role-specific headwear; named story characters now use their authored character profiles in the 3D scene.
+- Mateo now uses his dedicated protagonist appearance; named mission/story NPCs use their own skin, hair, outfit and accessory palette.
+- Pedestrians have more visual variation, while foot patrols use the dedicated police appearance.
+- Added more natural arm/forearm and leg/shin articulation, foot lift, body bounce and subtle idle breathing.
