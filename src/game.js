@@ -150,7 +150,7 @@ CiudadCero.Game = (() => {
     Input.setMode(false);
     updateCamera(1);
     UI.renderDialogue(Story.getCurrentDialogueLine());
-    UI.showToast('Ciudad Cero v0.7 · Infraestructura Urbana, Semáforos y Mapas');
+    UI.showToast('Ciudad Cero v0.7.5 · Ciudad Viva: Fachadas, Parques y Barrios');
   }
 
   function loadOrInitGame(isManualLoad = false) {

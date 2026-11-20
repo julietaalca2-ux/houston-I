@@ -432,7 +432,7 @@ CiudadCero.UI = (() => {
     }
 
     const sectionTitles = {
-      hub: { tag: 'CIUDAD CERO · v0.7 · INFRAESTRUCTURA URBANA', title: 'MENÚ DEL JUEGO' },
+      hub: { tag: 'CIUDAD CERO · v0.7.5 · CIUDAD VIVA', title: 'MENÚ DEL JUEGO' },
       partida: { tag: 'SECCIÓN · GESTIÓN DE PROGRESO', title: 'PARTIDA Y GUARDADO' },
       sonido: { tag: 'SECCIÓN · AUDIO DEL JUEGO', title: 'SONIDO Y MÚSICA' },
       controles: { tag: 'SECCIÓN · ERGONOMÍA MÓVIL Y TÁCTIL', title: 'CONTROLES TÁCTILES' },

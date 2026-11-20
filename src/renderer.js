@@ -4,6 +4,7 @@ CiudadCero.Renderer = (() => {
   const Config = CiudadCero.Config;
   const World = CiudadCero.World;
   const Characters = CiudadCero.Characters;
+  const CityArt = CiudadCero.CityArt;
   const wCfg = Config.WORLD;
 
   // 4-quadrant offscreen cache (2400x1800 each) for maximum mobile Safari/Android GPU safety
@@ -16,7 +17,14 @@ CiudadCero.Renderer = (() => {
   let showTrafficLightsOnMap = true;
 
   function setQuality(quality) {
+    const prevDetail = CityArt.getDetail();
     highQuality = quality !== 'performance';
+    CityArt.setDetail(quality);
+    // v0.7.5: si cambió el nivel de detalle se regenera la caché estática del mapa
+    if (CityArt.getDetail() !== prevDetail) {
+      mapTiles = null;
+      CityArt.resetCaches();
+    }
   }
 
   function setShowMinimap(visible) {
@@ -277,7 +285,7 @@ CiudadCero.Renderer = (() => {
         c.fillRect(blockLeft - 3, blockTop - 3, blockSize + 6, blockSize + 6);
 
         // Textured concrete paving slab base
-        c.fillStyle = swPat || dist.blockTint || '#757f72';
+        c.fillStyle = CityArt.getSidewalkPattern(c, dist.id) || swPat || dist.blockTint || '#757f72';
         c.fillRect(blockLeft, blockTop, blockSize, blockSize);
 
         // District subtle sidewalk tint overlay
@@ -319,6 +327,9 @@ CiudadCero.Renderer = (() => {
         c.fillRect(blockLeft + 2, blockTop + blockSize - 13, 11, 11);
         c.fillRect(blockLeft + blockSize - 13, blockTop + blockSize - 13, 11, 11);
 
+        // v0.7.5: decoración propia de cada barrio sobre la vereda
+        CityArt.decorateBlock(c, blockLeft, blockTop, blockSize, dist, Math.round(x / wCfg.blockSize), Math.round(y / wCfg.blockSize));
+
         // Industrial & Port hazard yellow/black curb stripes
         if (dist.id === 'portuaria' || dist.id === 'industrial') {
           c.fillStyle = '#e3b42b';
@@ -347,6 +358,20 @@ CiudadCero.Renderer = (() => {
         c.moveTo(w.x + 14, wy);
         c.lineTo(w.x + w.w - 14, wy);
         c.stroke();
+      }
+      // v0.7.5: muelle de piedra, espuma y amarras
+      c.strokeStyle = '#8b9696';
+      c.lineWidth = 3;
+      c.strokeRect(w.x - 1.5, w.y - 1.5, w.w + 3, w.h + 3);
+      c.strokeStyle = 'rgba(235, 250, 255, 0.32)';
+      c.lineWidth = 1.2;
+      c.strokeRect(w.x + 4, w.y + 4, w.w - 8, w.h - 8);
+      for (let bx = w.x + 14; bx < w.x + w.w - 8; bx += 28) {
+        c.fillStyle = '#e3b42b';
+        c.beginPath();
+        c.arc(bx, w.y - 1.5, 2, 0, Math.PI * 2);
+        c.arc(bx, w.y + w.h + 1.5, 2, 0, Math.PI * 2);
+        c.fill();
       }
       c.fillStyle = 'rgba(180, 240, 255, 0.55)';
       c.font = 'bold 9px monospace';
@@ -378,59 +403,11 @@ CiudadCero.Renderer = (() => {
       c.fillText('P · ESTACIONAMIENTO', pl.x + pl.w * 0.5, pl.y + pl.h * 0.5 + 4);
     }
 
-    // 8. Parks, plazas & periphery meadows
+    // 8. Parks, plazas & periphery meadows (v0.7.5: césped texturizado, caminos, mobiliario y árboles)
     for (let i = 0; i < World.parks.length; i++) {
       const p = World.parks[i];
-      if (p.x + p.w < ox || p.x > ox + tw || p.y + p.h < oy || p.y > oy + th) continue;
-
-      if (p.isPlaza) {
-        c.fillStyle = '#535c5e';
-        c.fillRect(p.x, p.y, p.w, p.h);
-        c.strokeStyle = '#89999c';
-        c.lineWidth = 2;
-        c.strokeRect(p.x + 4, p.y + 4, p.w - 8, p.h - 8);
-        c.fillStyle = '#3a6273';
-        c.beginPath();
-        c.arc(p.x + p.w * 0.5, p.y + p.h * 0.5, 22, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = '#6cb2d1';
-        c.stroke();
-      } else {
-        c.fillStyle = p.isMeadow ? '#3d6338' : '#385d3c';
-        c.fillRect(p.x, p.y, p.w, p.h);
-        c.strokeStyle = '#537b54';
-        c.lineWidth = 2;
-        c.strokeRect(p.x + 4, p.y + 4, p.w - 8, p.h - 8);
-
-        if (!p.isMeadow) {
-          c.fillStyle = '#4f4a3f';
-          c.fillRect(p.x + p.w * 0.5 - 8, p.y, 16, p.h);
-          c.fillRect(p.x, p.y + p.h * 0.5 - 8, p.w, 16);
-        }
-      }
-
-      const trees = [
-        [p.x + 22, p.y + 22],
-        [p.x + p.w - 22, p.y + 22],
-        [p.x + 22, p.y + p.h - 22],
-        [p.x + p.w - 22, p.y + p.h - 22]
-      ];
-      for (let t = 0; t < trees.length; t++) {
-        c.fillStyle = 'rgba(0, 0, 0, 0.25)';
-        c.beginPath();
-        c.arc(trees[t][0] + 3, trees[t][1] + 4, 13, 0, Math.PI * 2);
-        c.fill();
-
-        c.fillStyle = '#2b4c2d';
-        c.beginPath();
-        c.arc(trees[t][0], trees[t][1], 13, 0, Math.PI * 2);
-        c.fill();
-
-        c.fillStyle = '#477647';
-        c.beginPath();
-        c.arc(trees[t][0] - 3, trees[t][1] - 3, 8, 0, Math.PI * 2);
-        c.fill();
-      }
+      if (p.x + p.w + 30 < ox || p.x - 30 > ox + tw || p.y + p.h + 30 < oy || p.y - 30 > oy + th) continue;
+      CityArt.drawPark(c, p, i);
     }
 
     // 9. Garages
@@ -481,172 +458,18 @@ CiudadCero.Renderer = (() => {
       c.fillText('ESCONDITE', h.x, h.y + 3);
     }
 
-    // 11. District-styled Buildings
-    const districtPalettes = {
-      residencial: [
-        { base: '#5e4942', top: '#735950' },
-        { base: '#4a554c', top: '#5a665c' },
-        { base: '#635847', top: '#786b56' },
-        { base: '#4d5459', top: '#5e666c' }
-      ],
-      centro: [
-        { base: '#384854', top: '#475c6b' },
-        { base: '#323d47', top: '#404e5c' },
-        { base: '#414d59', top: '#526170' },
-        { base: '#2e3840', top: '#3c4954' }
-      ],
-      comercial: [
-        { base: '#575248', top: '#6b6457' },
-        { base: '#4e4859', top: '#60596e' },
-        { base: '#594a48', top: '#6e5b59' },
-        { base: '#475452', top: '#576966' }
-      ],
-      portuaria: [
-        { base: '#3d4d52', top: '#4b5f66' },
-        { base: '#465254', top: '#566568' },
-        { base: '#3b474d', top: '#48575e' },
-        { base: '#4d4c46', top: '#5e5d56' }
-      ],
-      industrial: [
-        { base: '#4f4842', top: '#615850' },
-        { base: '#474645', top: '#575554' },
-        { base: '#54493e', top: '#66594c' },
-        { base: '#42464a', top: '#51565c' }
-      ],
-      periferia: [
-        { base: '#4d5749', top: '#5e6b59' },
-        { base: '#595346', top: '#6b6454' },
-        { base: '#4a524c', top: '#59635b' },
-        { base: '#524c44', top: '#635c52' }
-      ]
-    };
-
+    // 11. District-styled Buildings (v0.7.5: fachadas, ventanas, puertas, balcones, techos y sombras)
     for (let i = 0; i < World.buildings.length; i++) {
       const b = World.buildings[i];
-      if (b.x + b.w + 12 < ox || b.x > ox + tw || b.y + b.h + 12 < oy || b.y > oy + th) continue;
-
-      const dPal = districtPalettes[b.districtId] || districtPalettes.residencial;
-      const pal = dPal[b.shade || 0];
-
-      c.fillStyle = 'rgba(0, 0, 0, 0.34)';
-      c.fillRect(b.x + 8, b.y + 9, b.w, b.h);
-
-      c.fillStyle = b.isGarageRoof ? '#374238' : pal.base;
-      c.fillRect(b.x, b.y, b.w, b.h);
-
-      c.fillStyle = b.isGarageRoof ? '#485649' : pal.top;
-      c.fillRect(b.x + 5, b.y + 5, Math.max(4, b.w - 10), Math.max(4, b.h - 10));
-
-      c.strokeStyle = b.isGarageRoof ? '#f5d94b' : '#262d28';
-      c.lineWidth = 2;
-      c.strokeRect(b.x, b.y, b.w, b.h);
-
-      if (b.isGarageRoof) {
-        c.fillStyle = '#f5d94b';
-        c.font = 'bold 9px monospace';
-        c.textAlign = 'center';
-        c.fillText('TALLER MECÁNICO', b.x + b.w * 0.5, b.y + 16);
-      } else if (b.isContainerBlock) {
-        const cColors = ['#c83e2b', '#2b7de9', '#e3b42b', '#22a37a'];
-        const cw = Math.floor((b.w - 14) / 2);
-        for (let row = 0; row < 2; row++) {
-          for (let col = 0; col < 2; col++) {
-            c.fillStyle = cColors[(row * 2 + col + i) % cColors.length];
-            c.fillRect(b.x + 5 + col * (cw + 4), b.y + 6 + row * 28, cw, 22);
-          }
-        }
-      } else if (b.districtId === 'centro' && b.w > 50 && b.h > 50) {
-        if (b.roofType === 0) {
-          c.strokeStyle = 'rgba(214, 243, 106, 0.5)';
-          c.lineWidth = 1.5;
-          c.beginPath();
-          c.arc(b.x + b.w * 0.5, b.y + b.h * 0.5, 22, 0, Math.PI * 2);
-          c.stroke();
-          c.fillStyle = 'rgba(214, 243, 106, 0.5)';
-          c.font = 'bold 13px monospace';
-          c.textAlign = 'center';
-          c.fillText('H', b.x + b.w * 0.5, b.y + b.h * 0.5 + 5);
-        } else {
-          c.fillStyle = 'rgba(108, 178, 209, 0.22)';
-          c.fillRect(b.x + 14, b.y + 14, b.w - 28, b.h - 28);
-        }
-      } else if (b.districtId === 'comercial' && b.w > 45 && b.h > 45) {
-        const awningColors = ['#f5d94b', '#4de0b5', '#ff6b6b', '#6cb2d1'];
-        c.fillStyle = awningColors[i % awningColors.length];
-        c.fillRect(b.x + 8, b.y + b.h - 5, b.w - 16, 6);
-        c.fillRect(b.x + 8, b.y - 1, b.w - 16, 5);
-      } else if (b.districtId === 'industrial' && b.w > 50 && b.h > 50) {
-        c.fillStyle = '#757d80';
-        c.beginPath();
-        c.arc(b.x + 28, b.y + 28, 14, 0, Math.PI * 2);
-        c.arc(b.x + 64, b.y + 28, 14, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = '#333';
-        c.lineWidth = 1.5;
-        c.stroke();
-      } else if (b.roofType === 1 && b.w > 40 && b.h > 40) {
-        c.fillStyle = '#38413a';
-        c.fillRect(b.x + 16, b.y + 16, 22, 16);
-        c.strokeStyle = '#6f7c71';
-        c.lineWidth = 1;
-        c.strokeRect(b.x + 16, b.y + 16, 22, 16);
-      } else if (b.roofType === 2 && b.w > 40 && b.h > 40) {
-        c.strokeStyle = 'rgba(255,255,255,0.14)';
-        c.lineWidth = 2;
-        c.strokeRect(b.x + 14, b.y + 14, b.w - 28, b.h - 28);
-      }
+      if (b.x + b.w + 14 < ox || b.x > ox + tw || b.y + b.h + 14 < oy || b.y > oy + th) continue;
+      CityArt.drawBuilding(c, b, i);
     }
 
-    // 12. Sidewalk urban furniture & decorative props
+    // 12. Sidewalk urban furniture, trees & pocket parks
     for (let i = 0; i < World.props.length; i++) {
       const pr = World.props[i];
       if (pr.x < ox - 40 || pr.x > ox + tw + 40 || pr.y < oy - 40 || pr.y > oy + th + 40) continue;
-      if (pr.type === 'tree') {
-        c.fillStyle = 'rgba(0,0,0,0.22)';
-        c.beginPath();
-        c.arc(pr.x + 2, pr.y + 2.5, 9, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = '#2b4c2d';
-        c.beginPath();
-        c.arc(pr.x, pr.y, 9, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = '#4f8550';
-        c.beginPath();
-        c.arc(pr.x - 2, pr.y - 2, 5.5, 0, Math.PI * 2);
-        c.fill();
-      } else if (pr.type === 'hydrant') {
-        c.fillStyle = '#dc2626';
-        c.beginPath();
-        c.arc(pr.x, pr.y, 3.2, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = '#181c19';
-        c.lineWidth = 0.9;
-        c.stroke();
-      } else if (pr.type === 'bus_stop') {
-        c.fillStyle = 'rgba(56, 189, 248, 0.32)';
-        c.fillRect(pr.x - 16, pr.y - 4, 32, 8);
-        c.strokeStyle = '#38bdf8';
-        c.lineWidth = 1.2;
-        c.strokeRect(pr.x - 16, pr.y - 4, 32, 8);
-      } else if (pr.type === 'bench') {
-        c.fillStyle = '#784c2a';
-        c.fillRect(pr.x - 9, pr.y - 2.5, 18, 5);
-        c.strokeStyle = '#1a1612';
-        c.lineWidth = 0.8;
-        c.strokeRect(pr.x - 9, pr.y - 2.5, 18, 5);
-      } else if (pr.type === 'billboard') {
-        c.fillStyle = '#181e1b';
-        c.fillRect(pr.x - 10, pr.y - 4, 20, 8);
-        c.strokeStyle = pr.color || '#f5d94b';
-        c.lineWidth = 1.5;
-        c.strokeRect(pr.x - 10, pr.y - 4, 20, 8);
-      } else if (pr.type === 'sign') {
-        c.fillStyle = '#254e6b';
-        c.fillRect(pr.x - 8, pr.y - 4, 16, 8);
-        c.strokeStyle = '#fff';
-        c.lineWidth = 1;
-        c.strokeRect(pr.x - 8, pr.y - 4, 16, 8);
-      }
+      CityArt.drawProp(c, pr, i);
     }
 
     c.restore();
@@ -1200,55 +1023,8 @@ CiudadCero.Renderer = (() => {
     const sx = mapW / wCfg.width;
     const sy = mapH / wCfg.height;
 
-    // District tint zones on minimap
-    const districts = Config.DISTRICTS || [];
-    for (let i = 0; i < districts.length; i++) {
-      const d = districts[i];
-      const b = d.bounds;
-      ctx.fillStyle = d.groundTint || '#2d352e';
-      ctx.fillRect(mx + b.x1 * sx, my + b.y1 * sy, (b.x2 - b.x1) * sx, (b.y2 - b.y1) * sy);
-      if (d.extraBounds) {
-        const eb = d.extraBounds;
-        ctx.fillRect(mx + eb.x1 * sx, my + eb.y1 * sy, (eb.x2 - eb.x1) * sx, (eb.y2 - eb.y1) * sy);
-      }
-    }
-
-    // Major avenue grid lines on minimap for crisp navigation
-    ctx.strokeStyle = 'rgba(215, 224, 212, 0.16)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < wCfg.width; x += wCfg.blockSize * 2) {
-      ctx.beginPath();
-      ctx.moveTo(mx + (x + wCfg.roadWidth * 0.5) * sx, my);
-      ctx.lineTo(mx + (x + wCfg.roadWidth * 0.5) * sx, my + mapH);
-      ctx.stroke();
-    }
-    for (let y = 0; y < wCfg.height; y += wCfg.blockSize * 2) {
-      ctx.beginPath();
-      ctx.moveTo(mx, my + (y + wCfg.roadWidth * 0.5) * sy);
-      ctx.lineTo(mx + mapW, my + (y + wCfg.roadWidth * 0.5) * sy);
-      ctx.stroke();
-    }
-
-    // Water zones
-    ctx.fillStyle = '#1d5466';
-    for (let i = 0; i < World.waterZones.length; i++) {
-      const w = World.waterZones[i];
-      ctx.fillRect(mx + w.x * sx, my + w.y * sy, Math.max(2, w.w * sx), Math.max(2, w.h * sy));
-    }
-
-    // Parks
-    ctx.fillStyle = '#3d6340';
-    for (let i = 0; i < World.parks.length; i++) {
-      const p = World.parks[i];
-      ctx.fillRect(mx + p.x * sx, my + p.y * sy, Math.max(2, p.w * sx), Math.max(2, p.h * sy));
-    }
-
-    // Buildings
-    ctx.fillStyle = '#5f695c';
-    for (let i = 0; i < World.buildings.length; i++) {
-      const b = World.buildings[i];
-      ctx.fillRect(mx + b.x * sx, my + b.y * sy, Math.max(1.2, b.w * sx), Math.max(1.2, b.h * sy));
-    }
+    // v0.7.5: capa base (barrios, calles, manzanas, edificios, parques y agua) en caché
+    ctx.drawImage(CityArt.getMinimapBase(mapW, mapH), mx, my, mapW, mapH);
 
     // Live Traffic Light indicators at major intersections
     if (showTrafficLightsOnMap) {
@@ -1412,6 +1188,19 @@ CiudadCero.Renderer = (() => {
 
     // District borders & names
     const districts = Config.DISTRICTS || [];
+    // v0.7.5: leve velo de color por barrio para distinguirlos mejor
+    for (let i = 0; i < districts.length; i++) {
+      const d = districts[i];
+      ctx.save();
+      ctx.globalAlpha = 0.09;
+      ctx.fillStyle = d.color || '#fff';
+      ctx.fillRect(d.bounds.x1, d.bounds.y1, d.bounds.x2 - d.bounds.x1, d.bounds.y2 - d.bounds.y1);
+      if (d.extraBounds) {
+        const eb = d.extraBounds;
+        ctx.fillRect(eb.x1, eb.y1, eb.x2 - eb.x1, eb.y2 - eb.y1);
+      }
+      ctx.restore();
+    }
     for (let i = 0; i < districts.length; i++) {
       const d = districts[i];
       ctx.strokeStyle = d.color || '#d6f36a';

@@ -66,6 +66,9 @@ CiudadCero.World = (() => {
       '10,10'  // Área Verde Periferia Sur
     ]);
 
+    // v0.7.5: clasificación visual de parques (grande / mediano / pequeño)
+    const largeParks = new Set(['2,2', '5,3', '13,9']);
+
     const waterSet = new Set([
       '0,6', '0,7', '0,8',
       '1,9', '2,9', '3,9'
@@ -155,10 +158,10 @@ CiudadCero.World = (() => {
           const innerH = blockSize - pad * 2;
 
           if (hideoutHere.openSide !== 'north') {
-            buildings.push({ x: innerL, y: innerT, w: innerW, h: wall, shade: 2, roofType: 1, districtId: district.id });
+            buildings.push({ x: innerL, y: innerT, w: innerW, h: wall, shade: 2, roofType: 1, isHideoutWall: true, districtId: district.id });
           }
           if (hideoutHere.openSide !== 'south') {
-            buildings.push({ x: innerL, y: innerT + innerH - wall, w: innerW, h: wall, shade: 0, roofType: 1, districtId: district.id });
+            buildings.push({ x: innerL, y: innerT + innerH - wall, w: innerW, h: wall, shade: 0, roofType: 1, isHideoutWall: true, districtId: district.id });
           }
           if (hideoutHere.openSide !== 'west') {
             buildings.push({
@@ -168,6 +171,7 @@ CiudadCero.World = (() => {
               h: innerH - (hideoutHere.openSide !== 'north' ? wall : 0) - (hideoutHere.openSide !== 'south' ? wall : 0),
               shade: 3,
               roofType: 1,
+              isHideoutWall: true,
               districtId: district.id
             });
           }
@@ -179,6 +183,7 @@ CiudadCero.World = (() => {
               h: innerH - (hideoutHere.openSide !== 'north' ? wall : 0) - (hideoutHere.openSide !== 'south' ? wall : 0),
               shade: 1,
               roofType: 1,
+              isHideoutWall: true,
               districtId: district.id
             });
           }
@@ -197,7 +202,8 @@ CiudadCero.World = (() => {
             w: blockSize - cfg.sidewalkWidth * 2,
             h: blockSize - cfg.sidewalkWidth * 2,
             districtId: district.id,
-            isPlaza: district.id === 'centro' || district.id === 'comercial'
+            isPlaza: district.id === 'centro' || district.id === 'comercial',
+            sizeClass: largeParks.has(key) ? 'large' : 'medium'
           });
         } else if (isParking) {
           const px = blockLeft + 14;
@@ -245,7 +251,8 @@ CiudadCero.World = (() => {
               w: bw,
               h: bh,
               districtId: district.id,
-              isMeadow: true
+              isMeadow: true,
+              sizeClass: 'small'
             });
             buildings.push({
               x: bx + 14,
@@ -267,6 +274,8 @@ CiudadCero.World = (() => {
               districtId: district.id
             });
           }
+
+          addDistrictProps(gx, gy, district, blockLeft, blockTop, blockSize);
 
           // Urban street furniture on sidewalks (hydrants, bus stops, benches, trees, billboards)
           if ((gx + gy) % 2 === 0) {
@@ -300,6 +309,51 @@ CiudadCero.World = (() => {
           });
         }
       }
+    }
+  }
+
+  // v0.7.5: vegetación y mobiliario con personalidad propia por barrio (solo decorativo)
+  function addDistrictProps(gx, gy, district, bl, bt, bs) {
+    const id = district.id;
+    const h = (gx * 7 + gy * 13) % 5;
+    const T = (x, y, species, size) => props.push({ type: 'tree', x, y, species, size });
+    if (id === 'residencial') {
+      const sp = ['oak', 'maple', 'blossom'][(gx + gy) % 3];
+      for (let k = 1; k <= 3; k++) {
+        T(bl + (bs * k) / 4, bt + 8, sp, 7 + (k % 2));
+        T(bl + (bs * k) / 4, bt + bs - 8, sp, 7 + ((k + 1) % 2));
+      }
+      if (h === 0 || h === 3) props.push({ type: 'pocket_park', x: bl + 11, y: bt + bs * 0.64, species: 'blossom' });
+      props.push({ type: 'planter', x: bl + bs - 30, y: bt + 9, w: 24, h: 8 });
+    } else if (id === 'centro') {
+      for (let k = 1; k <= 3; k++) {
+        T(bl + (bs * k) / 4, bt + 9, 'poplar', 7);
+      }
+      props.push({ type: 'planter', x: bl + 26, y: bt + bs - 9, w: 28, h: 8 });
+      props.push({ type: 'planter', x: bl + bs - 26, y: bt + bs - 9, w: 28, h: 8 });
+      if (h === 1) props.push({ type: 'pocket_park', x: bl + 11, y: bt + bs * 0.64, species: 'oak' });
+    } else if (id === 'comercial') {
+      T(bl + bs * 0.25, bt + bs - 9, 'palm', 7);
+      T(bl + bs * 0.75, bt + bs - 9, 'palm', 7);
+      T(bl + bs * 0.25, bt + 9, 'blossom', 6.5);
+      props.push({ type: 'planter', x: bl + bs * 0.5, y: bt + 9, w: 26, h: 8 });
+      if (h === 2) props.push({ type: 'pocket_park', x: bl + bs - 11, y: bt + bs * 0.64, species: 'blossom' });
+    } else if (id === 'portuaria') {
+      for (let k = 0; k < 4; k++) props.push({ type: 'bollard', x: bl + 20 + k * ((bs - 40) / 3), y: bt + bs - 8 });
+      props.push({ type: 'crates', x: bl + 14, y: bt + bs * 0.55 });
+      props.push({ type: 'barrel', x: bl + bs - 12, y: bt + bs * 0.45, color: '#b4472f' });
+      if (h === 0) T(bl + bs - 12, bt + 10, 'palm', 6.5);
+    } else if (id === 'industrial') {
+      props.push({ type: 'barrel', x: bl + 12, y: bt + bs * 0.55, color: '#3a6ea5' });
+      props.push({ type: 'barrel', x: bl + 12, y: bt + bs * 0.55 + 8, color: '#b4472f' });
+      props.push({ type: 'crates', x: bl + bs - 13, y: bt + bs * 0.6 });
+      if (h === 2) T(bl + bs * 0.5, bt + 8, 'poplar', 6.5);
+    } else if (id === 'periferia') {
+      const sp = ['oak', 'pine', 'olive'][(gx + gy) % 3];
+      T(bl + 12, bt + 10, sp, 9);
+      T(bl + bs - 12, bt + bs - 10, sp, 10);
+      T(bl + bs * 0.5, bt + bs - 8, 'pine', 8);
+      if (h === 4 || h === 1) props.push({ type: 'pocket_park', x: bl + bs - 11, y: bt + bs * 0.64, species: 'oak' });
     }
   }
 

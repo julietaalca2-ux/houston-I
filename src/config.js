@@ -4,8 +4,8 @@ CiudadCero.Config = {
   GAME_INFO: {
     title: 'Ciudad Cero',
     installment: 1,
-    version: '0.7',
-    subtitle: 'Infraestructura Urbana, Semáforos y Mapas'
+    version: '0.7.5',
+    subtitle: 'Ciudad Viva: Fachadas, Parques y Barrios'
   },
 
   TRAFFIC_SIGNAL: {
