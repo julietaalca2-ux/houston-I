@@ -1,8 +1,26 @@
-# CIUDAD CERO — Versión 0.8.0: Comercios y GPS Urbano
+# CIUDAD CERO — Versión 0.8.3: Loston y Puente Costero
 
 ## Base y conservación
 
-Esta versión es una evolución directa del proyecto v0.7.5. Conserva los 18 archivos originales, la estructura de carga por scripts, los sistemas de juego y la compatibilidad de lectura con partidas anteriores y agrega un nuevo espacio de guardado (`ciudad_cero_v08_save`).
+Esta versión es una evolución directa del proyecto V0.8.2 adjuntado como base. Conserva los 18 archivos del proyecto, la estructura de carga por scripts, los sistemas de juego, la clave de guardado existente y la compatibilidad de lectura con partidas anteriores. No se agregan dependencias ni recursos externos.
+
+## Novedades de la V0.8.3
+
+- Nueva isla urbana Loston, al este de la ciudad original, rodeada por agua.
+- Tres barrios: Loston Norte, Loston Centro y Loston Costero.
+- Puente vial de doble sentido que conecta la ciudad original con Loston.
+- Calzadas, veredas, edificios, parques, palmeras, mobiliario y callejones propios de la isla.
+- GPS vial que evita el mar y cruza el canal únicamente por el puente.
+- Minimap y mapa ampliado con proporción corregida para mostrar la expansión completa.
+- Tráfico y peatones pueden aparecer en Loston; los vehículos no se generan en el agua.
+
+## Novedades heredadas de la V0.8.2
+
+- Se conserva la red vial, los siete callejones originales y se agregan cinco pasajes transitables nuevos: Pasaje de la Estación, Callejón del Astillero, Pasaje de la Torre Norte, Callejón de los Talleres Sur y Pasaje del Bulevar Este.
+- Los doce callejones se dibujan con bordes, canaletas, marcas de acceso, reflectores y umbrales peatonales. También aparecen con mayor claridad en el minimapa.
+- Se refuerza la lectura de las avenidas con pequeños reflectores de centro de calzada y flechas direccionales antes de las intersecciones principales.
+- Se mejoran las rampas de accesibilidad con relieve táctil más visible, bordes biselados y juntas adicionales en las veredas.
+- Se mantiene la cuadrícula vial, el sistema GPS, las colisiones, las tiendas, los asaltos, el inventario y la compatibilidad de guardado de la base V0.8.1.
 
 ## Novedades de esta entrega
 
@@ -13,6 +31,18 @@ Esta versión es una evolución directa del proyecto v0.7.5. Conserva los 18 arc
 - Minimapa ampliado y con mayor legibilidad, marcadores de comercios y ruta vial; el mapa ampliado también muestra los comercios y permite fijarlos como destinos GPS.
 - Compatibilidad de lectura con partidas anteriores de Ciudad Cero.
 - La compra/equipamiento y la munición quedan implementados como inventario; esta versión no incorpora todavía mecánicas de disparo.
+
+## Archivos modificados en V0.8.3
+
+- `index.html` y `README.md`: identificación y documentación de versión.
+- `src/config.js`: dimensión ampliada del mundo, distrito Loston, tres barrios, hitos y rótulos viales.
+- `src/world.js`: generación de la isla, agua perimetral, puente, calles, callejones, parques, edificios y nodos peatonales; el A* evita el agua.
+- `src/renderer.js`: mar, tablero y barandas del puente, etiquetas de barrios, mapa ampliado en seis teselas de tamaño apto para móviles.
+- `src/cityart.js`: minimapa de Loston, barrios, agua y puente.
+- `src/entities.js`: peatones con apariencia de Loston y tráfico/policía que no se generan sobre agua.
+- `src/game.js`: área táctil del minimapa adaptada a su nueva proporción.
+
+Los otros módulos de `src/` se conservan sin cambios respecto de la base V0.8.2. Todos los recursos de la isla se dibujan proceduralmente; no se incorporan imágenes externas.
 
 ## Estructura
 
@@ -75,13 +105,10 @@ Todo el arte se dibuja una sola vez en la caché estática del mapa: sin costo e
 
 
 
-## V0.8.1 — Minimapa HD y expansión a Loston
+## Novedades V0.8.1 — Renovación vial (base de esta versión)
 
-- Mundo ampliado de 4800 × 3600 a 7200 × 3600 unidades.
-- Nueva isla de Loston al este, rodeada de agua.
-- Tres barrios: Centro de Loston, Barrio del Faro y Las Palmeras.
-- Puente vial de Loston con tablero y barandas; el canal bloquea el paso fuera del puente.
-- El GPS por calles evita nodos situados dentro del agua.
-- Minimapa con caché de mayor resolución (4x), proporción adaptada al mundo y superficie más grande.
-- Mapa completo ampliado a 1200 × 600 para mostrar ambas zonas en una sola vista.
-- Caché de renderizado dividida en mosaicos de 2400 × 1800 para controlar el uso de memoria en celulares.
+- Se incorporan siete callejones secundarios transitables, con aperturas físicas entre edificios y conexión con las calles perimetrales.
+- Se refuerzan las marcas de cruces peatonales y líneas de detención.
+- Se detallan las rampas de vereda con relieve táctil, cordones y bordes de calzada.
+- Los callejones se representan también en el minimapa.
+- Se conservan los sistemas de comercios, GPS vial, Loston, puente, guardado y misiones de la base V0.8.0.
