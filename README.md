@@ -1,15 +1,18 @@
-# CIUDAD CERO — Versión 0.7.9: Pulido de Ciudad Viva
+# CIUDAD CERO — Versión 0.8.0: Comercios y GPS Urbano
 
 ## Base y conservación
 
-Esta versión es una evolución directa del proyecto v0.7.5. Conserva los 18 archivos originales, la estructura de carga por scripts, los sistemas de juego y la clave de guardado existente (`ciudad_cero_v07_save`) para mantener la compatibilidad con las partidas guardadas.
+Esta versión es una evolución directa del proyecto v0.7.5. Conserva los 18 archivos originales, la estructura de carga por scripts, los sistemas de juego y la compatibilidad de lectura con partidas anteriores y agrega un nuevo espacio de guardado (`ciudad_cero_v08_save`).
 
-## Ajustes de esta entrega
+## Novedades de esta entrega
 
-- Actualización de la identificación visible e interna de la versión a `0.7.9`.
-- Pulido visual de la interfaz mediante estados de foco accesibles, respuesta táctil más consistente, superficies de menú más cuidadas y respeto por la preferencia del sistema de movimiento reducido.
-- Ajustes de presentación para pantallas pequeñas y áreas seguras de dispositivos móviles.
-- No se añadieron sistemas de juego ficticios ni se eliminaron módulos originales.
+- Dos armerías, ubicadas en Centro Urbano y Zona Industrial, con compra y equipamiento de tres tipos de arma y paquetes de munición.
+- Dos comercios asaltables, en los barrios Comercial y Portuario. El asalto requiere llevar un arma equipada y al menos una munición, consume una munición y entrega una recompensa, genera 2 estrellas de búsqueda policial y aplica un tiempo de recuperación por local.
+- Inventario y enfriamientos de los comercios guardados en la partida.
+- GPS recalculado sobre la cuadrícula de calles e intersecciones. La ruta se dibuja con tramos ortogonales sobre la calzada y evita los atajos diagonales a través de manzanas y edificios.
+- Minimapa ampliado y con mayor legibilidad, marcadores de comercios y ruta vial; el mapa ampliado también muestra los comercios y permite fijarlos como destinos GPS.
+- Compatibilidad de lectura con partidas anteriores de Ciudad Cero.
+- La compra/equipamiento y la munición quedan implementados como inventario; esta versión no incorpora todavía mecánicas de disparo.
 
 ## Estructura
 
@@ -69,3 +72,4 @@ Todo el arte se dibuja una sola vez en la caché estática del mapa: sin costo e
 
 1. Descomprime `ciudad_cero_v0.7.zip`.
 2. Abre `index.html` en cualquier navegador moderno (Chrome, Safari, Edge, Firefox) o sírvelo con un servidor local (`npx serve .` o `python3 -m http.server 8080`).
+

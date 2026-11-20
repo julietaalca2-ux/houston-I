@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#101411">
-  <title>Ciudad Cero v0.7.9 · Ciudad Viva: Pulido Urbano</title>
+  <title>Ciudad Cero v0.8.0 · Comercios y GPS Urbano</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
@@ -57,6 +57,7 @@
       <div class="quick-context-row">
         <button type="button" class="ctx-pill-btn hidden" id="btn-talk-quick" title="Hablar (F)">💬 HABLAR</button>
         <button type="button" class="ctx-pill-btn ctx-pill-amber hidden" id="btn-garage-quick" title="Garaje (G)">🔧 GARAJE</button>
+        <button type="button" class="ctx-pill-btn hidden" id="btn-store-quick" title="Interactuar con comercio">🏪 COMERCIO</button>
       </div>
 
       <div class="vehicle-hud hidden" id="vehicle-hud">
@@ -117,7 +118,7 @@
       <div class="garage-card menu-card">
         <div class="garage-header">
           <div>
-            <span class="garage-tag" id="menu-modal-tag">CIUDAD CERO · v0.7.9 · CIUDAD VIVA</span>
+            <span class="garage-tag" id="menu-modal-tag">CIUDAD CERO · v0.8.0 · COMERCIOS Y GPS</span>
             <h2 id="menu-modal-title">MENÚ DEL JUEGO</h2>
           </div>
           <div class="menu-header-btns">
@@ -153,6 +154,7 @@
             <span><i class="dot-mission"></i> Misión</span>
             <span><i class="dot-garage"></i> Garaje</span>
             <span><i class="dot-hideout"></i> Escondite</span>
+            <span><i class="dot-store"></i> Armería / Comercio</span>
             <span><i class="dot-traffic"></i> Semáforo</span>
             <span><i class="dot-gps"></i> GPS</span>
           </div>
@@ -165,6 +167,20 @@
         <div class="map-gps-status" id="map-gps-status">Toca cualquier punto del mapa, barrio o lugar destacado para fijar ruta GPS.</div>
         <div class="map-districts-strip" id="map-districts-strip"></div>
         <div class="map-landmarks-strip" id="map-landmarks-strip"></div>
+      </div>
+    </div>
+
+    <!-- Modal de armería y comercios interactivos -->
+    <div class="garage-modal hidden" id="store-modal" role="dialog" aria-modal="true" aria-labelledby="store-modal-title">
+      <div class="garage-card store-card">
+        <div class="garage-header">
+          <div>
+            <span class="garage-tag" id="store-modal-tag">COMERCIO · CIUDAD CERO</span>
+            <h2 id="store-modal-title">COMERCIO</h2>
+          </div>
+          <button type="button" class="hud-btn garage-close" id="btn-store-close">✕ CERRAR</button>
+        </div>
+        <div class="store-content" id="store-content"></div>
       </div>
     </div>
 
