@@ -793,10 +793,26 @@ CiudadCero.Renderer3D = (() => {
     }
   }
 
+  // V0.25: avenidas arboladas con palmeras altas (calles principales de barrios no industriales).
+  function addAvenuePalms() {
+    const cfg = World.config || {}, bs = cfg.blockSize || 300, rw = cfg.roadWidth || 150;
+    const sw = Math.max(8, cfg.sidewalkWidth || 18), W = cfg.width || 0, H = cfg.height || 0;
+    const ok = (x, y) => {
+      if (World.isInWater && World.isInWater(x, y, 14)) return false;
+      const d = World.getDistrictAt ? World.getDistrictAt(x, y) : null;
+      return !d || (d.id !== 'industrial' && d.id !== 'portuaria');
+    };
+    const push = (x, z, i) => { if (ok(x, z)) BK.palms.push({ x, z, s: 1.45 + ((i * 37) % 10) / 20, r: (i * 1.7) % 6.28 }); };
+    let n = 0;
+    for (let k = 0; k * bs <= W; k += 2) for (let m = 0; m * bs < H; m++) for (const side of [sw * .5, rw - sw * .5]) for (const t of [rw + 38, rw + 110]) push(k * bs + side, m * bs + t, n++);
+    for (let m = 0; m * bs <= H; m += 2) for (let k = 0; k * bs < W; k++) for (const side of [sw * .5, rw - sw * .5]) for (const t of [rw + 38, rw + 110]) push(k * bs + t, m * bs + side, n++);
+  }
+
   function buildCity() {
     buildGround(); buildParksAndWater();
     BK.palms.length = 0; BK.shrubs.length = 0;
     World.buildings.forEach(addBuilding);
+    addAvenuePalms();
     finishProps();
     // V0.17.0: high-density urban props are generated in instanced batches.
     if (window.CiudadEngine && CiudadEngine.runtime && CiudadEngine.runtime.cityDetails) {
