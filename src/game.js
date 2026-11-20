@@ -4,6 +4,7 @@ CiudadCero.Game = (() => {
   const Config = CiudadCero.Config;
   const World = CiudadCero.World;
   const Entities = CiudadCero.Entities;
+  const NPCAI = CiudadCero.NPCAI;
   const Characters = CiudadCero.Characters;
   const Physics = CiudadCero.Physics;
   const Input = CiudadCero.Input;
@@ -1286,49 +1287,41 @@ CiudadCero.Game = (() => {
 
       if (ped.knockTimer > 0) continue;
 
-      if (threat || ped.panicTimer > 0) {
-        if (ped.panicTimer <= 0.08 && ped.alertIconTimer <= 0) {
-          ped.alertIconTimer = 0.95;
-        }
+      if (NPCAI && NPCAI.update) {
+        NPCAI.update(ped, {
+          vehicles: state.vehicles,
+          pedestrians: state.pedestrians,
+          player: p,
+          Police,
+          Physics
+        }, dt);
+      } else if (threat || ped.panicTimer > 0) {
+        // Safe fallback if the optional pedestrian AI module is unavailable.
         if (ped.panicTimer > 0) ped.panicTimer -= dt;
-        ped.pausedTimer = 0;
         const fleeFrom = threat || p;
         const fleeAngle = Math.atan2(ped.y - fleeFrom.y, ped.x - fleeFrom.x);
         ped.angle = fleeAngle;
         Physics.moveCircleEntity(
           ped,
-          Math.cos(fleeAngle) * ped.speed * 1.75 * dt,
-          Math.sin(fleeAngle) * ped.speed * 1.75 * dt,
+          Math.cos(fleeAngle) * ped.speed * 1.5 * dt,
+          Math.sin(fleeAngle) * ped.speed * 1.5 * dt,
           ped.radius
         );
-        ped.walkPhase += dt * 15;
-      } else if (ped.isPoliceFoot && Police.state.wanted > 0 && Math.hypot(p.x - ped.x, p.y - ped.y) < 250) {
-        // Foot officer spots wanted player and tracks visually
-        ped.angle = Math.atan2(p.y - ped.y, p.x - ped.x);
-        if (ped.alertIconTimer <= 0) ped.alertIconTimer = 0.65;
+        ped.walkPhase += dt * 12;
       } else {
-        if (ped.pausedTimer > 0) {
+        const target = ped.loop[ped.targetIdx];
+        const dx = target.x - ped.x;
+        const dy = target.y - ped.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 10) {
+          ped.targetIdx = (ped.targetIdx + ped.loopDir + ped.loop.length) % ped.loop.length;
+          if (!ped.isPoliceFoot && Math.random() < 0.2) ped.pausedTimer = 0.7 + Math.random();
+        } else if (ped.pausedTimer > 0) {
           ped.pausedTimer -= dt;
         } else {
-          const target = ped.loop[ped.targetIdx];
-          const dx = target.x - ped.x;
-          const dy = target.y - ped.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < 10) {
-            ped.targetIdx = (ped.targetIdx + ped.loopDir + ped.loop.length) % ped.loop.length;
-            if (!ped.isPoliceFoot && Math.random() < 0.22) {
-              ped.pausedTimer = 0.8 + Math.random() * 1.3;
-            }
-          } else {
-            ped.angle = Math.atan2(dy, dx);
-            Physics.moveCircleEntity(
-              ped,
-              Math.cos(ped.angle) * ped.speed * dt,
-              Math.sin(ped.angle) * ped.speed * dt,
-              ped.radius
-            );
-            ped.walkPhase += dt * 8;
-          }
+          ped.angle = Math.atan2(dy, dx);
+          Physics.moveCircleEntity(ped, Math.cos(ped.angle) * ped.speed * dt, Math.sin(ped.angle) * ped.speed * dt, ped.radius);
+          ped.walkPhase += dt * 8;
         }
       }
     }
