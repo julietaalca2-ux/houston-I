@@ -14,7 +14,56 @@ CiudadCero.Physics = (() => {
     return a;
   }
 
-  // Colisión círculo vs edificio AABB
+  function segmentIntersectsRect(x1, y1, x2, y2, rx, ry, rw, rh) {
+    let t0 = 0;
+    let t1 = 1;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+
+    const checks = [
+      [-dx, x1 - rx],
+      [dx, rx + rw - x1],
+      [-dy, y1 - ry],
+      [dy, ry + rh - y1]
+    ];
+
+    for (let i = 0; i < 4; i++) {
+      const p = checks[i][0];
+      const q = checks[i][1];
+      if (Math.abs(p) < 1e-8) {
+        if (q < 0) return false;
+      } else {
+        const t = q / p;
+        if (p < 0) {
+          if (t > t1) return false;
+          if (t > t0) t0 = t;
+        } else {
+          if (t < t0) return false;
+          if (t < t1) t1 = t;
+        }
+      }
+    }
+    return t0 <= t1;
+  }
+
+  function hasLineOfSight(x1, y1, x2, y2) {
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
+
+    for (let i = 0; i < World.buildings.length; i++) {
+      const b = World.buildings[i];
+      if (b.x > maxX || b.x + b.w < minX || b.y > maxY || b.y + b.h < minY) {
+        continue;
+      }
+      if (segmentIntersectsRect(x1, y1, x2, y2, b.x, b.y, b.w, b.h)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function collidesBuildingCircle(x, y, r) {
     for (let i = 0; i < World.buildings.length; i++) {
       const b = World.buildings[i];
@@ -36,7 +85,6 @@ CiudadCero.Physics = (() => {
     }
   }
 
-  // Vértices de OBB (Oriented Bounding Box) de un vehículo
   function getVehicleCorners(v) {
     const cos = Math.cos(v.angle);
     const sin = Math.sin(v.angle);
@@ -65,7 +113,6 @@ CiudadCero.Physics = (() => {
       return null;
     }
 
-    // Ejes SAT: X, Y, y los 2 ejes locales del vehículo
     const cos = Math.cos(v.angle);
     const sin = Math.sin(v.angle);
     const axes = [
@@ -121,12 +168,10 @@ CiudadCero.Physics = (() => {
     };
   }
 
-  // Resolución OBB vs Edificios + Límites del mundo
   function resolveVehicleBuildings(v, onImpact) {
     let hitBuilding = false;
     let maxImpact = 0;
 
-    // Límites exteriores del mapa
     const margin = Math.max(v.length, v.width) * 0.45;
     if (v.x < margin) { v.x = margin; v.vx = Math.max(0, v.vx); hitBuilding = true; }
     if (v.x > cfg.width - margin) { v.x = cfg.width - margin; v.vx = Math.min(0, v.vx); hitBuilding = true; }
@@ -144,7 +189,6 @@ CiudadCero.Physics = (() => {
         if (vn < 0) {
           const impact = Math.abs(vn);
           if (impact > maxImpact) maxImpact = impact;
-          // Eliminar componente normal (desliza suavemente contra la pared)
           v.vx -= vn * mtv.nx * 1.15;
           v.vy -= vn * mtv.ny * 1.15;
           v.vx *= 0.86;
@@ -157,12 +201,14 @@ CiudadCero.Physics = (() => {
       }
     }
 
-    if (hitBuilding && maxImpact > 75 && typeof onImpact === 'function') {
-      onImpact(v.x, v.y, clamp(maxImpact / 280, 0.2, 1));
+    if (hitBuilding && maxImpact > 70) {
+      v.hp = Math.max(15, v.hp - maxImpact * 0.045);
+      if (typeof onImpact === 'function') {
+        onImpact(v.x, v.y, clamp(maxImpact / 280, 0.2, 1));
+      }
     }
   }
 
-  // SAT OBB vs OBB entre dos vehículos
   function getOBBOverlap(v1, v2) {
     const distApprox = Math.hypot(v1.x - v2.x, v1.y - v2.y);
     if (distApprox > (v1.length + v2.length) * 0.65) return null;
@@ -227,13 +273,11 @@ CiudadCero.Physics = (() => {
         const ratioA = b.mass / totalMass;
         const ratioB = a.mass / totalMass;
 
-        // Separar ambos vehículos proporcionalmente a su masa
         a.x -= mtv.nx * mtv.depth * ratioA;
         a.y -= mtv.ny * mtv.depth * ratioA;
         b.x += mtv.nx * mtv.depth * ratioB;
         b.y += mtv.ny * mtv.depth * ratioB;
 
-        // Velocidad relativa sobre la normal de impacto
         const rvx = b.vx - a.vx;
         const rvy = b.vy - a.vy;
         const velAlongNormal = rvx * mtv.nx + rvy * mtv.ny;
@@ -249,32 +293,38 @@ CiudadCero.Physics = (() => {
           b.vx += impulseX / b.mass;
           b.vy += impulseY / b.mass;
 
-          // Actualizar velocidad escalar proyectada
           a.speed = a.vx * Math.cos(a.angle) + a.vy * Math.sin(a.angle);
           b.speed = b.vx * Math.cos(b.angle) + b.vy * Math.sin(b.angle);
 
-          // Despertar autos estacionados si fueron chocados
-          a.isParked = false;
-          b.isParked = false;
-          if (a.isAI) a.stunTimer = 0.7;
-          if (b.isAI) b.stunTimer = 0.7;
+          if (!a.isRoadblock) a.isParked = false;
+          if (!b.isRoadblock) b.isParked = false;
+          if (a.isAI && !a.isRoadblock) a.stunTimer = 0.55;
+          if (b.isAI && !b.isRoadblock) b.stunTimer = 0.55;
 
           const impactSpeed = Math.abs(velAlongNormal);
-          if (impactSpeed > 45 && typeof onCrash === 'function') {
-            const involvesPlayer = a === playerVehicle || b === playerVehicle;
-            onCrash(
-              (a.x + b.x) * 0.5,
-              (a.y + b.y) * 0.5,
-              clamp(impactSpeed / 260, 0.25, 1),
-              involvesPlayer
-            );
+          if (impactSpeed > 42) {
+            const dmg = impactSpeed * 0.065;
+            a.hp = Math.max(15, a.hp - dmg * ratioA);
+            b.hp = Math.max(15, b.hp - dmg * ratioB);
+
+            if (typeof onCrash === 'function') {
+              const involvesPlayer = a === playerVehicle || b === playerVehicle;
+              const involvesPolice = a.isPolice || b.isPolice;
+              onCrash({
+                x: (a.x + b.x) * 0.5,
+                y: (a.y + b.y) * 0.5,
+                intensity: clamp(impactSpeed / 260, 0.25, 1),
+                impactSpeed,
+                involvesPlayer,
+                involvesPolice
+              });
+            }
           }
         }
       }
     }
   }
 
-  // Encuentra una posición libre al bajar del vehículo (izquierda, derecha o atrás)
   function findSafeExitSpot(v, vehicles) {
     const perpX = -Math.sin(v.angle);
     const perpY = Math.cos(v.angle);
@@ -283,9 +333,9 @@ CiudadCero.Physics = (() => {
     const sideOffset = v.width * 0.5 + 16;
 
     const candidates = [
-      { x: v.x - perpX * sideOffset, y: v.y - perpY * sideOffset }, // Puerta izquierda
-      { x: v.x + perpX * sideOffset, y: v.y + perpY * sideOffset }, // Puerta derecha
-      { x: v.x + backX * (v.length * 0.5 + 16), y: v.y + backY * (v.length * 0.5 + 16) } // Atrás
+      { x: v.x - perpX * sideOffset, y: v.y - perpY * sideOffset },
+      { x: v.x + perpX * sideOffset, y: v.y + perpY * sideOffset },
+      { x: v.x + backX * (v.length * 0.5 + 16), y: v.y + backY * (v.length * 0.5 + 16) }
     ];
 
     for (let i = 0; i < candidates.length; i++) {
@@ -313,6 +363,7 @@ CiudadCero.Physics = (() => {
   return {
     clamp,
     normalizeAngle,
+    hasLineOfSight,
     collidesBuildingCircle,
     moveCircleEntity,
     resolveVehicleBuildings,
