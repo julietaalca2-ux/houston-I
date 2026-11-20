@@ -7,14 +7,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#101411">
-  <title>Juego 01 — Ciudad Cero v0.2</title>
+  <title>Juego 01 — Ciudad Cero v0.3</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div class="brand">
-        <p class="eyebrow">SAGA ORIGINAL · JUEGO 01 · v0.2</p>
+        <p class="eyebrow">SAGA ORIGINAL · JUEGO 01 · v0.3</p>
         <h1>CIUDAD CERO</h1>
       </div>
 
@@ -23,10 +23,11 @@
           <span>DINERO <b id="money">$ 500</b></span>
           <span>ESTADO <b id="status">A PIE</b></span>
           <span>MISIONES <b id="missions-count">0</b></span>
-          <span>ALERTA <b id="wanted">☆☆☆☆☆</b></span>
+          <span>ALERTA <b id="wanted" class="wanted-stars">☆☆☆☆☆</b></span>
         </div>
 
         <div class="quick-actions">
+          <button type="button" class="hud-btn" id="btn-garage-top" title="Abrir Garaje (G)">GARAJE</button>
           <button type="button" class="hud-btn" id="btn-audio" title="Activar o silenciar sonido">SONIDO: ON</button>
           <button type="button" class="hud-btn" id="btn-touch-toggle" title="Mostrar u ocultar controles táctiles">TÁCTIL: AUTO</button>
           <button type="button" class="hud-btn" id="btn-reset" title="Reiniciar partida (R)">REINICIAR</button>
@@ -37,24 +38,73 @@
     <section class="game-frame" id="game-frame" aria-label="Área de juego Ciudad Cero">
       <canvas id="game" width="960" height="600"></canvas>
 
+      <!-- Panel de Objetivo / Misión -->
       <div class="mission" id="mission-box">
         <div class="mission-head">
-          <span class="mission-tag">OBJETIVO</span>
+          <span class="mission-tag" id="mission-tag">OBJETIVO</span>
+          <span class="mission-timer hidden" id="mission-timer">00s</span>
           <span class="mission-dist" id="mission-dist">0 m</span>
         </div>
         <strong id="mission-title">Llega al punto amarillo</strong>
         <small id="mission-help">Muévete con WASD, flechas o el joystick.</small>
       </div>
 
-      <div class="vehicle-hud hidden" id="vehicle-hud">
-        <span class="veh-model" id="veh-model">COUPÉ GT</span>
-        <strong class="veh-speed"><span id="veh-speed">0</span> <small>KM/H</small></strong>
+      <!-- Indicador de Búsqueda y Escape Policial -->
+      <div class="police-hud hidden" id="police-hud" data-state="sight">
+        <div class="police-hud-head">
+          <span class="police-siren-dot"></span>
+          <strong id="police-state-label">PERSECUCIÓN POLICIAL</strong>
+          <span class="police-units" id="police-units">1 UNIDAD</span>
+        </div>
+        <div class="escape-track">
+          <div class="escape-fill" id="escape-fill" style="width: 0%"></div>
+        </div>
+        <small id="police-state-help">Pierde de vista a las patrullas o usa un escondite.</small>
       </div>
 
+      <!-- Telemetría del vehículo actual -->
+      <div class="vehicle-hud hidden" id="vehicle-hud">
+        <span class="veh-model" id="veh-model">COUPÉ GT</span>
+        <div class="veh-metrics">
+          <span class="veh-hp-wrap" title="Estado del vehículo">
+            <span class="veh-hp-bar" id="veh-hp-bar" style="width: 100%"></span>
+          </span>
+          <strong class="veh-speed"><span id="veh-speed">0</span> <small>KM/H</small></strong>
+        </div>
+      </div>
+
+      <!-- Notificación flotante -->
       <div class="toast" id="toast">Explora Ciudad Cero</div>
+
+      <!-- Modal Interactivo de Garaje -->
+      <div class="garage-modal hidden" id="garage-modal" role="dialog" aria-modal="true" aria-labelledby="garage-modal-title">
+        <div class="garage-card">
+          <div class="garage-header">
+            <div>
+              <span class="garage-tag">TALLER &amp; DEPÓSITO VEHICULAR</span>
+              <h2 id="garage-modal-title">GARAJE CIUDAD CERO</h2>
+            </div>
+            <button type="button" class="hud-btn garage-close" id="btn-garage-close" aria-label="Cerrar garaje">✕ CERRAR</button>
+          </div>
+
+          <div class="garage-current" id="garage-current-box"></div>
+
+          <div class="garage-fleet-head">
+            <span>VEHÍCULOS GUARDADOS (<b id="garage-count">0/6</b>)</span>
+            <small>Selecciona, repara o recupera tus autos</small>
+          </div>
+
+          <div class="garage-list" id="garage-list"></div>
+        </div>
+      </div>
 
       <!-- Controles táctiles adaptativos (Android / iPhone) -->
       <div class="touch-layer" id="touch-layer" data-mode="foot" aria-hidden="false">
+        <button type="button" class="t-btn t-btn-garage hidden" id="btn-garage-touch" aria-label="Abrir garaje">
+          <span class="t-icon">🔧</span>
+          <span class="t-label">GARAJE</span>
+        </button>
+
         <!-- MODO A PIE -->
         <div class="touch-foot" id="touch-foot">
           <div class="joy-zone" id="joy-zone" aria-label="Joystick de movimiento">
@@ -89,10 +139,15 @@
           </div>
 
           <div class="drive-group">
-            <button type="button" class="t-btn t-btn-exit" id="btn-exit-car" aria-label="Salir del vehículo">
-              <span class="t-icon">🚪</span>
-              <span class="t-label">BAJAR</span>
-            </button>
+            <div class="car-top-actions">
+              <button type="button" class="t-btn t-btn-horn" id="btn-horn-car" aria-label="Bocina o sirena">
+                <span class="t-icon">📢</span>
+              </button>
+              <button type="button" class="t-btn t-btn-exit" id="btn-exit-car" aria-label="Salir del vehículo">
+                <span class="t-icon">🚪</span>
+                <span class="t-label">BAJAR</span>
+              </button>
+            </div>
             <div class="pedals">
               <button type="button" class="t-btn t-btn-brake" id="btn-brake" aria-label="Frenar o reversa">
                 <span class="t-icon">▼</span>
@@ -110,21 +165,23 @@
 
     <footer class="controls">
       <span><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Moverse / Conducir</span>
-      <span><kbd>E</kbd> Entrar / salir del vehículo</span>
+      <span><kbd>E</kbd> Subir / bajar del vehículo</span>
+      <span><kbd>G</kbd> Abrir Garaje (en zona de taller)</span>
       <span><kbd>Shift</kbd> Correr / Turbo</span>
-      <span><kbd>Espacio</kbd> Bocina / Freno de mano</span>
+      <span><kbd>Espacio</kbd> Bocina-Sirena / Freno mano</span>
       <span><kbd>R</kbd> Reiniciar</span>
     </footer>
-    <p class="note">Ciudad Cero v0.2 · Universo, código y gráficos originales · Compatible con PC, Android y iPhone.</p>
+    <p class="note">Ciudad Cero v0.3 · Sistema Policial, Persecuciones y Garajes · Compatible con PC, Android y iPhone.</p>
   </main>
 
-  <!-- Módulos ordenados (compatibles con file:// y GitHub Pages sin bundler) -->
   <script src="src/config.js"></script>
   <script src="src/audio.js"></script>
   <script src="src/input.js"></script>
   <script src="src/world.js"></script>
   <script src="src/entities.js"></script>
   <script src="src/physics.js"></script>
+  <script src="src/garage.js"></script>
+  <script src="src/police.js"></script>
   <script src="src/renderer.js"></script>
   <script src="src/ui.js"></script>
   <script src="src/game.js"></script>
