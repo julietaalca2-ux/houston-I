@@ -3,7 +3,6 @@ window.CiudadCero = window.CiudadCero || {};
 CiudadCero.Input = (() => {
   const keys = new Set();
 
-  // Estado táctil multi-dedo independiente
   const touch = {
     joyX: 0,
     joyY: 0,
@@ -15,11 +14,13 @@ CiudadCero.Input = (() => {
     brake: false
   };
 
-  let touchMode = 'auto'; // 'auto' | 'on' | 'off'
+  let touchMode = 'auto';
+  let blocked = false;
   let callbacks = {
     onEnterExit: null,
     onReset: null,
-    onHorn: null
+    onHorn: null,
+    onGarage: null
   };
 
   let dom = {};
@@ -53,6 +54,7 @@ CiudadCero.Input = (() => {
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       CiudadCero.Audio.unlock();
+      if (blocked) return;
       if (activePointer !== null) return;
       activePointer = e.pointerId;
       try { el.setPointerCapture(e.pointerId); } catch (_) {}
@@ -126,6 +128,7 @@ CiudadCero.Input = (() => {
     zone.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       CiudadCero.Audio.unlock();
+      if (blocked) return;
       if (pointerId !== null) return;
       pointerId = e.pointerId;
       touch.joyActive = true;
@@ -136,6 +139,10 @@ CiudadCero.Input = (() => {
     zone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
+      if (blocked) {
+        resetStick(e);
+        return;
+      }
       updateStick(e.clientX, e.clientY);
     });
 
@@ -160,10 +167,11 @@ CiudadCero.Input = (() => {
         btnSteerRight: document.getElementById('btn-steer-right'),
         btnGas: document.getElementById('btn-gas'),
         btnBrake: document.getElementById('btn-brake'),
-        btnExitCar: document.getElementById('btn-exit-car')
+        btnExitCar: document.getElementById('btn-exit-car'),
+        btnHornCar: document.getElementById('btn-horn-car'),
+        btnGarageTouch: document.getElementById('btn-garage-touch')
       };
 
-      // Teclado PC
       window.addEventListener('keydown', (e) => {
         const k = e.key.toLowerCase();
         if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) {
@@ -172,9 +180,14 @@ CiudadCero.Input = (() => {
         CiudadCero.Audio.unlock();
 
         if (!e.repeat) {
-          if (k === 'e' && callbacks.onEnterExit) callbacks.onEnterExit();
-          if (k === 'r' && callbacks.onReset) callbacks.onReset();
-          if (k === ' ' && callbacks.onHorn) callbacks.onHorn();
+          if (k === 'g' || k === 'escape') {
+            if (callbacks.onGarage) callbacks.onGarage(k === 'escape');
+          }
+          if (!blocked) {
+            if (k === 'e' && callbacks.onEnterExit) callbacks.onEnterExit();
+            if (k === 'r' && callbacks.onReset) callbacks.onReset();
+            if (k === ' ' && callbacks.onHorn) callbacks.onHorn();
+          }
         }
         keys.add(k);
       });
@@ -188,7 +201,6 @@ CiudadCero.Input = (() => {
         this.clearTouchState();
       });
 
-      // Evitar zoom/gestos accidentales en el contenedor de juego
       if (dom.gameFrame) {
         dom.gameFrame.addEventListener('contextmenu', (e) => e.preventDefault());
         dom.gameFrame.addEventListener('gesturestart', (e) => e.preventDefault());
@@ -203,14 +215,28 @@ CiudadCero.Input = (() => {
       bindHoldButton(dom.btnBrake, 'brake');
 
       bindTapButton(dom.btnEnterFoot, () => {
-        if (callbacks.onEnterExit) callbacks.onEnterExit();
+        if (!blocked && callbacks.onEnterExit) callbacks.onEnterExit();
       });
       bindTapButton(dom.btnExitCar, () => {
-        if (callbacks.onEnterExit) callbacks.onEnterExit();
+        if (!blocked && callbacks.onEnterExit) callbacks.onEnterExit();
+      });
+      bindTapButton(dom.btnHornCar, () => {
+        if (!blocked && callbacks.onHorn) callbacks.onHorn();
+      });
+      bindTapButton(dom.btnGarageTouch, () => {
+        if (callbacks.onGarage) callbacks.onGarage(false);
       });
 
       window.addEventListener('resize', updateTouchVisibility);
       updateTouchVisibility();
+    },
+
+    setBlocked(isBlocked) {
+      blocked = Boolean(isBlocked);
+      if (blocked) {
+        keys.clear();
+        this.clearTouchState();
+      }
     },
 
     clearTouchState() {
@@ -241,6 +267,12 @@ CiudadCero.Input = (() => {
       }
     },
 
+    setNearbyGarage(isNear) {
+      if (dom.btnGarageTouch) {
+        dom.btnGarageTouch.classList.toggle('hidden', !isNear);
+      }
+    },
+
     cycleTouchMode() {
       if (touchMode === 'auto') touchMode = 'on';
       else if (touchMode === 'on') touchMode = 'off';
@@ -256,6 +288,7 @@ CiudadCero.Input = (() => {
     },
 
     getFootInput() {
+      if (blocked) return { dx: 0, dy: 0, sprint: false };
       let dx = 0;
       let dy = 0;
       if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
@@ -279,6 +312,9 @@ CiudadCero.Input = (() => {
     },
 
     getCarInput() {
+      if (blocked) {
+        return { throttle: 0, brake: 0, steer: 0, turbo: false, handbrake: false };
+      }
       const throttle =
         keys.has('w') || keys.has('arrowup') || touch.gas ? 1 : 0;
       const brake =
