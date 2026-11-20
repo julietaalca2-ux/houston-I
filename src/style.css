@@ -8,6 +8,9 @@
   --lime: #d6f36a;
   --amber: #f5d94b;
   --danger: #e25845;
+  --police-red: #ff3b30;
+  --police-blue: #3898ff;
+  --stealth: #4de0b5;
   --muted: #9ba99b;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
@@ -68,13 +71,13 @@ body {
 .hud-right {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .stats {
   display: flex;
-  gap: 18px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
@@ -90,14 +93,26 @@ body {
   color: #fff;
 }
 
-.stats span:last-child b {
+.wanted-stars {
   color: var(--lime);
   letter-spacing: 2px;
+}
+
+.wanted-stars.active-alert {
+  color: var(--amber);
+  text-shadow: 0 0 8px rgba(255, 59, 48, 0.75);
+  animation: pulseStars 0.9s infinite alternate;
+}
+
+@keyframes pulseStars {
+  from { color: #ff594d; }
+  to { color: #54a8ff; }
 }
 
 .quick-actions {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .hud-btn {
@@ -122,6 +137,12 @@ body {
   color: var(--lime);
 }
 
+.hud-btn.garage-ready {
+  border-color: var(--amber);
+  background: #2f2c19;
+  color: var(--amber);
+}
+
 /* GAME STAGE */
 .game-frame {
   position: relative;
@@ -144,18 +165,22 @@ canvas#game {
   touch-action: none;
 }
 
+.hidden {
+  display: none !important;
+}
+
 /* MISSION BOX */
 .mission {
   position: absolute;
   left: 14px;
   top: 14px;
-  background: rgba(16, 23, 18, 0.9);
+  background: rgba(16, 23, 18, 0.92);
   border: 1px solid #81905d;
   padding: 8px 12px;
   display: grid;
   gap: 3px;
   min-width: 215px;
-  max-width: 290px;
+  max-width: 295px;
   box-shadow: 0 5px 18px #0007;
   pointer-events: none;
   border-radius: 3px;
@@ -171,8 +196,17 @@ canvas#game {
 
 .mission-tag {
   font-size: 9px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   color: var(--lime);
+}
+
+.mission-timer {
+  font-size: 10px;
+  background: rgba(226, 88, 69, 0.25);
+  border: 1px solid var(--danger);
+  color: #ffd3cc;
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
 .mission-dist {
@@ -192,32 +226,142 @@ canvas#game {
   line-height: 1.3;
 }
 
-/* VEHICLE HUD (SPEEDOMETER) */
+/* POLICE SEARCH & ESCAPE HUD */
+.police-hud {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  background: rgba(14, 19, 22, 0.93);
+  border: 1px solid #53718d;
+  padding: 7px 12px;
+  min-width: 245px;
+  max-width: 320px;
+  border-radius: 4px;
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  display: grid;
+  gap: 4px;
+}
+
+.police-hud[data-state="sight"] {
+  border-color: var(--police-red);
+}
+
+.police-hud[data-state="searching"] {
+  border-color: var(--amber);
+}
+
+.police-hud[data-state="hidden"] {
+  border-color: var(--stealth);
+}
+
+.police-hud-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+}
+
+.police-siren-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--police-red);
+  flex-shrink: 0;
+  animation: sirenBlink 0.45s infinite alternate;
+}
+
+.police-hud[data-state="searching"] .police-siren-dot {
+  background: var(--amber);
+  animation: none;
+}
+
+.police-hud[data-state="hidden"] .police-siren-dot {
+  background: var(--stealth);
+  animation: none;
+}
+
+@keyframes sirenBlink {
+  from { background: var(--police-red); box-shadow: 0 0 8px var(--police-red); }
+  to { background: var(--police-blue); box-shadow: 0 0 8px var(--police-blue); }
+}
+
+.police-hud-head strong {
+  font: 700 13px/1 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.05em;
+  color: #fff;
+}
+
+.police-units {
+  margin-left: auto;
+  font-size: 9px;
+  color: #b7c8d6;
+}
+
+.escape-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.escape-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber), var(--stealth));
+  transition: width 0.12s linear;
+}
+
+.police-hud small {
+  font-size: 9px;
+  color: #c2cfd6;
+}
+
+/* VEHICLE HUD (SPEEDOMETER + HP) */
 .vehicle-hud {
   position: absolute;
   right: 14px;
   top: 118px;
-  background: rgba(16, 23, 18, 0.88);
+  background: rgba(16, 23, 18, 0.9);
   border: 1px solid #566855;
   padding: 6px 10px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
+  gap: 4px;
   pointer-events: none;
   border-radius: 3px;
   z-index: 4;
-  min-width: 130px;
-}
-
-.vehicle-hud.hidden {
-  display: none;
+  min-width: 136px;
 }
 
 .veh-model {
   font-size: 9px;
   letter-spacing: 0.14em;
   color: var(--lime);
+}
+
+.veh-metrics {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.veh-hp-wrap {
+  width: 44px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.veh-hp-bar {
+  display: block;
+  height: 100%;
+  background: var(--lime);
+  transition: width 0.15s, background 0.15s;
 }
 
 .veh-speed {
@@ -235,9 +379,9 @@ canvas#game {
 .toast {
   position: absolute;
   left: 50%;
-  top: 14px;
+  bottom: 18px;
   transform: translateX(-50%);
-  background: rgba(16, 22, 16, 0.94);
+  background: rgba(16, 22, 16, 0.95);
   border: 1px solid var(--lime);
   color: #f4f8ee;
   padding: 7px 14px;
@@ -247,12 +391,179 @@ canvas#game {
   pointer-events: none;
   white-space: nowrap;
   border-radius: 3px;
-  z-index: 6;
+  z-index: 7;
   box-shadow: 0 6px 20px #0008;
 }
 
 .toast.show {
   opacity: 1;
+}
+
+/* GARAGE MODAL */
+.garage-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 12, 10, 0.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  pointer-events: auto;
+}
+
+.garage-card {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92%;
+  background: #161f18;
+  border: 1px solid #6b7d63;
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+  overflow-y: auto;
+}
+
+.garage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid #2e3b30;
+  padding-bottom: 8px;
+}
+
+.garage-tag {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--amber);
+}
+
+.garage-header h2 {
+  font: 800 26px/1 'Barlow Condensed', sans-serif;
+  margin: 2px 0 0;
+  letter-spacing: 0.04em;
+}
+
+.garage-current {
+  background: #1f2b22;
+  border: 1px solid #3f5041;
+  border-radius: 4px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.garage-current-info {
+  display: grid;
+  gap: 3px;
+}
+
+.garage-current-info strong {
+  font: 700 16px/1.1 'Barlow Condensed', sans-serif;
+  color: #fff;
+}
+
+.garage-current-info small {
+  font-size: 10px;
+  color: #b8c5b5;
+}
+
+.garage-current-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.g-btn {
+  background: #273729;
+  border: 1px solid var(--lime);
+  color: #f3f8ee;
+  font: 600 11px 'DM Mono', monospace;
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.g-btn:hover {
+  background: #364d39;
+}
+
+.g-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.g-btn-amber {
+  border-color: var(--amber);
+  background: #332e18;
+  color: #fff4c2;
+}
+
+.garage-fleet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.garage-list {
+  display: grid;
+  gap: 8px;
+}
+
+.garage-slot {
+  background: #1c261e;
+  border: 1px solid #354437;
+  border-radius: 4px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.garage-slot-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.garage-slot-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.garage-slot-meta strong {
+  font: 700 15px/1 'Barlow Condensed', sans-serif;
+}
+
+.garage-slot-meta small {
+  font-size: 10px;
+  color: #a9b8a7;
+}
+
+.garage-slot-btns {
+  display: flex;
+  gap: 6px;
 }
 
 /* TOUCH CONTROLS LAYER */
@@ -285,7 +596,6 @@ canvas#game {
   display: block;
 }
 
-/* Virtual Joystick (Left) */
 .joy-zone {
   position: absolute;
   left: calc(14px + var(--safe-left));
@@ -323,14 +633,13 @@ canvas#game {
   will-change: transform;
 }
 
-/* Touch Action Buttons */
 .t-btn {
   pointer-events: auto;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   border: 2px solid rgba(214, 243, 106, 0.5);
-  background: rgba(18, 26, 20, 0.72);
+  background: rgba(18, 26, 20, 0.74);
   color: #f3f7ee;
   border-radius: 14px;
   display: flex;
@@ -364,7 +673,26 @@ canvas#game {
   color: #fff;
 }
 
-/* Foot Right Buttons */
+.t-btn-garage {
+  position: absolute;
+  left: 50%;
+  bottom: calc(22px + var(--safe-bottom));
+  transform: translateX(-50%);
+  width: 96px;
+  height: 48px;
+  border-radius: 12px;
+  border-color: var(--amber);
+  background: rgba(45, 40, 18, 0.88);
+  flex-direction: row;
+  gap: 6px;
+  box-shadow: 0 0 20px rgba(245, 217, 75, 0.4);
+}
+
+.t-btn-garage:active,
+.t-btn-garage.pressed {
+  transform: translateX(-50%) scale(0.94);
+}
+
 .foot-actions {
   position: absolute;
   right: calc(16px + var(--safe-right));
@@ -394,7 +722,6 @@ canvas#game {
   box-shadow: 0 0 18px rgba(245, 217, 75, 0.45);
 }
 
-/* Car Steering Buttons (Left) */
 .steer-group {
   position: absolute;
   left: calc(16px + var(--safe-left));
@@ -410,7 +737,6 @@ canvas#game {
   border-radius: 16px;
 }
 
-/* Car Pedals & Exit (Right) */
 .drive-group {
   position: absolute;
   right: calc(16px + var(--safe-right));
@@ -420,6 +746,19 @@ canvas#game {
   align-items: flex-end;
   gap: 10px;
   pointer-events: none;
+}
+
+.car-top-actions {
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.t-btn-horn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border-color: rgba(130, 178, 224, 0.6);
 }
 
 .t-btn-exit {
@@ -458,7 +797,6 @@ canvas#game {
   border-color: rgba(214, 243, 106, 0.7);
 }
 
-/* DESKTOP CONTROLS FOOTER */
 .controls {
   display: flex;
   gap: 16px;
@@ -482,7 +820,6 @@ kbd {
   margin: 6px 0 0;
 }
 
-/* MOBILE & TABLET FULLSCREEN ADAPTATION (PORTRAIT & LANDSCAPE) */
 @media (max-width: 900px), (max-height: 560px) {
   body {
     padding: 0;
@@ -517,7 +854,7 @@ kbd {
   }
 
   .topbar h1 {
-    font-size: 22px;
+    font-size: 21px;
   }
 
   .hud-right {
@@ -526,7 +863,7 @@ kbd {
   }
 
   .stats {
-    gap: 10px;
+    gap: 9px;
   }
 
   .stats span {
@@ -561,8 +898,8 @@ kbd {
   .mission {
     left: 8px;
     top: 8px;
-    min-width: 155px;
-    max-width: 210px;
+    min-width: 150px;
+    max-width: 205px;
     padding: 6px 9px;
   }
 
@@ -574,10 +911,18 @@ kbd {
     font-size: 9px;
   }
 
+  .police-hud {
+    top: auto;
+    bottom: calc(144px + var(--safe-bottom));
+    min-width: 210px;
+    max-width: 260px;
+    padding: 5px 9px;
+  }
+
   .vehicle-hud {
     right: 8px;
     top: 104px;
-    min-width: 108px;
+    min-width: 112px;
     padding: 4px 8px;
   }
 
@@ -586,20 +931,18 @@ kbd {
   }
 
   .toast {
-    top: auto;
-    bottom: calc(140px + var(--safe-bottom));
+    bottom: calc(195px + var(--safe-bottom));
     font-size: 10px;
     padding: 5px 10px;
   }
 }
 
-/* Extra-compact portrait phones (e.g., iPhone SE / narrow Android) */
 @media (max-width: 480px) and (orientation: portrait) {
   .topbar h1 {
-    font-size: 19px;
+    font-size: 18px;
   }
   .stats {
-    gap: 7px;
+    gap: 6px;
   }
   .joy-zone {
     width: 132px;
@@ -622,5 +965,8 @@ kbd {
   .t-btn-brake {
     width: 60px;
     height: 76px;
+  }
+  .t-btn-garage {
+    bottom: calc(114px + var(--safe-bottom));
   }
 }
