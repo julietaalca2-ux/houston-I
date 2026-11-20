@@ -308,7 +308,11 @@ CiudadCero.UI = (() => {
     }
     dom.dialogueBox.classList.remove('hidden');
     if (dom.dialogueAvatar) {
-      dom.dialogueAvatar.textContent = line.speakerName.charAt(0).toUpperCase();
+      if (CiudadCero.Characters && CiudadCero.Characters.getPortraitSVG) {
+        dom.dialogueAvatar.innerHTML = CiudadCero.Characters.getPortraitSVG(line.speakerId, 44);
+      } else {
+        dom.dialogueAvatar.textContent = line.speakerName.charAt(0).toUpperCase();
+      }
       dom.dialogueAvatar.style.borderColor = line.speakerColor;
       dom.dialogueAvatar.style.color = line.speakerColor;
     }
@@ -422,7 +426,7 @@ CiudadCero.UI = (() => {
     }
 
     const sectionTitles = {
-      hub: { tag: 'CIUDAD CERO · v0.5 · PANTALLA COMPLETA', title: 'MENÚ DEL JUEGO' },
+      hub: { tag: 'CIUDAD CERO · v0.6 · PANTALLA COMPLETA', title: 'MENÚ DEL JUEGO' },
       partida: { tag: 'SECCIÓN · GESTIÓN DE PROGRESO', title: 'PARTIDA Y GUARDADO' },
       sonido: { tag: 'SECCIÓN · AUDIO DEL JUEGO', title: 'SONIDO Y MÚSICA' },
       controles: { tag: 'SECCIÓN · ERGONOMÍA MÓVIL Y TÁCTIL', title: 'CONTROLES TÁCTILES' },
@@ -1245,17 +1249,23 @@ CiudadCero.UI = (() => {
         dom.storyBody.appendChild(card);
       });
     } else if (currentStoryTab === 'characters') {
+      const getPortrait = (id, sz) =>
+        CiudadCero.Characters && CiudadCero.Characters.getPortraitSVG
+          ? CiudadCero.Characters.getPortraitSVG(id, sz)
+          : id.charAt(0).toUpperCase();
+
       const p = CiudadCero.Config.PROTAGONIST;
       const pCard = document.createElement('div');
       pCard.className = 'char-card protagonist-card';
       pCard.innerHTML = `
         <div class="char-head">
-          <span class="char-avatar" style="border-color:${p.color};color:${p.color}">M</span>
+          <span class="char-avatar" style="border-color:${p.color};color:${p.color}">${getPortrait(p.id, 42)}</span>
           <div>
             <strong>${p.name}</strong>
             <small>${p.role} · ${p.age} · ${p.origin}</small>
           </div>
         </div>
+        ${p.appearance ? `<p><b>Apariencia:</b> ${p.appearance}</p>` : ''}
         <p><b>Personalidad:</b> ${p.personality}</p>
         <p><b>Pasado:</b> ${p.backstory}</p>
         <p><b>Motivación:</b> ${p.motivation}</p>
@@ -1269,12 +1279,13 @@ CiudadCero.UI = (() => {
         cCard.className = 'char-card';
         cCard.innerHTML = `
           <div class="char-head">
-            <span class="char-avatar" style="border-color:${c.color};color:${c.color}">${c.name.charAt(0)}</span>
+            <span class="char-avatar" style="border-color:${c.color};color:${c.color}">${getPortrait(c.id, 42)}</span>
             <div>
               <strong>${c.name}</strong>
               <small>${c.role}</small>
             </div>
           </div>
+          ${c.appearance ? `<p><b>Apariencia:</b> ${c.appearance}</p>` : ''}
           <p><b>Personalidad:</b> ${c.personality}</p>
           <p>${c.bio}</p>
         `;

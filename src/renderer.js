@@ -3,6 +3,7 @@ window.CiudadCero = window.CiudadCero || {};
 CiudadCero.Renderer = (() => {
   const Config = CiudadCero.Config;
   const World = CiudadCero.World;
+  const Characters = CiudadCero.Characters;
   const wCfg = Config.WORLD;
 
   // 4-quadrant offscreen cache (2400x1800 each) for maximum mobile Safari/Android GPU safety
@@ -451,6 +452,21 @@ CiudadCero.Renderer = (() => {
     });
   }
 
+  function addFootstepDust(x, y) {
+    if (!highQuality) return;
+    if (particles.length > 110) particles.shift();
+    particles.push({
+      type: 'dust',
+      x: x + (Math.random() - 0.5) * 5,
+      y: y + (Math.random() - 0.5) * 5,
+      vx: (Math.random() - 0.5) * 10,
+      vy: (Math.random() - 0.5) * 10,
+      radius: 2.2 + Math.random() * 1.5,
+      alpha: 0.28,
+      life: 0.30
+    });
+  }
+
   function updateEffects(dt, vehicles) {
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
@@ -468,6 +484,11 @@ CiudadCero.Renderer = (() => {
         p.y += p.vy * dt;
         p.radius += dt * 9;
         p.alpha = p.life * 0.75;
+      } else if (p.type === 'dust') {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.radius += dt * 5.5;
+        p.alpha = p.life * 0.85;
       } else {
         p.alpha = p.life * 0.45;
       }
@@ -549,7 +570,7 @@ CiudadCero.Renderer = (() => {
     }
   }
 
-  function drawVehicle(ctx, v, now) {
+  function drawVehicle(ctx, v, now, isPlayerDriver = false) {
     ctx.save();
     ctx.translate(v.x, v.y);
     ctx.rotate(v.angle);
@@ -559,6 +580,21 @@ CiudadCero.Renderer = (() => {
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.36)';
     ctx.fillRect(-hl + 3, -hw + 4, v.length, v.width);
+
+    // Animated driver-side door swing on enter/exit
+    if (v.doorAnim && v.doorAnim.timer > 0) {
+      const progress = 1 - v.doorAnim.timer / (v.doorAnim.duration || 0.35);
+      const swingAngle = -Math.sin(Math.max(0, Math.min(1, progress)) * Math.PI) * 0.78;
+      ctx.save();
+      ctx.translate(hl * 0.16, -hw);
+      ctx.rotate(swingAngle);
+      ctx.fillStyle = v.isPolice ? '#f2f6fa' : v.color;
+      ctx.strokeStyle = '#141915';
+      ctx.lineWidth = 1.2;
+      ctx.fillRect(-v.length * 0.32, -2.2, v.length * 0.32, 2.4);
+      ctx.strokeRect(-v.length * 0.32, -2.2, v.length * 0.32, 2.4);
+      ctx.restore();
+    }
 
     if (v.isPolice) {
       ctx.fillStyle = v.color || '#141c24';
@@ -642,6 +678,10 @@ CiudadCero.Renderer = (() => {
       }
     }
 
+    if (Characters && Characters.drawVehicleOccupant) {
+      Characters.drawVehicleOccupant(ctx, v, isPlayerDriver);
+    }
+
     ctx.strokeStyle = v.isChaseTarget
       ? '#ff3b30'
       : v.isMissionTarget
@@ -682,72 +722,13 @@ CiudadCero.Renderer = (() => {
     }
   }
 
-  function drawPedestrian(ctx, p) {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-
-    if (p.knockTimer > 0) {
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath();
-      ctx.ellipse(0, 2, 10, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = p.shirt;
-      ctx.fillRect(-8, -4, 16, 8);
-      ctx.fillStyle = p.hair;
-      ctx.beginPath();
-      ctx.arc(7, 0, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      return;
+  function drawPedestrian(ctx, p, now) {
+    if (Characters && Characters.drawPedestrianCharacter) {
+      Characters.drawPedestrianCharacter(ctx, p, now, highQuality);
     }
-
-    ctx.rotate(p.angle);
-    const swing = Math.sin(p.walkPhase) * 2.6;
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-    ctx.beginPath();
-    ctx.arc(1.5, 2, p.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#252b27';
-    ctx.beginPath();
-    ctx.arc(swing, -3.5, 2.4, 0, Math.PI * 2);
-    ctx.arc(-swing, 3.5, 2.4, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = p.shirt;
-    ctx.beginPath();
-    ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (p.hasBag) {
-      ctx.fillStyle = '#f5d94b';
-      ctx.fillRect(-1, 5.5, 4, 3);
-    }
-
-    if (p.hatType === 'hardhat') {
-      ctx.fillStyle = '#facc15';
-      ctx.beginPath();
-      ctx.arc(1.0, 0, 4.8, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (p.hatType === 'cap') {
-      ctx.fillStyle = '#3898ff';
-      ctx.beginPath();
-      ctx.arc(0.8, 0, 4.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillRect(2, -2.5, 4, 5);
-    } else {
-      ctx.fillStyle = p.hair;
-      ctx.beginPath();
-      ctx.arc(1.2, 0, 4.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
   }
 
-  function drawStoryNPCs(ctx, npcs, activeMission, now) {
+  function drawStoryNPCs(ctx, npcs, player, activeMission, now) {
     if (!Array.isArray(npcs)) return;
     for (let i = 0; i < npcs.length; i++) {
       const npc = npcs[i];
@@ -755,43 +736,14 @@ CiudadCero.Renderer = (() => {
         activeMission &&
         (activeMission.npcId === npc.id ||
           (activeMission.stage === 'pickup' && activeMission.pickupNpcId === npc.id));
+      const isNearby =
+        player &&
+        !player.inCar &&
+        Math.hypot(npc.x - player.x, npc.y - player.y) < Config.PLAYER.talkRadius;
 
-      const ringR = 16 + Math.sin(now / 240 + i) * 3;
-      ctx.save();
-      ctx.strokeStyle = isMissionTargetNpc ? '#f5d94b' : (npc.color || '#6cb2d1');
-      ctx.lineWidth = isMissionTargetNpc ? 2.2 : 1.4;
-      ctx.beginPath();
-      ctx.arc(npc.x, npc.y, ringR, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.beginPath();
-      ctx.arc(npc.x + 2, npc.y + 2, npc.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = npc.shirt || '#f5d94b';
-      ctx.beginPath();
-      ctx.arc(npc.x, npc.y, npc.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = '#121713';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      ctx.fillStyle = npc.hair || '#222';
-      ctx.beginPath();
-      ctx.arc(npc.x, npc.y - 1.5, 5, 0, Math.PI * 2);
-      ctx.fill();
-
-      const shortName = npc.name.split(' ')[0];
-      ctx.font = 'bold 10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(12, 17, 14, 0.85)';
-      ctx.fillRect(npc.x - 32, npc.y - 29, 64, 13);
-      ctx.fillStyle = isMissionTargetNpc ? '#f5d94b' : '#e6f0e4';
-      ctx.fillText(isMissionTargetNpc ? `! ${shortName}` : shortName, npc.x, npc.y - 19);
-
-      ctx.restore();
+      if (Characters && Characters.drawStoryNPCCharacter) {
+        Characters.drawStoryNPCCharacter(ctx, npc, isMissionTargetNpc, isNearby, now, highQuality);
+      }
     }
   }
 
@@ -804,45 +756,15 @@ CiudadCero.Renderer = (() => {
         ? `A BORDO: ${missionInfo.passengerName || 'PASAJERO'}`
         : 'PAQUETE EN POSESIÓN';
       ctx.fillStyle = 'rgba(14, 20, 16, 0.88)';
-      ctx.fillRect(player.x - 62, player.y - 34, 124, 13);
+      ctx.fillRect(player.x - 62, player.y - 36, 124, 13);
       ctx.fillStyle = '#4de0b5';
-      ctx.fillText(label, player.x, player.y - 24);
+      ctx.fillText(label, player.x, player.y - 26);
       ctx.restore();
     }
 
-    if (player.inCar) return;
-    ctx.save();
-    ctx.translate(player.x, player.y);
-    ctx.rotate(player.angle);
-
-    const swing = Math.sin(player.walkPhase) * 3.2;
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';
-    ctx.beginPath();
-    ctx.arc(2, 2.5, player.radius + 1, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#1e2420';
-    ctx.beginPath();
-    ctx.arc(swing, -4.5, 3, 0, Math.PI * 2);
-    ctx.arc(-swing, 4.5, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#d6f36a';
-    ctx.beginPath();
-    ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = '#151b16';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.fillStyle = '#1c201d';
-    ctx.beginPath();
-    ctx.arc(2, 0, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
+    if (Characters && Characters.drawPlayerCharacter) {
+      Characters.drawPlayerCharacter(ctx, player, highQuality);
+    }
   }
 
   function drawRoadblocks(ctx, roadblocks, now) {
@@ -1302,6 +1224,11 @@ CiudadCero.Renderer = (() => {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fill();
+      } else if (p.type === 'dust') {
+        ctx.fillStyle = `rgba(195, 202, 185, ${p.alpha.toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
       } else {
         ctx.fillStyle = `rgba(255, 214, 92, ${p.alpha.toFixed(2)})`;
         ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
@@ -1328,7 +1255,7 @@ CiudadCero.Renderer = (() => {
       drawRoadblocks(ctx, state.roadblocks, now);
     }
 
-    drawStoryNPCs(ctx, state.npcs, state.mission, now);
+    drawStoryNPCs(ctx, state.npcs, state.player, state.mission, now);
 
     const pad = 80;
     for (let i = 0; i < state.pedestrians.length; i++) {
@@ -1339,7 +1266,7 @@ CiudadCero.Renderer = (() => {
       ) {
         continue;
       }
-      drawPedestrian(ctx, p);
+      drawPedestrian(ctx, p, now);
     }
 
     drawPlayer(ctx, state.player, state.missionInfo);
@@ -1352,7 +1279,7 @@ CiudadCero.Renderer = (() => {
       ) {
         continue;
       }
-      drawVehicle(ctx, v, now);
+      drawVehicle(ctx, v, now, v === state.player.vehicle);
     }
 
     ctx.restore();
@@ -1388,6 +1315,7 @@ CiudadCero.Renderer = (() => {
     setShowMinimap,
     addSkidParticle,
     addSparkParticles,
+    addFootstepDust,
     updateEffects,
     render,
     renderFullMap

@@ -4,6 +4,7 @@ CiudadCero.Game = (() => {
   const Config = CiudadCero.Config;
   const World = CiudadCero.World;
   const Entities = CiudadCero.Entities;
+  const Characters = CiudadCero.Characters;
   const Physics = CiudadCero.Physics;
   const Input = CiudadCero.Input;
   const Renderer = CiudadCero.Renderer;
@@ -109,6 +110,10 @@ CiudadCero.Game = (() => {
     for (let i = 0; i < Config.TRAFFIC.targetPedestrians; i++) {
       state.pedestrians.push(Entities.createPedestrian());
     }
+    const footOfficers = Entities.createFootPolicePatrols();
+    for (let i = 0; i < footOfficers.length; i++) {
+      state.pedestrians.push(footOfficers[i]);
+    }
   }
 
   function startFreshGame(playIntro = true) {
@@ -142,7 +147,7 @@ CiudadCero.Game = (() => {
     Input.setMode(false);
     updateCamera(1);
     UI.renderDialogue(Story.getCurrentDialogueLine());
-    UI.showToast('Ciudad Cero v0.5 · Expansión Urbana (6 Barrios)');
+    UI.showToast('Ciudad Cero v0.6 · Rediseño Visual de Personajes y NPC');
   }
 
   function loadOrInitGame(isManualLoad = false) {
@@ -261,9 +266,20 @@ CiudadCero.Game = (() => {
     if (p.inCar && p.vehicle) {
       const v = p.vehicle;
       const exitPos = Physics.findSafeExitSpot(v, state.vehicles);
+      p.enterExitAnim = {
+        timer: 0.22,
+        duration: 0.22,
+        fromX: v.x,
+        fromY: v.y,
+        toX: exitPos.x,
+        toY: exitPos.y,
+        entering: false
+      };
+      v.doorAnim = { timer: 0.36, duration: 0.36 };
       p.x = exitPos.x;
       p.y = exitPos.y;
       p.angle = v.angle;
+      p.visualAngle = v.angle;
       p.inCar = false;
       p.vehicle = null;
       v.brakeLights = false;
@@ -280,6 +296,16 @@ CiudadCero.Game = (() => {
       return;
     }
 
+    p.enterExitAnim = {
+      timer: 0.20,
+      duration: 0.20,
+      fromX: p.x,
+      fromY: p.y,
+      toX: nearCar.x,
+      toY: nearCar.y,
+      entering: true
+    };
+    nearCar.doorAnim = { timer: 0.36, duration: 0.36 };
     p.inCar = true;
     p.vehicle = nearCar;
     p.x = nearCar.x;
@@ -1020,7 +1046,11 @@ CiudadCero.Game = (() => {
       if (ped.knockTimer > 0) continue;
 
       if (threat || ped.panicTimer > 0) {
+        if (ped.panicTimer <= 0.08 && ped.alertIconTimer <= 0) {
+          ped.alertIconTimer = 0.95;
+        }
         if (ped.panicTimer > 0) ped.panicTimer -= dt;
+        ped.pausedTimer = 0;
         const fleeFrom = threat || p;
         const fleeAngle = Math.atan2(ped.y - fleeFrom.y, ped.x - fleeFrom.x);
         ped.angle = fleeAngle;
@@ -1031,22 +1061,33 @@ CiudadCero.Game = (() => {
           ped.radius
         );
         ped.walkPhase += dt * 15;
+      } else if (ped.isPoliceFoot && Police.state.wanted > 0 && Math.hypot(p.x - ped.x, p.y - ped.y) < 250) {
+        // Foot officer spots wanted player and tracks visually
+        ped.angle = Math.atan2(p.y - ped.y, p.x - ped.x);
+        if (ped.alertIconTimer <= 0) ped.alertIconTimer = 0.65;
       } else {
-        const target = ped.loop[ped.targetIdx];
-        const dx = target.x - ped.x;
-        const dy = target.y - ped.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < 10) {
-          ped.targetIdx = (ped.targetIdx + ped.loopDir + ped.loop.length) % ped.loop.length;
+        if (ped.pausedTimer > 0) {
+          ped.pausedTimer -= dt;
         } else {
-          ped.angle = Math.atan2(dy, dx);
-          Physics.moveCircleEntity(
-            ped,
-            Math.cos(ped.angle) * ped.speed * dt,
-            Math.sin(ped.angle) * ped.speed * dt,
-            ped.radius
-          );
-          ped.walkPhase += dt * 8;
+          const target = ped.loop[ped.targetIdx];
+          const dx = target.x - ped.x;
+          const dy = target.y - ped.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 10) {
+            ped.targetIdx = (ped.targetIdx + ped.loopDir + ped.loop.length) % ped.loop.length;
+            if (!ped.isPoliceFoot && Math.random() < 0.22) {
+              ped.pausedTimer = 0.8 + Math.random() * 1.3;
+            }
+          } else {
+            ped.angle = Math.atan2(dy, dx);
+            Physics.moveCircleEntity(
+              ped,
+              Math.cos(ped.angle) * ped.speed * dt,
+              Math.sin(ped.angle) * ped.speed * dt,
+              ped.radius
+            );
+            ped.walkPhase += dt * 8;
+          }
         }
       }
     }
@@ -1185,6 +1226,9 @@ CiudadCero.Game = (() => {
     Story.update(dt, getStoryContext());
     UI.renderDialogue(Story.getCurrentDialogueLine());
 
+    if (Characters && Characters.updateVisuals) {
+      Characters.updateVisuals(dt, state, (dx, dy) => Renderer.addFootstepDust(dx, dy));
+    }
     Renderer.updateEffects(dt, state.vehicles);
     updateCamera(dt);
 

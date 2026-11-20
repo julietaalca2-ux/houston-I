@@ -7,6 +7,9 @@ CiudadCero.Entities = (() => {
   let nextVehicleId = 1;
   let nextPedId = 1;
 
+  const SKIN_POOL = ['#edd0b4', '#dfb08a', '#cfa078', '#bd835b', '#8c583a'];
+  const HAIR_POOL = ['#1c1f24', '#2e211b', '#4a2c1d', '#5c4938', '#382a24', '#69645e'];
+
   function randomItem(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
   }
@@ -16,11 +19,15 @@ CiudadCero.Entities = (() => {
       x: Config.PLAYER.startX,
       y: Config.PLAYER.startY,
       angle: 0,
+      visualAngle: 0,
       speed: 0,
       radius: Config.PLAYER.radius,
       inCar: false,
       vehicle: null,
-      walkPhase: 0
+      walkPhase: 0,
+      idlePhase: 0,
+      enterExitAnim: null,
+      lastStepBucket: 0
     };
   }
 
@@ -76,7 +83,8 @@ CiudadCero.Entities = (() => {
       aiDir: opts.aiDir || 1,
       aiLanePos: opts.aiLanePos || 408,
       turnCooldown: 1.5,
-      stunTimer: 0
+      stunTimer: 0,
+      doorAnim: null
     };
   }
 
@@ -176,71 +184,172 @@ CiudadCero.Entities = (() => {
     return bestCandidate;
   }
 
-  function createPedestrian() {
-    const loop = randomItem(World.sidewalkNodes);
+  function buildCitizenLook(dId, forcePolice = false) {
+    const skin = randomItem(SKIN_POOL);
+    const hair = randomItem(HAIR_POOL);
+
+    if (forcePolice) {
+      return {
+        role: 'police_foot',
+        isPoliceFoot: true,
+        shirt: '#1a2b3c',
+        hair,
+        skin,
+        visualProfile: {
+          shoulderW: 17.0,
+          torsoDepth: 9.0,
+          headR: 4.7,
+          skin,
+          torsoPrimary: '#1a2b3c',
+          torsoSecondary: '#111c28',
+          accent: '#3898ff',
+          trim: '#cfd9e3',
+          sleeve: '#1a2b3c',
+          glove: '#161b20',
+          shoe: '#121518',
+          hairColor: hair,
+          hairStyle: 'short_crop',
+          outfitStyle: 'police_uniform',
+          hatType: 'police_cap',
+          accessory: 'radio'
+        }
+      };
+    }
+
+    const districtArchetypes = {
+      centro: [
+        { role: 'executive', shirt: '#2b3a4a', sec: '#1b2631', outfit: 'suit', hairStyle: 'slick_part', hat: 'none', acc: 'briefcase', w: 16.4 },
+        { role: 'executive', shirt: '#495867', sec: '#333e4a', outfit: 'suit', hairStyle: 'bun', hat: 'none', acc: 'briefcase', w: 15.2 },
+        { role: 'executive', shirt: '#5c6b73', sec: '#3d484e', outfit: 'suit', hairStyle: 'short_crop', hat: 'none', acc: 'none', w: 16.0 }
+      ],
+      industrial: [
+        { role: 'worker', shirt: '#e68a3e', sec: '#2d3748', outfit: 'hi_vis_vest', hairStyle: 'short_crop', hat: 'hardhat', hatColor: '#facc15', acc: 'clipboard', w: 17.6 },
+        { role: 'worker', shirt: '#a3e635', sec: '#334155', outfit: 'hi_vis_vest', hairStyle: 'short_crop', hat: 'hardhat', hatColor: '#f8fafc', acc: 'box', w: 17.4 },
+        { role: 'worker', shirt: '#4a6670', sec: '#2d3e45', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'cap', hatColor: '#2b3a4a', acc: 'none', w: 16.8 }
+      ],
+      portuaria: [
+        { role: 'worker', shirt: '#d97724', sec: '#24394a', outfit: 'hi_vis_vest', hairStyle: 'short_crop', hat: 'hardhat', hatColor: '#facc15', acc: 'box', w: 17.8 },
+        { role: 'worker', shirt: '#3b6d8c', sec: '#234257', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'cap', hatColor: '#1e3a5f', acc: 'clipboard', w: 17.0 },
+        { role: 'worker', shirt: '#52796f', sec: '#2f4741', outfit: 'casual_hoodie', hairStyle: 'bun', hat: 'none', acc: 'backpack', w: 15.8 }
+      ],
+      comercial: [
+        { role: 'shopper', shirt: '#e07a5f', sec: '#a8523b', outfit: 'casual_jacket', hairStyle: 'long_hair', hat: 'none', acc: 'shopping_bag', w: 15.0 },
+        { role: 'shopper', shirt: '#9b8ec4', sec: '#6c5f94', outfit: 'casual_jacket', hairStyle: 'ponytail', hat: 'none', acc: 'shopping_bag', w: 15.2 },
+        { role: 'shopper', shirt: '#4ea8de', sec: '#2b6cb0', outfit: 'casual_hoodie', hairStyle: 'short_crop', hat: 'cap', hatColor: '#e25845', acc: 'backpack', w: 16.0 }
+      ],
+      residencial: [
+        { role: 'resident', shirt: '#6cb2d1', sec: '#3c6e85', outfit: 'casual_hoodie', hairStyle: 'short_crop', hat: 'none', acc: 'backpack', w: 15.8 },
+        { role: 'resident', shirt: '#81b29a', sec: '#4d7361', outfit: 'casual_jacket', hairStyle: 'ponytail', hat: 'none', acc: 'shopping_bag', w: 15.0 },
+        { role: 'resident', shirt: '#e9c46a', sec: '#a88938', outfit: 'casual_jacket', hairStyle: 'bun', hat: 'cap', hatColor: '#2f5d50', acc: 'none', w: 15.6 }
+      ],
+      periferia: [
+        { role: 'resident', shirt: '#7fa653', sec: '#4f6b30', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'cap', hatColor: '#3b4d38', acc: 'backpack', w: 16.4 },
+        { role: 'resident', shirt: '#d48c59', sec: '#8c552e', outfit: 'casual_hoodie', hairStyle: 'long_hair', hat: 'none', acc: 'none', w: 15.4 },
+        { role: 'resident', shirt: '#577590', sec: '#35495c', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'none', acc: 'none', w: 16.2 }
+      ]
+    };
+
+    const pool = districtArchetypes[dId] || districtArchetypes.residencial;
+    const arch = randomItem(pool);
+
+    return {
+      role: arch.role,
+      isPoliceFoot: false,
+      shirt: arch.shirt,
+      hair,
+      skin,
+      visualProfile: {
+        shoulderW: arch.w || 15.8,
+        torsoDepth: arch.w > 17 ? 9.4 : 8.5,
+        headR: 4.5,
+        skin,
+        torsoPrimary: arch.shirt,
+        torsoSecondary: arch.sec,
+        accent: '#f5d94b',
+        trim: '#f4f7f5',
+        sleeve: arch.shirt,
+        glove: skin,
+        shoe: '#1b201d',
+        hairColor: hair,
+        hairStyle: arch.hairStyle,
+        outfitStyle: arch.outfit,
+        hatType: arch.hat,
+        hatColor: arch.hatColor || '#facc15',
+        accessory: arch.acc,
+        bagColor: randomItem(['#2b3a4a', '#5c4738', '#3d5a45', '#7a3b3b'])
+      }
+    };
+  }
+
+  function createPedestrian(forcedLoopIdx = null, forcePolice = false) {
+    const loopIdx =
+      forcedLoopIdx !== null && World.sidewalkNodes[forcedLoopIdx]
+        ? forcedLoopIdx
+        : Math.floor(Math.random() * World.sidewalkNodes.length);
+    const loop = World.sidewalkNodes[loopIdx];
     const startIdx = Math.floor(Math.random() * loop.length);
     const startNode = loop[startIdx];
     const dir = Math.random() < 0.5 ? 1 : -1;
     const nextIdx = (startIdx + dir + loop.length) % loop.length;
     const dId = startNode.districtId || 'residencial';
 
-    const districtOutfits = {
-      centro: [
-        { shirt: '#2b3a4a', hair: '#1c1f24', hatType: 'none', hasBag: true, role: 'executive' },
-        { shirt: '#495867', hair: '#3b281c', hatType: 'none', hasBag: false, role: 'executive' },
-        { shirt: '#d8e2dc', hair: '#2a241e', hatType: 'none', hasBag: true, role: 'executive' }
-      ],
-      industrial: [
-        { shirt: '#e68a3e', hair: '#222222', hatType: 'hardhat', hasBag: false, role: 'worker' },
-        { shirt: '#f5d94b', hair: '#3a2b1d', hatType: 'hardhat', hasBag: false, role: 'worker' },
-        { shirt: '#4a6670', hair: '#1e1e1e', hatType: 'cap', hasBag: false, role: 'worker' }
-      ],
-      portuaria: [
-        { shirt: '#3b6d8c', hair: '#232026', hatType: 'cap', hasBag: false, role: 'worker' },
-        { shirt: '#d97e38', hair: '#382b22', hatType: 'hardhat', hasBag: false, role: 'worker' },
-        { shirt: '#81b29a', hair: '#1d1d1d', hatType: 'cap', hasBag: false, role: 'worker' }
-      ],
-      comercial: [
-        { shirt: '#e07a5f', hair: '#2a241e', hatType: 'none', hasBag: true, role: 'shopper' },
-        { shirt: '#9b8ec4', hair: '#4a1f2d', hatType: 'none', hasBag: true, role: 'shopper' },
-        { shirt: '#f2cc8f', hair: '#5a3e2b', hatType: 'cap', hasBag: true, role: 'shopper' }
-      ],
-      residencial: [
-        { shirt: '#d9e6a2', hair: '#2a241e', hatType: 'none', hasBag: false, role: 'resident' },
-        { shirt: '#6cb2d1', hair: '#3b281c', hatType: 'cap', hasBag: false, role: 'resident' },
-        { shirt: '#81b29a', hair: '#382b22', hatType: 'none', hasBag: true, role: 'resident' }
-      ],
-      periferia: [
-        { shirt: '#a3c977', hair: '#3b281c', hatType: 'cap', hasBag: false, role: 'resident' },
-        { shirt: '#f2cc8f', hair: '#2a241e', hatType: 'none', hasBag: false, role: 'resident' },
-        { shirt: '#e07a5f', hair: '#1d1d1d', hatType: 'cap', hasBag: false, role: 'resident' }
-      ]
-    };
-
-    const pool = districtOutfits[dId] || districtOutfits.residencial;
-    const look = randomItem(pool);
+    const look = buildCitizenLook(dId, forcePolice);
 
     return {
       id: nextPedId++,
       x: startNode.x,
       y: startNode.y,
       angle: 0,
-      radius: 7,
-      speed: 36 + Math.random() * 18,
+      visualAngle: 0,
+      radius: forcePolice ? 8 : 7,
+      speed: forcePolice ? 34 : 36 + Math.random() * 18,
       shirt: look.shirt,
       hair: look.hair,
-      hatType: look.hatType || 'none',
-      hasBag: Boolean(look.hasBag),
-      role: look.role || 'resident',
+      skin: look.skin,
+      role: look.role,
+      isPoliceFoot: look.isPoliceFoot,
+      visualProfile: look.visualProfile,
       loop,
       targetIdx: nextIdx,
       loopDir: dir,
       walkPhase: Math.random() * Math.PI * 2,
+      idlePhase: Math.random() * Math.PI * 2,
       panicTimer: 0,
+      alertIconTimer: 0,
+      pausedTimer: 0,
       knockTimer: 0,
       vx: 0,
       vy: 0
     };
+  }
+
+  function createFootPolicePatrols() {
+    // Place patrolling foot police officers near Comisaría Central, Centro, Puerto, and Industrial
+    const civicTargets = [
+      { x: 2925, y: 525 },  // Comisaría Central
+      { x: 2325, y: 825 },  // Plaza Torre Cero
+      { x: 1725, y: 825 },  // Centro Oeste
+      { x: 825, y: 2325 },  // Terminal Portuaria
+      { x: 2325, y: 2025 }, // Complejo Industrial
+      { x: 3825, y: 825 }   // Bulevar Comercial
+    ];
+
+    const officers = [];
+    civicTargets.forEach((pt) => {
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < World.sidewalkNodes.length; i++) {
+        const node = World.sidewalkNodes[i][0];
+        const d = Math.hypot(node.x - pt.x, node.y - pt.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      officers.push(createPedestrian(bestIdx, true));
+    });
+
+    return officers;
   }
 
   function createStoryNPCs() {
@@ -251,6 +360,7 @@ CiudadCero.Entities = (() => {
       if (!c.inWorld) return;
       list.push({
         id: c.id,
+        visualId: c.id,
         name: c.name,
         role: c.role,
         color: c.color,
@@ -260,7 +370,11 @@ CiudadCero.Entities = (() => {
         y: c.y,
         radius: 10,
         angle: Math.PI / 2,
-        pulsePhase: Math.random() * Math.PI * 2
+        baseAngle: Math.PI / 2,
+        visualAngle: Math.PI / 2,
+        idlePhase: Math.random() * Math.PI * 2,
+        pulsePhase: Math.random() * Math.PI * 2,
+        isAwareOfPlayer: false
       });
     });
     return list;
@@ -272,6 +386,7 @@ CiudadCero.Entities = (() => {
     spawnTrafficVehicle,
     spawnPoliceVehicle,
     createPedestrian,
+    createFootPolicePatrols,
     createStoryNPCs
   };
 })();

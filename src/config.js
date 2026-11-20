@@ -4,8 +4,8 @@ CiudadCero.Config = {
   GAME_INFO: {
     title: 'Ciudad Cero',
     installment: 1,
-    version: '0.5',
-    subtitle: 'Expansión Urbana e Interfaz Total'
+    version: '0.6',
+    subtitle: 'Rediseño Visual de Personajes y NPC'
   },
 
   WORLD: {
@@ -499,7 +499,7 @@ CiudadCero.Config = {
   TRAFFIC: {
     targetVehicles: 26,
     parkedVehicles: 22,
-    targetPedestrians: 48,
+    targetPedestrians: 54,
     aiCruiseSpeed: 120,
     lookAheadDist: 82
   },
@@ -709,7 +709,8 @@ CiudadCero.Config = {
     hair: '#1c201d',
     personality: 'Calculador, leal a su palabra y con sangre fría al volante.',
     backstory: 'Ex mecánico de pruebas en los astilleros del sur. Llegó a Ciudad Cero con $ 500 y su Coupé GT tras recibir una llamada anónima sobre la desaparición de su hermano mayor, Julián Vega.',
-    motivation: 'Levantar su reputación desde cero, mantener a flote el taller y desenmascarar la red de confiscaciones ilegales detrás del caso de su hermano.'
+    motivation: 'Levantar su reputación desde cero, mantener a flote el taller y desenmascarar la red de confiscaciones ilegales detrás del caso de su hermano.',
+    appearance: 'Chaqueta táctica verde oliva con cuello y franjas lima (#d6f36a), guantes de piloto oscuros y cabello peinado hacia atrás.'
   },
 
   CHARACTERS: {
@@ -725,6 +726,7 @@ CiudadCero.Config = {
       inWorld: true,
       personality: 'Pragmática, irónica y protectora con quienes respetan su taller.',
       bio: 'Antigua socia mecánica de Julián. Conoce cada tornillo y cada ruta secreta de Ciudad Cero.',
+      appearance: 'Overol amarillo de taller sobre camiseta oscura, cabello castaño recogido en rodete y llave inglesa en mano.',
       ambientLines: [
         'Si abollas el Coupé, tráelo a la bahía antes de que eche humo.',
         'Recuerda: los callejones marcados en verde en el radar enfrían rápido el rastro policial.',
@@ -743,6 +745,7 @@ CiudadCero.Config = {
       inWorld: true,
       personality: 'Elegante, meticuloso y siempre un paso adelante. Nunca deja huellas.',
       bio: 'Corredor de información en el Distrito Centro. Mueve encargos discretos y sabe quién compra favores en comisaría.',
+      appearance: 'Traje sastre azul pizarra con cuello blanco impecable, cabello engominado y maletín ejecutivo oscuro.',
       ambientLines: [
         'En esta ciudad la información vale más que el combustible, Mateo.',
         'Evita llamar la atención frente a las patrullas si llevas mercancía delicada.',
@@ -761,6 +764,7 @@ CiudadCero.Config = {
       inWorld: true,
       personality: 'Impulsiva, brillante y rebelde; experta en inhibidores policiales.',
       bio: 'Ingeniera clandestina de telecomunicaciones. Intercepta las frecuencias tácticas del Comisario Dávila.',
+      appearance: 'Chaqueta tecnológica esmeralda con ribetes cian, corte asimétrico borgoña, visor AR luminoso y escáner portátil.',
       ambientLines: [
         'Tengo los escáneres abiertos: si Dávila mueve un convoy, lo sabremos al instante.',
         'Los Interceptores V8 son rápidos en recta, pero pierden agarre si encadenas curvas cerradas.'
@@ -778,6 +782,7 @@ CiudadCero.Config = {
       inWorld: true,
       personality: 'Directo, curtido en los muelles y buen conocedor de las rutas de carga.',
       bio: 'Supervisa los contenedores de la Zona Portuaria y conoce cada camión que entra o sale del puerto.',
+      appearance: 'Chaleco portuario naranja de alta visibilidad con bandas reflejantes, gorra de capataz y portapapeles de carga.',
       ambientLines: [
         'Los camiones portuarios aguantan golpes duros, pero tómate las curvas con calma.',
         'Si buscas velocidad pura, sal hacia la Autopista Periférica al sur.'
@@ -795,6 +800,7 @@ CiudadCero.Config = {
       inWorld: true,
       personality: 'Competitiva, carismática y siempre buscando los pilotos más rápidos.',
       bio: 'Organiza circuitos callejeros nocturnos entre las galerías del Barrio Comercial y la periferia.',
+      appearance: 'Chaqueta de carreras carmesí con franjas blancas, coleta alta oscura y cronómetro de competición.',
       ambientLines: [
         'El Bulevar Comercial de noche es el mejor escaparate para un buen deportivo.',
         'Consulta el mapa ampliado para trazar tus atajos entre barrios.'
@@ -811,7 +817,8 @@ CiudadCero.Config = {
       y: 1200,
       inWorld: false,
       personality: 'Frío, autoritario e implacable.',
-      bio: 'Comanda las unidades tácticas de Ciudad Cero y dirige en las sombras el desvío de vehículos confiscados.'
+      bio: 'Comanda las unidades tácticas de Ciudad Cero y dirige en las sombras el desvío de vehículos confiscados.',
+      appearance: 'Uniforme táctico azul marino oscuro con charreteras doradas y rojas, gorra de comandante con visera e insignia.'
     }
   },
 

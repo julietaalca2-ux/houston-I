@@ -420,16 +420,23 @@ canvas#game {
 }
 
 .dialogue-avatar {
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
   border-radius: 8px;
   border: 2px solid var(--lime);
-  background: #1d2720;
+  background: #151f18;
   display: flex;
   align-items: center;
   justify-content: center;
   font: 800 24px/1 'Barlow Condensed', sans-serif;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.dialogue-avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .dialogue-content {
@@ -1203,9 +1210,9 @@ canvas#full-map-canvas:active {
 }
 
 .char-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 6px;
+  width: 44px;
+  height: 44px;
+  border-radius: 7px;
   border: 1.5px solid var(--lime);
   display: flex;
   align-items: center;
@@ -1213,6 +1220,13 @@ canvas#full-map-canvas:active {
   font: 800 18px/1 'Barlow Condensed', sans-serif;
   background: #141b16;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.char-avatar svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .char-head strong {
