@@ -606,6 +606,23 @@ CiudadCero.Renderer3D = (() => {
       box(red,-0.72,3.94,cabinZ,0.92,0.22,0.42,false);
       box(blue,0.72,3.94,cabinZ,0.92,0.22,0.42,false);
     }
+    // V0.8.10: scale the model to the physics footprint and give it a proper height
+    // (the raw mesh was ~17.8 long x 8.6 wide x 3.9 tall, i.e. flat next to 40x20 physics).
+    {
+      const cfg = (window.CiudadCero && CiudadCero.Config && CiudadCero.Config.VEHICLE_TYPES) || {};
+      const vt = cfg[typeId] || cfg[kind] || { length: 42, width: 20 };
+      const sx = (vt.width || 20) / 8.6, sz = (vt.length || 42) / 17.8;
+      const sy = sz * 1.45;
+      group.children.slice().forEach((c) => {
+        if (wheelGroups.includes(c)) {
+          c.position.set(c.position.x * sx, c.position.y * sz, c.position.z * sz);
+          c.scale.set(sz, sz, sz);
+        } else {
+          c.position.set(c.position.x * sx, c.position.y * sy, c.position.z * sz);
+          c.scale.set(c.scale.x * sx, c.scale.y * sy, c.scale.z * sz);
+        }
+      });
+    }
     group.userData.wheelGroups = wheelGroups;
     group.userData.vehicleKind = kind;
     group.userData.vehicleMaterials = [paint,paintDark,trim,glass,tire,alloy,rubber,headlight,tailLight,indicator];
