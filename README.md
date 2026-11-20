@@ -1,17 +1,17 @@
-# CIUDAD CERO V0.8.9 — TPS CAMERA CONTROL FIX
+# CIUDAD CERO V0.8.9 — CHARACTER DETAIL UPDATE
 
-Actualización incremental sobre V0.8.9_TPS.
+Actualización visual de personajes sobre la base TPS FIX.
 
-## Mejoras de cámara y control
-- Movimiento a pie relativo a la orientación horizontal de la cámara: joystick arriba avanza hacia donde mira la cámara y los laterales se interpretan respecto de esa vista.
-- Giro de cámara más suave y preciso mediante arrastre.
-- Rango de giro completo alrededor del protagonista.
-- Inclinación vertical más controlada.
-- Cámara algo más alejada para dar espacio de lectura y seguimiento más estable.
-- Mantiene el fallback 2D cuando WebGL/Three.js no está disponible.
+## Cambios
+- Protagonista con anatomía estilizada: cabeza, rostro, ojos, nariz, boca, orejas y cabello.
+- Ropa diferenciada por capas: torso, pantalón, cuello, puños y calzado.
+- Brazos y piernas articulados con animación procedural de caminata.
+- Peatones con variaciones de tonos de piel, cabello y ropa.
+- Policías con uniforme, insignia y cinturón visuales.
+- NPCs de misiones con variaciones de vestuario.
+- Se mantiene la cámara TPS, controles, mundo, vehículos, misiones y sistemas existentes.
 
-## Instalación
-Reemplazar los archivos del repositorio por los de este ZIP conservando la estructura `src/`.
+Los modelos son geometría 3D suavizada y articulada, no modelos humanos escaneados ni personajes de alta resolución. La animación es procedural.
 
 ## Validación
-Comprobar sintaxis JavaScript y estructura ZIP. La prueba visual final debe hacerse en navegador/dispositivo.
+Se revisó la sintaxis de JavaScript y la integridad del ZIP. La apariencia y rendimiento deben probarse dentro del navegador, especialmente en dispositivos móviles.
