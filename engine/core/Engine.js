@@ -4,7 +4,7 @@
   class Engine {
     constructor(options) {
       const config = options || {};
-      this.version = config.version || '0.14.0';
+      this.version = config.version || '0.23.0';
       this.events = new namespace.EventBus();
       this.scenes = new namespace.SceneManager(this.events);
       this.resources = new namespace.ResourceRegistry(this.events);
@@ -29,6 +29,9 @@
       this.world.addSystem(this.sceneSyncSystem);
       this.worldBridge = new namespace.WorldBridge(this);
       this.rendering = new namespace.RenderingPipeline({ quality: config.renderQuality || 'high' });
+      this.cityDetails = namespace.CityDetailSystem ? new namespace.CityDetailSystem(config.cityDetails) : null;
+      this.cityExpansion = namespace.CityWorldExpansionSystem ? new namespace.CityWorldExpansionSystem(config.cityExpansion) : null;
+      this.advancedLighting = namespace.AdvancedLightingSystem ? new namespace.AdvancedLightingSystem(config.lighting) : null;
       this.renderer = null;
       this.scene = null;
       this.camera = null;
@@ -54,6 +57,7 @@
       this.scene = value.scene;
       this.camera = value.camera;
       this.rendering.attach({ renderer: value.renderer, scene: value.scene, camera: value.camera });
+      if (this.advancedLighting) this.advancedLighting.attach({ renderer: value.renderer, scene: value.scene });
       this.worldBridge.attachScene(value.scene);
       this.start(this.platform);
       this.events.emit('renderer:attached', { renderer: value.renderer, scene: value.scene, camera: value.camera });
@@ -66,6 +70,8 @@
       this.elapsed += delta;
       this.frame += 1;
       this.world.update(delta, this.elapsed);
+      if (this.cityExpansion) this.cityExpansion.update(delta, this.camera);
+      if (this.advancedLighting) this.advancedLighting.update(delta);
       this.events.emit('engine:update', { delta, elapsed: this.elapsed, frame: this.frame });
     }
     getDiagnostics() {
@@ -81,10 +87,13 @@
         vehicleAI: Object.assign({}, this.vehicleAISystem.lastStats),
         world: this.worldBridge.getDiagnostics(),
         physics: Object.assign({}, this.physicsSystem.lastStats),
+        cityDetails: this.cityDetails ? Object.assign({}, this.cityDetails.stats) : null,
+        cityExpansion: this.cityExpansion ? this.cityExpansion.getDiagnostics() : null,
+        advancedLighting: this.advancedLighting ? this.advancedLighting.getDiagnostics() : null,
         rendering: this.rendering.getDiagnostics()
       };
     }
   }
   namespace.Engine = Engine;
-  namespace.runtime = namespace.runtime || new Engine({ version: '0.14.0' });
+  namespace.runtime = namespace.runtime || new Engine({ version: '0.23.0' });
 })(window);
