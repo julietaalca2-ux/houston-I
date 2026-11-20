@@ -153,17 +153,18 @@ CiudadCero.World = (() => {
       '7,2',   // Plaza Torre Cero (Centro)
       '12,2',  // Plaza Galerías (Comercial)
       '13,9',  // Mirador de las Colinas (Periferia)
-      '4,10',  // Parque Periferia Oeste
+      '5,9',   // Parque Costero
       '10,10'  // Área Verde Periferia Sur
     ]);
 
     // v0.7.5: clasificación visual de parques (grande / mediano / pequeño)
     const largeParks = new Set(['2,2', '5,3', '13,9']);
 
-    const waterSet = new Set([
-      '0,6', '0,7', '0,8',
-      '1,9', '2,9', '3,9'
-    ]);
+    // V0.25: costa oeste y bahía sur (mar al oeste y al sur, como en el mapa de referencia).
+    const waterSet = new Set();
+    for (let wy = 4; wy <= 11; wy++) waterSet.add('0,' + wy);
+    for (let wx = 1; wx <= 9; wx++) waterSet.add(wx + ',11');
+    ['1,10', '2,10', '3,10'].forEach((k) => waterSet.add(k));
 
     const alleyBlockMap = new Map([
       ['4,3', { orientation: 'vertical', name: 'Pasaje de los Álamos' }],
@@ -294,13 +295,16 @@ CiudadCero.World = (() => {
             });
           }
         } else if (isWater) {
-          waterZones.push({
-            x: blockLeft + 8,
-            y: blockTop + 8,
-            w: blockSize - 16,
-            h: blockSize - 16,
-            districtId: district.id
-          });
+          // Costa oeste y borde sur se dibujan como mar continuo (ver zonas isSea abajo).
+          if (!(gx === 0 && gy >= 4) && gy !== 11) {
+            waterZones.push({
+              x: blockLeft + 8,
+              y: blockTop + 8,
+              w: blockSize - 16,
+              h: blockSize - 16,
+              districtId: district.id
+            });
+          }
         } else if (isPark) {
           parks.push({
             x: blockLeft + cfg.sidewalkWidth,
@@ -557,6 +561,11 @@ CiudadCero.World = (() => {
     }
 
     // Ocean surrounds the island. The only dry corridor across the western channel is the bridge deck.
+    // V0.25: mar al oeste y al sur de la ciudad principal (cubre también las calles de la costa).
+    waterZones.push(
+      { id: 'coast_sea_west', x: 0, y: 1350, w: 300, h: 2250, isSea: true },
+      { id: 'coast_sea_south', x: 0, y: 3300, w: 3000, h: 300, isSea: true }
+    );
     waterZones.push(
       { id: 'loston_sea_west_north', x: 4800, y: 0, w: 600, h: 1800, isSea: true },
       { id: 'loston_sea_west_south', x: 4800, y: 1950, w: 600, h: 1650, isSea: true },
