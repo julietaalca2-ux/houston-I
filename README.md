@@ -57,3 +57,8 @@ Esta fase no reemplaza el renderizador ni los sistemas de juego existentes. La b
 
 ### Validación de esta entrega
 Se verificó la sintaxis de los archivos JavaScript y la integridad del archivo ZIP. No se realizó una prueba visual interactiva en navegador o iPhone; esa comprobación debe hacerse al abrir el juego.
+
+
+## CIUDAD ENGINE 0.2.0 — Asset Pipeline
+
+Se incorpora `engine/assets/AssetManager.js` para cargar modelos GLB/GLTF bajo demanda, cachear recursos, emitir eventos de progreso y crear instancias en escenas. Ver `engine/assets/README.md`.
