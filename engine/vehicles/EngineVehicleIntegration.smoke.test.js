@@ -30,7 +30,7 @@ vm.createContext(context);
 ].forEach((file) => vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file }));
 
 const engine = context.CiudadEngine.runtime;
-if (engine.version !== '0.13.0' || !engine.vehicleSystem || !engine.vehicles) throw new Error('Engine vehicle module registration failed');
+if (engine.version !== '0.14.0' || !engine.vehicleSystem || !engine.vehicles) throw new Error('Engine vehicle module registration failed');
 engine.start('test');
 const car = engine.vehicles.createVehicle({ maxSpeed: 20, physicsMode: 'advanced' });
 engine.vehicles.setControls(car, { throttle: 1 });
