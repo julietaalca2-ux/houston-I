@@ -29,12 +29,16 @@ CiudadCero.Entities = (() => {
     const typeKey = opts.typeId || randomItem(civilKeys);
     const spec = Config.VEHICLE_TYPES[typeKey] || Config.VEHICLE_TYPES.sedan;
     const color = opts.color || randomItem(spec.colors);
-    const maxHp = spec.maxHp || 120;
+    const armorUpgraded = Boolean(opts.armorUpgraded);
+    const engineUpgraded = Boolean(opts.engineUpgraded);
+    const baseMaxHp = opts.maxHp || spec.maxHp || 120;
+    const maxHp = baseMaxHp;
+    const speedMult = engineUpgraded && !opts.maxHp ? 1.12 : 1.0;
 
     return {
       id: nextVehicleId++,
       typeId: spec.id,
-      name: spec.name,
+      name: opts.customName || spec.name,
       color,
       x: opts.x || 520,
       y: opts.y || 390,
@@ -44,16 +48,18 @@ CiudadCero.Entities = (() => {
       vy: 0,
       length: spec.length,
       width: spec.width,
-      maxSpeed: spec.maxSpeed,
-      turboSpeed: spec.turboSpeed,
+      maxSpeed: Math.round(spec.maxSpeed * speedMult),
+      turboSpeed: Math.round(spec.turboSpeed * speedMult),
       reverseSpeed: spec.reverseSpeed,
-      accel: spec.accel,
+      accel: Math.round(spec.accel * speedMult),
       brake: spec.brake,
       turnRate: spec.turnRate,
       grip: spec.grip,
       mass: spec.mass,
       hp: opts.hp !== undefined ? opts.hp : maxHp,
       maxHp,
+      armorUpgraded,
+      engineUpgraded,
       isPlayerOwned: Boolean(opts.isPlayerOwned),
       isPolice: Boolean(spec.isPolice || opts.isPolice),
       policeRole: spec.policeRole || opts.policeRole || null,
@@ -61,6 +67,7 @@ CiudadCero.Entities = (() => {
       sirenActive: Boolean(opts.sirenActive),
       sirenPhase: Math.random() * Math.PI * 2,
       isMissionTarget: Boolean(opts.isMissionTarget),
+      isChaseTarget: Boolean(opts.isChaseTarget),
       isAI: Boolean(opts.isAI),
       isParked: Boolean(opts.isParked),
       brakeLights: false,
@@ -194,11 +201,35 @@ CiudadCero.Entities = (() => {
     };
   }
 
+  function createStoryNPCs() {
+    const list = [];
+    const chars = Config.CHARACTERS || {};
+    Object.keys(chars).forEach((key) => {
+      const c = chars[key];
+      if (!c.inWorld) return;
+      list.push({
+        id: c.id,
+        name: c.name,
+        role: c.role,
+        color: c.color,
+        shirt: c.shirt,
+        hair: c.hair,
+        x: c.x,
+        y: c.y,
+        radius: 10,
+        angle: Math.PI / 2,
+        pulsePhase: Math.random() * Math.PI * 2
+      });
+    });
+    return list;
+  }
+
   return {
     createPlayer,
     createVehicle,
     spawnTrafficVehicle,
     spawnPoliceVehicle,
-    createPedestrian
+    createPedestrian,
+    createStoryNPCs
   };
 })();

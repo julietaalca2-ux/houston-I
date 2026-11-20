@@ -20,7 +20,10 @@ CiudadCero.Input = (() => {
     onEnterExit: null,
     onReset: null,
     onHorn: null,
-    onGarage: null
+    onGarage: null,
+    onStory: null,
+    onTalk: null,
+    onAdvanceDialogue: null
   };
 
   let dom = {};
@@ -169,7 +172,8 @@ CiudadCero.Input = (() => {
         btnBrake: document.getElementById('btn-brake'),
         btnExitCar: document.getElementById('btn-exit-car'),
         btnHornCar: document.getElementById('btn-horn-car'),
-        btnGarageTouch: document.getElementById('btn-garage-touch')
+        btnGarageTouch: document.getElementById('btn-garage-touch'),
+        btnTalkTouch: document.getElementById('btn-talk-touch')
       };
 
       window.addEventListener('keydown', (e) => {
@@ -180,11 +184,22 @@ CiudadCero.Input = (() => {
         CiudadCero.Audio.unlock();
 
         if (!e.repeat) {
+          if (CiudadCero.Story && CiudadCero.Story.isDialogueOpen()) {
+            if ([' ', 'enter', 'e', 'f'].includes(k)) {
+              if (callbacks.onAdvanceDialogue) callbacks.onAdvanceDialogue();
+            }
+            return;
+          }
+
           if (k === 'g' || k === 'escape') {
             if (callbacks.onGarage) callbacks.onGarage(k === 'escape');
           }
+          if (k === 'h' || k === 'escape') {
+            if (callbacks.onStory) callbacks.onStory(k === 'escape');
+          }
           if (!blocked) {
             if (k === 'e' && callbacks.onEnterExit) callbacks.onEnterExit();
+            if (k === 'f' && callbacks.onTalk) callbacks.onTalk();
             if (k === 'r' && callbacks.onReset) callbacks.onReset();
             if (k === ' ' && callbacks.onHorn) callbacks.onHorn();
           }
@@ -225,6 +240,9 @@ CiudadCero.Input = (() => {
       });
       bindTapButton(dom.btnGarageTouch, () => {
         if (callbacks.onGarage) callbacks.onGarage(false);
+      });
+      bindTapButton(dom.btnTalkTouch, () => {
+        if (!blocked && callbacks.onTalk) callbacks.onTalk();
       });
 
       window.addEventListener('resize', updateTouchVisibility);
@@ -270,6 +288,12 @@ CiudadCero.Input = (() => {
     setNearbyGarage(isNear) {
       if (dom.btnGarageTouch) {
         dom.btnGarageTouch.classList.toggle('hidden', !isNear);
+      }
+    },
+
+    setNearbyNPC(isNear) {
+      if (dom.btnTalkTouch) {
+        dom.btnTalkTouch.classList.toggle('hidden', !isNear);
       }
     },
 

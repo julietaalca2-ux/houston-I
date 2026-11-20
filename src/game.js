@@ -11,6 +11,8 @@ CiudadCero.Game = (() => {
   const Audio = CiudadCero.Audio;
   const Police = CiudadCero.Police;
   const Garage = CiudadCero.Garage;
+  const Story = CiudadCero.Story;
+  const Save = CiudadCero.Save;
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -18,16 +20,15 @@ CiudadCero.Game = (() => {
   let viewW = 960;
   let viewH = 600;
   let lastTime = 0;
+  let autoSaveTimer = 0;
 
   const state = {
     money: 500,
     missionsCompleted: 0,
-    chainIndex: 0,
     player: null,
     vehicles: [],
     pedestrians: [],
-    mission: null,
-    missionTimeLeft: 0,
+    npcs: [],
     camera: { x: 0, y: 0 }
   };
 
@@ -42,74 +43,36 @@ CiudadCero.Game = (() => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  function startMission(missionData) {
-    state.vehicles.forEach((v) => { v.isMissionTarget = false; });
-
-    const m = Object.assign({}, missionData);
-    state.mission = m;
-    state.missionTimeLeft = m.timeLimit || 0;
-
-    if (m.triggerWanted) {
-      Police.setMinWanted(
-        m.triggerWanted,
-        state.player.x,
-        state.player.y,
-        'Alerta de misión',
-        (msg) => UI.showToast(msg)
-      );
-    }
-
-    if (m.type === 'recover_vehicle') {
-      const targetCar = Entities.createVehicle({
-        typeId: m.vehicleType || 'coupe',
-        color: m.vehicleColor || '#22a37a',
-        x: m.vehicleX,
-        y: m.vehicleY,
-        angle: 0,
-        isAI: false,
-        isParked: true,
-        isMissionTarget: true
-      });
-      state.vehicles.push(targetCar);
-      m.targetVehicleId = targetCar.id;
-    }
-  }
-
-  function advanceNextMission() {
-    const chain = Config.CHAIN_MISSIONS;
-    const template = chain[state.chainIndex % chain.length];
-    state.chainIndex += 1;
-    startMission(template);
-  }
-
-  function resetWorld() {
-    state.money = 500;
-    state.missionsCompleted = 0;
-    state.chainIndex = 0;
-    state.player = Entities.createPlayer();
-    state.vehicles = [];
-    state.pedestrians = [];
-    Police.reset();
-    UI.closeGarageModal();
-    Input.setBlocked(false);
-
-    const starterCar = Entities.createVehicle({
-      typeId: 'coupe',
-      color: '#d94f3d',
-      x: 520,
-      y: 390,
-      angle: 0,
-      isPlayerOwned: true,
-      isAI: false,
-      isParked: true
+  function saveCurrentProgress() {
+    Save.save({
+      money: state.money,
+      missionsCompleted: state.missionsCompleted,
+      story: Story.exportState(),
+      garage: Garage.exportState()
     });
-    state.vehicles.push(starterCar);
-    Garage.init(starterCar);
+  }
 
+  function getStoryContext() {
+    return {
+      player: state.player,
+      vehicles: state.vehicles,
+      npcs: state.npcs,
+      onNotify: (msg) => UI.showToast(msg, 3000),
+      onMissionReward: (info) => {
+        state.money += info.reward || 0;
+        state.missionsCompleted += 1;
+        UI.showRewardBanner(info);
+        saveCurrentProgress();
+      },
+      onSaveProgress: () => saveCurrentProgress()
+    };
+  }
+
+  function populateAmbientCity(excludeCar) {
     const parkedSpecs = ['sedan', 'taxi', 'suv', 'van', 'coupe'];
     World.parkedSpots.forEach((spot, idx) => {
       if (idx >= Config.TRAFFIC.parkedVehicles) return;
-      if (Math.hypot(spot.x - starterCar.x, spot.y - starterCar.y) < 120) return;
+      if (excludeCar && Math.hypot(spot.x - excludeCar.x, spot.y - excludeCar.y) < 120) return;
       state.vehicles.push(
         Entities.createVehicle({
           typeId: parkedSpecs[idx % parkedSpecs.length],
@@ -130,12 +93,104 @@ CiudadCero.Game = (() => {
     for (let i = 0; i < Config.TRAFFIC.targetPedestrians; i++) {
       state.pedestrians.push(Entities.createPedestrian());
     }
+  }
 
-    startMission(Config.INITIAL_MISSION);
+  function startFreshGame(playIntro = true) {
+    state.money = 500;
+    state.missionsCompleted = 0;
+    state.player = Entities.createPlayer();
+    state.vehicles = [];
+    state.pedestrians = [];
+    state.npcs = Entities.createStoryNPCs();
+    Police.reset();
+    UI.closeGarageModal();
+    UI.closeStoryModal();
+    UI.closeConfirmModal();
+    Input.setBlocked(false);
+
+    const starterCar = Entities.createVehicle({
+      typeId: 'coupe',
+      color: '#d94f3d',
+      x: 520,
+      y: 390,
+      angle: 0,
+      isPlayerOwned: true,
+      isAI: false,
+      isParked: true
+    });
+    state.vehicles.push(starterCar);
+    Garage.init(starterCar);
+
+    populateAmbientCity(starterCar);
+    Story.initNewCampaign(getStoryContext(), playIntro);
+    saveCurrentProgress();
 
     Input.setMode(false);
     updateCamera(1);
-    UI.showToast('Ciudad Cero v0.3 · Explora, conduce o visita el Garaje');
+    UI.renderDialogue(Story.getCurrentDialogueLine());
+    UI.showToast('Ciudad Cero v0.4 · Capítulo 1: Motor en Frío');
+  }
+
+  function loadOrInitGame() {
+    const saved = Save.load();
+    if (!saved) {
+      startFreshGame(true);
+      return;
+    }
+
+    state.money = typeof saved.money === 'number' ? saved.money : 500;
+    state.missionsCompleted = typeof saved.missionsCompleted === 'number' ? saved.missionsCompleted : 0;
+    state.player = Entities.createPlayer();
+    state.vehicles = [];
+    state.pedestrians = [];
+    state.npcs = Entities.createStoryNPCs();
+    Police.reset();
+    UI.closeGarageModal();
+    UI.closeStoryModal();
+    UI.closeConfirmModal();
+    Input.setBlocked(false);
+
+    Garage.importState(saved.garage, state.vehicles);
+    if (state.vehicles.length === 0) {
+      const fallbackCar = Entities.createVehicle({
+        typeId: 'coupe',
+        color: '#d94f3d',
+        x: 520,
+        y: 390,
+        angle: 0,
+        isPlayerOwned: true,
+        isAI: false,
+        isParked: true
+      });
+      state.vehicles.push(fallbackCar);
+      Garage.init(fallbackCar);
+    }
+
+    populateAmbientCity(state.vehicles[0]);
+    Story.restoreFromSave(saved.story, getStoryContext());
+
+    Input.setMode(false);
+    updateCamera(1);
+    const sum = Story.getProgressSummary();
+    UI.showToast(`Progreso cargado · ${sum.chapterNumber} · Saldo: $ ${state.money}`, 3200);
+  }
+
+  function requestNewGameWithConfirmation() {
+    Input.setBlocked(true);
+    UI.openConfirmModal();
+  }
+
+  function confirmNewGame() {
+    Save.clear();
+    startFreshGame(true);
+    UI.showToast('Nueva partida iniciada desde el Capítulo 1', 3000);
+  }
+
+  function cancelNewGame() {
+    UI.closeConfirmModal();
+    if (!UI.isGarageOpen() && !UI.isStoryOpen() && !Story.isDialogueOpen()) {
+      Input.setBlocked(false);
+    }
   }
 
   function findNearestVehicle() {
@@ -185,16 +240,8 @@ CiudadCero.Game = (() => {
     Input.setMode(true);
     Audio.playDoor(true);
 
-    if (nearCar.isMissionTarget && state.mission && state.mission.type === 'recover_vehicle') {
-      nearCar.isMissionTarget = false;
-      nearCar.isPlayerOwned = true;
-      Police.setMinWanted(
-        state.mission.stealWanted || 2,
-        nearCar.x,
-        nearCar.y,
-        '¡Vehículo recuperado! Llévalo al Garaje Central',
-        (msg) => UI.showToast(msg, 3200)
-      );
+    if (nearCar.isMissionTarget) {
+      Story.onVehicleEntered(nearCar, getStoryContext());
       return;
     }
 
@@ -225,6 +272,32 @@ CiudadCero.Game = (() => {
     } else {
       UI.showToast(`Conduciendo: ${nearCar.name}`);
     }
+  }
+
+  function handleTalkAction() {
+    if (Story.isDialogueOpen()) {
+      Story.advanceDialogue();
+      UI.renderDialogue(Story.getCurrentDialogueLine());
+      return;
+    }
+    if (state.player.inCar) {
+      const nearNpc = Story.findNearbyNPC(state.player, state.npcs);
+      if (nearNpc) {
+        UI.showToast(`Baja del vehículo para hablar con ${nearNpc.name}`);
+      }
+      return;
+    }
+    const talked = Story.interactWithNearbyNPC(getStoryContext());
+    if (talked) {
+      UI.renderDialogue(Story.getCurrentDialogueLine());
+    } else {
+      UI.showToast('No hay ningún contacto cerca para hablar');
+    }
+  }
+
+  function handleAdvanceDialogue() {
+    Story.advanceDialogue();
+    UI.renderDialogue(Story.getCurrentDialogueLine());
   }
 
   function triggerHorn() {
@@ -261,8 +334,10 @@ CiudadCero.Game = (() => {
       garage: g,
       activeVehicle,
       money: state.money,
+      wanted: Police.state.wanted,
       slots: Garage.getSlots(),
-      maxSlots: Garage.getMaxSlots()
+      maxSlots: Garage.getMaxSlots(),
+      unlockedTypes: Garage.getUnlockedTypes()
     };
   }
 
@@ -280,6 +355,7 @@ CiudadCero.Game = (() => {
           state.money -= amt;
         });
         UI.showToast(res.msg);
+        saveCurrentProgress();
         refreshGarageModal();
       },
       onStoreActive: () => {
@@ -290,6 +366,27 @@ CiudadCero.Game = (() => {
           () => Input.setMode(false)
         );
         UI.showToast(res.msg);
+        saveCurrentProgress();
+        refreshGarageModal();
+      },
+      onUpgradeActive: (upgType) => {
+        const res = Garage.upgradeActiveVehicle(upgType, ctxData.activeVehicle, state.money, (amt) => {
+          state.money -= amt;
+        });
+        UI.showToast(res.msg);
+        saveCurrentProgress();
+        refreshGarageModal();
+      },
+      onBribePolice: () => {
+        const cost = Config.GARAGE_UPGRADES.bribe.cost;
+        if (state.money < cost) {
+          UI.showToast(`Necesitas $ ${cost}`);
+          return;
+        }
+        state.money -= cost;
+        Police.reduceWanted(2, (msg) => UI.showToast(msg));
+        Audio.playGarageAction();
+        saveCurrentProgress();
         refreshGarageModal();
       },
       onRepairSlot: (slotId) => {
@@ -297,11 +394,13 @@ CiudadCero.Game = (() => {
           state.money -= amt;
         });
         UI.showToast(res.msg);
+        saveCurrentProgress();
         refreshGarageModal();
       },
       onSelectSlot: (slotId) => {
         const res = Garage.selectVehicle(slotId, ctxData.garage, state.player, state.vehicles);
         UI.showToast(res.msg);
+        saveCurrentProgress();
         if (res.ok) {
           Input.setMode(true);
           UI.closeGarageModal();
@@ -320,6 +419,26 @@ CiudadCero.Game = (() => {
           (amt) => { state.money -= amt; }
         );
         UI.showToast(res.msg);
+        saveCurrentProgress();
+        if (res.ok) {
+          Input.setMode(true);
+          UI.closeGarageModal();
+          Input.setBlocked(false);
+        } else {
+          refreshGarageModal();
+        }
+      },
+      onBuyCatalog: (typeId) => {
+        const res = Garage.buyCatalogVehicle(
+          typeId,
+          ctxData.garage,
+          state.player,
+          state.vehicles,
+          state.money,
+          (amt) => { state.money -= amt; }
+        );
+        UI.showToast(res.msg);
+        saveCurrentProgress();
         if (res.ok) {
           Input.setMode(true);
           UI.closeGarageModal();
@@ -334,9 +453,11 @@ CiudadCero.Game = (() => {
   function handleGarageAction(forceClose = false) {
     if (forceClose || UI.isGarageOpen()) {
       UI.closeGarageModal();
-      Input.setBlocked(false);
+      if (!UI.isStoryOpen() && !UI.isConfirmOpen()) Input.setBlocked(false);
       return;
     }
+
+    if (UI.isStoryOpen()) UI.closeStoryModal();
 
     const ctxData = getActiveGarageContext();
     if (!ctxData) {
@@ -351,6 +472,39 @@ CiudadCero.Game = (() => {
 
     Input.setBlocked(true);
     refreshGarageModal();
+  }
+
+  function refreshStoryModal() {
+    const storyData = {
+      summary: Story.getProgressSummary(),
+      completedMainIds: Array.from(Story.state.completedMainIds),
+      completedSideIds: Array.from(Story.state.completedSideIds),
+      activeMission: Story.state.activeMission
+    };
+
+    UI.renderStoryModal(storyData, {
+      onStartSide: (sideId) => {
+        Story.startSideMission(sideId, getStoryContext());
+        UI.closeStoryModal();
+        Input.setBlocked(false);
+      },
+      onAbandonSide: () => {
+        Story.abandonSideMission(getStoryContext());
+        refreshStoryModal();
+      }
+    });
+  }
+
+  function handleStoryAction(forceClose = false) {
+    if (forceClose || UI.isStoryOpen()) {
+      UI.closeStoryModal();
+      if (!UI.isGarageOpen() && !UI.isConfirmOpen()) Input.setBlocked(false);
+      return;
+    }
+
+    if (UI.isGarageOpen()) UI.closeGarageModal();
+    Input.setBlocked(true);
+    refreshStoryModal();
   }
 
   function updatePlayerOnFoot(dt) {
@@ -374,6 +528,7 @@ CiudadCero.Game = (() => {
     }
 
     Input.setNearbyVehicle(Boolean(findNearestVehicle()));
+    Input.setNearbyNPC(Boolean(Story.findNearbyNPC(p, state.npcs)));
   }
 
   function updatePlayerVehicle(dt) {
@@ -448,6 +603,7 @@ CiudadCero.Game = (() => {
     p.y = v.y;
     p.angle = v.angle;
     Garage.syncWorldVehicle(v);
+    Input.setNearbyNPC(false);
   }
 
   function updateTrafficVehicle(v, dt) {
@@ -638,68 +794,6 @@ CiudadCero.Game = (() => {
     }
   }
 
-  function completeMission(m) {
-    state.money += m.reward;
-    state.missionsCompleted += 1;
-    Audio.playMissionComplete();
-    UI.showToast(`¡Misión completada! +$ ${m.reward}`, 3000);
-    advanceNextMission();
-  }
-
-  function updateMission(dt) {
-    const m = state.mission;
-    const p = state.player;
-    if (!m) return;
-
-    if (state.missionTimeLeft > 0) {
-      state.missionTimeLeft -= dt;
-      if (state.missionTimeLeft <= 0) {
-        state.missionTimeLeft = 0;
-        Audio.playMissionFail();
-        Police.addWanted(
-          m.failWantedBonus || 1,
-          p.x,
-          p.y,
-          '¡Tiempo agotado! Alerta policial activada',
-          (msg) => UI.showToast(msg, 3200)
-        );
-        advanceNextMission();
-        return;
-      }
-    }
-
-    if (m.type === 'escape_police') {
-      if (Police.state.wanted === 0) {
-        completeMission(m);
-      }
-      return;
-    }
-
-    if (m.type === 'recover_vehicle') {
-      const targetVeh = state.vehicles.find((v) => v.id === m.targetVehicleId);
-      if (targetVeh) {
-        m.x = p.vehicle === targetVeh ? Config.GARAGES[0].x : targetVeh.x;
-        m.y = p.vehicle === targetVeh ? Config.GARAGES[0].y : targetVeh.y;
-        if (p.vehicle === targetVeh) {
-          const distGarage = Math.hypot(targetVeh.x - Config.GARAGES[0].x, targetVeh.y - Config.GARAGES[0].y);
-          if (distGarage <= m.radius) {
-            completeMission(m);
-          }
-        }
-      }
-      return;
-    }
-
-    const dist = Math.hypot(p.x - m.x, p.y - m.y);
-    if (dist <= m.radius) {
-      if (m.minWantedRequired && Police.state.wanted < m.minWantedRequired) {
-        UI.showToast(`Necesitas al menos ${m.minWantedRequired}★ de búsqueda activa para este encargo`);
-        return;
-      }
-      completeMission(m);
-    }
-  }
-
   function updateCamera(dt) {
     const p = state.player;
     const lookAheadX = p.inCar && p.vehicle ? p.vehicle.vx * 0.25 : 0;
@@ -722,7 +816,9 @@ CiudadCero.Game = (() => {
   }
 
   function update(dt) {
-    if (UI.isGarageOpen()) {
+    const dialogueOpen = Story.isDialogueOpen();
+    if (UI.isGarageOpen() || UI.isStoryOpen() || UI.isConfirmOpen() || dialogueOpen) {
+      UI.renderDialogue(Story.getCurrentDialogueLine());
       return;
     }
 
@@ -734,7 +830,7 @@ CiudadCero.Game = (() => {
 
     for (let i = 0; i < state.vehicles.length; i++) {
       const v = state.vehicles[i];
-      if (v !== state.player.vehicle && !v.isPolice) {
+      if (v !== state.player.vehicle && !v.isPolice && !v.isChaseTarget) {
         updateTrafficVehicle(v, dt);
       }
     }
@@ -756,10 +852,8 @@ CiudadCero.Game = (() => {
         state.player.x = Config.PLAYER.startX;
         state.player.y = Config.PLAYER.startY;
         Audio.playMissionFail();
+        saveCurrentProgress();
         UI.showToast(`🚨 ¡Detenido por la policía! Fianza: -$ ${fine}`, 3600);
-        if (state.mission && (state.mission.type === 'timed_stealth' || state.mission.type === 'wanted_run')) {
-          advanceNextMission();
-        }
       }
     });
 
@@ -810,20 +904,31 @@ CiudadCero.Game = (() => {
     }
 
     updatePedestrians(dt);
-    updateMission(dt);
+    Story.update(dt, getStoryContext());
+    UI.renderDialogue(Story.getCurrentDialogueLine());
+
     Renderer.updateEffects(dt, state.vehicles);
     updateCamera(dt);
+
+    autoSaveTimer += dt;
+    if (autoSaveTimer >= 12) {
+      autoSaveTimer = 0;
+      saveCurrentProgress();
+    }
 
     const p = state.player;
     const v = p.vehicle;
     const nearGarage = Boolean(World.getGarageAt(p.x, p.y, 26));
     Input.setNearbyGarage(nearGarage);
 
-    const dist = state.mission ? Math.hypot(p.x - state.mission.x, p.y - state.mission.y) : 0;
+    const missionInfo = Story.getDynamicInstruction(p.inCar);
+    const dist = missionInfo.hasTarget ? Math.hypot(p.x - missionInfo.x, p.y - missionInfo.y) : 0;
     const speedKmh = v ? Math.abs(v.speed) * 0.42 : 0;
     const vehicleHpPct = v ? (v.hp / v.maxHp) * 100 : 100;
+    const sum = Story.getProgressSummary();
 
     UI.updateHUD({
+      chapterLabel: sum.campaignFinished ? 'MODO LIBRE' : sum.chapterNumber,
       money: state.money,
       inCar: p.inCar,
       vehicleName: v ? v.name : '',
@@ -831,8 +936,7 @@ CiudadCero.Game = (() => {
       wanted: Police.state.wanted,
       policeHUD: Police.getHUDState(),
       nearGarage,
-      mission: state.mission,
-      missionTimeLeft: state.missionTimeLeft,
+      missionInfo,
       missionDist: dist,
       speedKmh,
       vehicleHpPct
@@ -844,11 +948,14 @@ CiudadCero.Game = (() => {
     lastTime = now;
 
     update(dt);
+    const missionInfo = Story.getDynamicInstruction(state.player.inCar);
     Renderer.render(ctx, viewW, viewH, {
       player: state.player,
       vehicles: state.vehicles,
       pedestrians: state.pedestrians,
-      mission: state.mission,
+      npcs: state.npcs,
+      mission: Story.state.activeMission,
+      missionInfo,
       camera: state.camera,
       policeHUD: Police.getHUDState(),
       roadblocks: Police.state.roadblocks
@@ -861,10 +968,18 @@ CiudadCero.Game = (() => {
     UI.init();
     Input.init({
       onEnterExit: toggleEnterExitVehicle,
-      onReset: resetWorld,
+      onReset: requestNewGameWithConfirmation,
       onHorn: triggerHorn,
-      onGarage: handleGarageAction
+      onGarage: handleGarageAction,
+      onStory: handleStoryAction,
+      onTalk: handleTalkAction,
+      onAdvanceDialogue: handleAdvanceDialogue
     });
+
+    const btnDialogueNext = document.getElementById('btn-dialogue-next');
+    if (btnDialogueNext) {
+      btnDialogueNext.addEventListener('click', handleAdvanceDialogue);
+    }
 
     const btnAudio = document.getElementById('btn-audio');
     if (btnAudio) {
@@ -885,7 +1000,35 @@ CiudadCero.Game = (() => {
 
     const btnReset = document.getElementById('btn-reset');
     if (btnReset) {
-      btnReset.addEventListener('click', resetWorld);
+      btnReset.addEventListener('click', requestNewGameWithConfirmation);
+    }
+
+    const btnStoryTop = document.getElementById('btn-story-top');
+    if (btnStoryTop) {
+      btnStoryTop.addEventListener('click', () => handleStoryAction(false));
+    }
+
+    const btnStoryClose = document.getElementById('btn-story-close');
+    if (btnStoryClose) {
+      btnStoryClose.addEventListener('click', () => handleStoryAction(true));
+    }
+
+    const btnStoryNewGame = document.getElementById('btn-story-newgame');
+    if (btnStoryNewGame) {
+      btnStoryNewGame.addEventListener('click', () => {
+        UI.closeStoryModal();
+        requestNewGameWithConfirmation();
+      });
+    }
+
+    const btnConfirmYes = document.getElementById('btn-confirm-yes');
+    if (btnConfirmYes) {
+      btnConfirmYes.addEventListener('click', confirmNewGame);
+    }
+
+    const btnConfirmNo = document.getElementById('btn-confirm-no');
+    if (btnConfirmNo) {
+      btnConfirmNo.addEventListener('click', cancelNewGame);
     }
 
     const btnGarageTop = document.getElementById('btn-garage-top');
@@ -904,12 +1047,12 @@ CiudadCero.Game = (() => {
     });
 
     resizeCanvas();
-    resetWorld();
+    loadOrInitGame();
     lastTime = performance.now();
     requestAnimationFrame(loop);
   }
 
-  return { init, state, resetWorld };
+  return { init, state, startFreshGame };
 })();
 
 window.addEventListener('DOMContentLoaded', () => {

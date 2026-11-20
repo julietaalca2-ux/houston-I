@@ -258,7 +258,7 @@ CiudadCero.Renderer = (() => {
     }
   }
 
-  function drawVehicle(ctx, v) {
+  function drawVehicle(ctx, v, now) {
     ctx.save();
     ctx.translate(v.x, v.y);
     ctx.rotate(v.angle);
@@ -339,8 +339,12 @@ CiudadCero.Renderer = (() => {
       }
     }
 
-    ctx.strokeStyle = v.isMissionTarget ? '#d6f36a' : '#141915';
-    ctx.lineWidth = v.isMissionTarget ? 2 : 1.3;
+    ctx.strokeStyle = v.isChaseTarget
+      ? '#ff3b30'
+      : v.isMissionTarget
+        ? '#d6f36a'
+        : '#141915';
+    ctx.lineWidth = (v.isMissionTarget || v.isChaseTarget) ? 2.2 : 1.3;
     ctx.strokeRect(-hl, -hw, v.length, v.width);
 
     ctx.fillStyle = '#fff7bf';
@@ -358,6 +362,21 @@ CiudadCero.Renderer = (() => {
     }
 
     ctx.restore();
+
+    if (v.isChaseTarget) {
+      const pulse = 26 + Math.sin((now || performance.now()) / 140) * 5;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 59, 48, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(v.x, v.y, pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ff594d';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`OBJETIVO (${Math.max(0, Math.round(v.hp))} HP)`, v.x, v.y - pulse - 5);
+      ctx.restore();
+    }
   }
 
   function drawPedestrian(ctx, p) {
@@ -407,7 +426,69 @@ CiudadCero.Renderer = (() => {
     ctx.restore();
   }
 
-  function drawPlayer(ctx, player) {
+  function drawStoryNPCs(ctx, npcs, activeMission, now) {
+    if (!Array.isArray(npcs)) return;
+    for (let i = 0; i < npcs.length; i++) {
+      const npc = npcs[i];
+      const isMissionTargetNpc =
+        activeMission &&
+        (activeMission.npcId === npc.id ||
+          (activeMission.stage === 'pickup' && activeMission.pickupNpcId === npc.id));
+
+      const ringR = 16 + Math.sin(now / 240 + i) * 3;
+      ctx.save();
+      ctx.strokeStyle = isMissionTargetNpc ? '#f5d94b' : (npc.color || '#6cb2d1');
+      ctx.lineWidth = isMissionTargetNpc ? 2.2 : 1.4;
+      ctx.beginPath();
+      ctx.arc(npc.x, npc.y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.beginPath();
+      ctx.arc(npc.x + 2, npc.y + 2, npc.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = npc.shirt || '#f5d94b';
+      ctx.beginPath();
+      ctx.arc(npc.x, npc.y, npc.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#121713';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = npc.hair || '#222';
+      ctx.beginPath();
+      ctx.arc(npc.x, npc.y - 1.5, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      const shortName = npc.name.split(' ')[0];
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(12, 17, 14, 0.85)';
+      ctx.fillRect(npc.x - 32, npc.y - 29, 64, 13);
+      ctx.fillStyle = isMissionTargetNpc ? '#f5d94b' : '#e6f0e4';
+      ctx.fillText(isMissionTargetNpc ? `! ${shortName}` : shortName, npc.x, npc.y - 19);
+
+      ctx.restore();
+    }
+  }
+
+  function drawPlayer(ctx, player, missionInfo) {
+    if (missionInfo && (missionInfo.hasPassenger || missionInfo.hasPackage)) {
+      ctx.save();
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      const label = missionInfo.hasPassenger
+        ? `A BORDO: ${missionInfo.passengerName || 'PASAJERO'}`
+        : 'PAQUETE EN POSESIÓN';
+      ctx.fillStyle = 'rgba(14, 20, 16, 0.88)';
+      ctx.fillRect(player.x - 62, player.y - 34, 124, 13);
+      ctx.fillStyle = '#4de0b5';
+      ctx.fillText(label, player.x, player.y - 24);
+      ctx.restore();
+    }
+
     if (player.inCar) return;
     ctx.save();
     ctx.translate(player.x, player.y);
@@ -472,15 +553,16 @@ CiudadCero.Renderer = (() => {
   function drawMissionMarker(ctx, mission, now) {
     if (!mission) return;
     const pulse = 18 + Math.sin(now / 170) * 6;
+    const color = mission.isSide ? '#4de0b5' : '#f5d94b';
 
     ctx.save();
-    ctx.strokeStyle = '#f5d94b';
+    ctx.strokeStyle = color;
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(mission.x, mission.y, pulse, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.fillStyle = 'rgba(245, 217, 75, 0.25)';
+    ctx.fillStyle = mission.isSide ? 'rgba(77, 224, 181, 0.22)' : 'rgba(245, 217, 75, 0.25)';
     ctx.beginPath();
     ctx.arc(mission.x, mission.y, 13, 0, Math.PI * 2);
     ctx.fill();
@@ -511,7 +593,7 @@ CiudadCero.Renderer = (() => {
     ctx.save();
     ctx.translate(ax, ay);
     ctx.rotate(angle);
-    ctx.fillStyle = '#f5d94b';
+    ctx.fillStyle = mission.isSide ? '#4de0b5' : '#f5d94b';
     ctx.strokeStyle = '#151b16';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -568,6 +650,16 @@ CiudadCero.Renderer = (() => {
       ctx.fillRect(mx + h.x * sx - 2.5, my + h.y * sy - 2.5, 5, 5);
     }
 
+    if (Array.isArray(state.npcs)) {
+      ctx.fillStyle = '#6cb2d1';
+      for (let i = 0; i < state.npcs.length; i++) {
+        const npc = state.npcs[i];
+        ctx.beginPath();
+        ctx.arc(mx + npc.x * sx, my + npc.y * sy, 2.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     if (policeHUD && policeHUD.wanted > 0 && policeHUD.hasLastKnown) {
       ctx.strokeStyle = 'rgba(255, 59, 48, 0.75)';
       ctx.lineWidth = 1.2;
@@ -585,7 +677,12 @@ CiudadCero.Renderer = (() => {
     const blink = Math.floor(performance.now() / 160) % 2 === 0;
     for (let i = 0; i < state.vehicles.length; i++) {
       const v = state.vehicles[i];
-      if (v.isPolice) {
+      if (v.isChaseTarget) {
+        ctx.fillStyle = blink ? '#ff3b30' : '#f5d94b';
+        ctx.beginPath();
+        ctx.arc(mx + v.x * sx, my + v.y * sy, 3.6, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (v.isPolice) {
         ctx.fillStyle = blink ? '#ff3b30' : '#3898ff';
         ctx.beginPath();
         ctx.arc(mx + v.x * sx, my + v.y * sy, 2.7, 0, Math.PI * 2);
@@ -597,9 +694,9 @@ CiudadCero.Renderer = (() => {
     }
 
     if (state.mission) {
-      ctx.fillStyle = '#f5d94b';
+      ctx.fillStyle = state.mission.isSide ? '#4de0b5' : '#f5d94b';
       ctx.beginPath();
-      ctx.arc(mx + state.mission.x * sx, my + state.mission.y * sy, 3.6, 0, Math.PI * 2);
+      ctx.arc(mx + state.mission.x * sx, my + state.mission.y * sy, 3.8, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -673,6 +770,7 @@ CiudadCero.Renderer = (() => {
     }
 
     drawMissionMarker(ctx, state.mission, now);
+    drawStoryNPCs(ctx, state.npcs, state.mission, now);
 
     const pad = 80;
     for (let i = 0; i < state.pedestrians.length; i++) {
@@ -686,7 +784,7 @@ CiudadCero.Renderer = (() => {
       drawPedestrian(ctx, p);
     }
 
-    drawPlayer(ctx, state.player);
+    drawPlayer(ctx, state.player, state.missionInfo);
 
     for (let i = 0; i < state.vehicles.length; i++) {
       const v = state.vehicles[i];
@@ -696,7 +794,7 @@ CiudadCero.Renderer = (() => {
       ) {
         continue;
       }
-      drawVehicle(ctx, v);
+      drawVehicle(ctx, v, now);
     }
 
     ctx.restore();

@@ -84,6 +84,21 @@ CiudadCero.Police = (() => {
     return false;
   }
 
+  function reduceWanted(amount, onNotify) {
+    if (state.wanted <= 0) return false;
+    state.wanted = Math.max(0, state.wanted - amount);
+    state.escapeProgress = 0;
+    if (state.wanted === 0) {
+      state.hasLastKnown = false;
+      state.playerInSight = false;
+      state.roadblocks = [];
+    }
+    if (typeof onNotify === 'function') {
+      onNotify(state.wanted === 0 ? '¡Alerta policial eliminada! (0★)' : `Alerta reducida a ${state.wanted}★`);
+    }
+    return true;
+  }
+
   function clearWanted() {
     state.wanted = 0;
     state.escapeProgress = 0;
@@ -106,7 +121,9 @@ CiudadCero.Police = (() => {
   }
 
   function maintainUnits(vehicles, player) {
-    const policeUnits = vehicles.filter((v) => v.isPolice && !v.isRoadblock && v !== player.vehicle);
+    const policeUnits = vehicles.filter(
+      (v) => v.isPolice && !v.isRoadblock && !v.isChaseTarget && v !== player.vehicle
+    );
     state.activeUnitsCount = policeUnits.length;
 
     const desiredCount =
@@ -262,7 +279,89 @@ CiudadCero.Police = (() => {
     return directAngle;
   }
 
+  function updateChaseTargetVehicle(unit, dt, player) {
+    if (unit.isPolice) {
+      unit.sirenPhase = (unit.sirenPhase || 0) + dt * 11;
+      unit.sirenActive = true;
+    }
+
+    if (unit.hp <= 30) {
+      unit.vx *= Math.pow(0.08, dt);
+      unit.vy *= Math.pow(0.08, dt);
+      unit.speed = 0;
+      unit.brakeLights = true;
+      return;
+    }
+
+    if (unit.stunTimer > 0) {
+      unit.stunTimer -= dt;
+      unit.vx *= 0.92;
+      unit.vy *= 0.92;
+      unit.x += unit.vx * dt;
+      unit.y += unit.vy * dt;
+      return;
+    }
+
+    // Flee away from player while keeping near city center bounds
+    const awayX = unit.x - player.x;
+    const awayY = unit.y - player.y;
+    const awayDist = Math.hypot(awayX, awayY) || 1;
+    let escapeTargetX = unit.x + (awayX / awayDist) * 420;
+    let escapeTargetY = unit.y + (awayY / awayDist) * 420;
+
+    // Pull gently toward inner map if close to edges so target doesn't get cornered at border
+    if (escapeTargetX < 220) escapeTargetX = 680;
+    if (escapeTargetX > Config.WORLD.width - 220) escapeTargetX = Config.WORLD.width - 680;
+    if (escapeTargetY < 220) escapeTargetY = 540;
+    if (escapeTargetY > Config.WORLD.height - 220) escapeTargetY = Config.WORLD.height - 540;
+
+    let desiredAngle = computeStreetPursuitAngle(unit, escapeTargetX, escapeTargetY);
+
+    const probeDist = 56;
+    const frontX = unit.x + Math.cos(unit.angle) * probeDist;
+    const frontY = unit.y + Math.sin(unit.angle) * probeDist;
+    if (Physics.collidesBuildingCircle(frontX, frontY, 16)) {
+      const leftX = unit.x + Math.cos(unit.angle - 0.7) * probeDist;
+      const leftY = unit.y + Math.sin(unit.angle - 0.7) * probeDist;
+      const rightX = unit.x + Math.cos(unit.angle + 0.7) * probeDist;
+      const rightY = unit.y + Math.sin(unit.angle + 0.7) * probeDist;
+      const leftFree = !Physics.collidesBuildingCircle(leftX, leftY, 16);
+      const rightFree = !Physics.collidesBuildingCircle(rightX, rightY, 16);
+      if (leftFree && !rightFree) desiredAngle = unit.angle - 0.95;
+      else if (rightFree && !leftFree) desiredAngle = unit.angle + 0.95;
+      else desiredAngle = unit.angle + 1.25;
+    }
+
+    const diff = Physics.normalizeAngle(desiredAngle - unit.angle);
+    const maxTurn = unit.turnRate * 1.15 * dt;
+    unit.angle = Physics.normalizeAngle(
+      unit.angle + Physics.clamp(diff, -maxTurn, maxTurn)
+    );
+
+    const distToPlayer = Math.hypot(player.x - unit.x, player.y - unit.y);
+    // Rubber-banding so chase feels exciting and fair on PC and mobile
+    const baseChaseSpeed = distToPlayer > 680 ? 155 : distToPlayer < 220 ? 225 : 195;
+    const cornerFactor = Math.abs(diff) > 0.75 ? 0.65 : 1.0;
+    const targetSpeed = Math.min(unit.maxSpeed, baseChaseSpeed) * cornerFactor;
+
+    if (unit.speed < targetSpeed) {
+      unit.speed = Math.min(targetSpeed, unit.speed + unit.accel * dt);
+    } else {
+      unit.speed = Math.max(targetSpeed, unit.speed - unit.brake * 0.8 * dt);
+    }
+
+    unit.vx = Math.cos(unit.angle) * unit.speed;
+    unit.vy = Math.sin(unit.angle) * unit.speed;
+    unit.x += unit.vx * dt;
+    unit.y += unit.vy * dt;
+  }
+
   function updatePoliceUnit(unit, dt, player, vehicles, updateCivilTrafficFn) {
+    if (unit.isChaseTarget) {
+      updateChaseTargetVehicle(unit, dt, player);
+      return;
+    }
+
     unit.sirenPhase = (unit.sirenPhase || 0) + dt * (state.wanted > 0 ? 11 : 4);
 
     if (unit.isRoadblock) {
@@ -398,14 +497,18 @@ CiudadCero.Police = (() => {
 
     for (let i = 0; i < vehicles.length; i++) {
       const v = vehicles[i];
-      if (v.isPolice && v !== player.vehicle) {
-        updatePoliceUnit(
-          v,
-          dt,
-          player,
-          vehicles,
-          callbacks && callbacks.updateCivilTraffic
-        );
+      if (v !== player.vehicle) {
+        if (v.isChaseTarget) {
+          updateChaseTargetVehicle(v, dt, player);
+        } else if (v.isPolice) {
+          updatePoliceUnit(
+            v,
+            dt,
+            player,
+            vehicles,
+            callbacks && callbacks.updateCivilTraffic
+          );
+        }
       }
     }
 
@@ -456,7 +559,7 @@ CiudadCero.Police = (() => {
       let closestPoliceDist = Infinity;
       for (let i = 0; i < vehicles.length; i++) {
         const v = vehicles[i];
-        if (v.isPolice && v !== player.vehicle) {
+        if (v.isPolice && !v.isChaseTarget && v !== player.vehicle) {
           const d = Math.hypot(v.x - player.x, v.y - player.y);
           if (d < closestPoliceDist) closestPoliceDist = d;
         }
@@ -519,6 +622,7 @@ CiudadCero.Police = (() => {
     reset,
     addWanted,
     setMinWanted,
+    reduceWanted,
     clearWanted,
     registerIncident,
     update,

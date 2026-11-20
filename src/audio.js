@@ -111,6 +111,10 @@ CiudadCero.Audio = (() => {
     playGarageAction() {
       tone(290, 0.09, 'square', 0.06, 440);
       setTimeout(() => tone(520, 0.14, 'triangle', 0.08, 660), 80);
+    },
+
+    playDialogueBlip() {
+      tone(480, 0.055, 'triangle', 0.045, 620);
     }
   };
 })();

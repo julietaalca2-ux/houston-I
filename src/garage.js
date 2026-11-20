@@ -6,6 +6,19 @@ CiudadCero.Garage = (() => {
 
   let slots = [];
   let nextSlotId = 1;
+  let unlockedTypes = new Set(['sedan', 'coupe']);
+
+  function getDefaultUnlocked() {
+    const set = new Set();
+    (Config.VEHICLE_CATALOG || []).forEach((item) => {
+      if (item.defaultUnlocked) set.add(item.typeId);
+    });
+    if (set.size === 0) {
+      set.add('sedan');
+      set.add('coupe');
+    }
+    return set;
+  }
 
   function makeSlotFromVehicle(v, stored = true) {
     return {
@@ -17,6 +30,8 @@ CiudadCero.Garage = (() => {
       hp: Math.round(v.hp),
       maxHp: Math.round(v.maxHp),
       isPolice: Boolean(v.isPolice),
+      armorUpgraded: Boolean(v.armorUpgraded),
+      engineUpgraded: Boolean(v.engineUpgraded),
       stored
     };
   }
@@ -24,10 +39,37 @@ CiudadCero.Garage = (() => {
   function init(starterVehicle) {
     slots = [];
     nextSlotId = 1;
+    unlockedTypes = getDefaultUnlocked();
     if (starterVehicle) {
       starterVehicle.isPlayerOwned = true;
       slots.push(makeSlotFromVehicle(starterVehicle, false));
     }
+  }
+
+  function isTypeUnlocked(typeId) {
+    return unlockedTypes.has(typeId);
+  }
+
+  function getUnlockedTypes() {
+    return Array.from(unlockedTypes);
+  }
+
+  function unlockVehicleType(typeId) {
+    if (!typeId) return false;
+    const wasNew = !unlockedTypes.has(typeId);
+    unlockedTypes.add(typeId);
+    return wasNew;
+  }
+
+  function addOwnedVehicleRecord(v) {
+    if (!v) return false;
+    v.isPlayerOwned = true;
+    unlockVehicleType(v.typeId);
+    const existing = slots.find((s) => s.worldVehicleId === v.id);
+    if (existing) return true;
+    if (slots.length >= rules.maxSlots) return false;
+    slots.push(makeSlotFromVehicle(v, false));
+    return true;
   }
 
   function syncWorldVehicle(v) {
@@ -37,6 +79,8 @@ CiudadCero.Garage = (() => {
       existing.hp = Math.round(v.hp);
       existing.maxHp = Math.round(v.maxHp);
       existing.color = v.color;
+      existing.armorUpgraded = Boolean(v.armorUpgraded);
+      existing.engineUpgraded = Boolean(v.engineUpgraded);
     }
   }
 
@@ -46,6 +90,74 @@ CiudadCero.Garage = (() => {
 
   function getMaxSlots() {
     return rules.maxSlots;
+  }
+
+  function exportState() {
+    return {
+      unlockedTypes: Array.from(unlockedTypes),
+      slots: slots.map((s) => ({
+        typeId: s.typeId,
+        name: s.name,
+        color: s.color,
+        hp: Math.round(s.hp),
+        maxHp: Math.round(s.maxHp),
+        isPolice: Boolean(s.isPolice),
+        armorUpgraded: Boolean(s.armorUpgraded),
+        engineUpgraded: Boolean(s.engineUpgraded),
+        stored: Boolean(s.stored)
+      }))
+    };
+  }
+
+  function importState(savedGarage, vehicles) {
+    unlockedTypes = getDefaultUnlocked();
+    if (savedGarage && Array.isArray(savedGarage.unlockedTypes)) {
+      savedGarage.unlockedTypes.forEach((t) => unlockedTypes.add(t));
+    }
+
+    slots = [];
+    nextSlotId = 1;
+
+    if (savedGarage && Array.isArray(savedGarage.slots) && savedGarage.slots.length > 0) {
+      savedGarage.slots.forEach((item, idx) => {
+        const spec = Config.VEHICLE_TYPES[item.typeId] || Config.VEHICLE_TYPES.coupe;
+        const slot = {
+          slotId: nextSlotId++,
+          worldVehicleId: null,
+          typeId: spec.id,
+          name: item.name || spec.name,
+          color: item.color || spec.colors[0],
+          hp: Math.max(25, Math.min(item.maxHp || spec.maxHp, item.hp || spec.maxHp)),
+          maxHp: item.maxHp || spec.maxHp,
+          isPolice: Boolean(spec.isPolice || item.isPolice),
+          armorUpgraded: Boolean(item.armorUpgraded),
+          engineUpgraded: Boolean(item.engineUpgraded),
+          stored: true
+        };
+
+        if (idx === 0 && Array.isArray(vehicles)) {
+          const spawned = CiudadCero.Entities.createVehicle({
+            typeId: slot.typeId,
+            color: slot.color,
+            x: 520,
+            y: 390,
+            angle: 0,
+            hp: slot.hp,
+            maxHp: slot.maxHp,
+            armorUpgraded: slot.armorUpgraded,
+            engineUpgraded: slot.engineUpgraded,
+            isPlayerOwned: true,
+            isAI: false,
+            isParked: true
+          });
+          vehicles.push(spawned);
+          slot.stored = false;
+          slot.worldVehicleId = spawned.id;
+        }
+
+        slots.push(slot);
+      });
+    }
   }
 
   function storeVehicle(vehicle, vehicles, player, onPlayerExited) {
@@ -61,9 +173,13 @@ CiudadCero.Garage = (() => {
       return { ok: false, msg: `Garaje lleno (${rules.maxSlots}/${rules.maxSlots} espacios).` };
     }
 
+    unlockVehicleType(vehicle.typeId);
+
     if (existing) {
       existing.hp = Math.round(vehicle.hp);
       existing.maxHp = Math.round(vehicle.maxHp);
+      existing.armorUpgraded = Boolean(vehicle.armorUpgraded);
+      existing.engineUpgraded = Boolean(vehicle.engineUpgraded);
       existing.stored = true;
       existing.worldVehicleId = null;
     } else {
@@ -110,6 +226,9 @@ CiudadCero.Garage = (() => {
       y: garageObj.spawnY,
       angle: garageObj.spawnAngle || -Math.PI / 2,
       hp: slot.hp,
+      maxHp: slot.maxHp,
+      armorUpgraded: slot.armorUpgraded,
+      engineUpgraded: slot.engineUpgraded,
       isPlayerOwned: true,
       isAI: false,
       isParked: false
@@ -170,6 +289,94 @@ CiudadCero.Garage = (() => {
 
     spawnFromSlot(slot, garageObj, player, vehicles);
     return { ok: true, msg: `${slot.name} listo para conducir.` };
+  }
+
+  function buyCatalogVehicle(typeId, garageObj, player, vehicles, money, spendFn) {
+    const item = (Config.VEHICLE_CATALOG || []).find((c) => c.typeId === typeId);
+    const spec = Config.VEHICLE_TYPES[typeId];
+    if (!item || !spec) {
+      return { ok: false, msg: 'Modelo no disponible.' };
+    }
+    if (!isTypeUnlocked(typeId)) {
+      return { ok: false, msg: `Vehículo bloqueado: ${item.unlockHint}` };
+    }
+    if (slots.length >= rules.maxSlots) {
+      return { ok: false, msg: `Garaje lleno (${rules.maxSlots}/${rules.maxSlots} espacios).` };
+    }
+    if (money < item.price) {
+      return { ok: false, msg: `Necesitas $ ${item.price} para adquirir ${spec.name}.` };
+    }
+
+    if (player && player.inCar && player.vehicle) {
+      const currentVeh = player.vehicle;
+      const owned = slots.find((s) => s.worldVehicleId === currentVeh.id);
+      if (owned) {
+        owned.stored = true;
+        owned.worldVehicleId = null;
+        owned.hp = Math.round(currentVeh.hp);
+        const idx = vehicles.indexOf(currentVeh);
+        if (idx !== -1) vehicles.splice(idx, 1);
+      }
+    }
+
+    spendFn(item.price);
+    const newSlot = {
+      slotId: nextSlotId++,
+      worldVehicleId: null,
+      typeId: spec.id,
+      name: spec.name,
+      color: item.color || spec.colors[0],
+      hp: spec.maxHp,
+      maxHp: spec.maxHp,
+      isPolice: Boolean(spec.isPolice),
+      armorUpgraded: false,
+      engineUpgraded: false,
+      stored: true
+    };
+    slots.push(newSlot);
+    spawnFromSlot(newSlot, garageObj, player, vehicles);
+    return { ok: true, msg: `¡${spec.name} adquirido por $ ${item.price}!` };
+  }
+
+  function upgradeActiveVehicle(upgradeType, vehicle, money, spendFn) {
+    if (!vehicle) return { ok: false, msg: 'Coloca un vehículo en la bahía primero.' };
+    const upg = (Config.GARAGE_UPGRADES || {})[upgradeType];
+    if (!upg) return { ok: false, msg: 'Mejora no válida.' };
+
+    if (upgradeType === 'armor') {
+      if (vehicle.armorUpgraded) {
+        return { ok: false, msg: 'Este vehículo ya tiene blindaje reforzado.' };
+      }
+      if (money < upg.cost) {
+        return { ok: false, msg: `Necesitas $ ${upg.cost} para el blindaje.` };
+      }
+      spendFn(upg.cost);
+      vehicle.armorUpgraded = true;
+      vehicle.maxHp += upg.hpBonus;
+      vehicle.hp = vehicle.maxHp;
+      syncWorldVehicle(vehicle);
+      CiudadCero.Audio.playGarageAction();
+      return { ok: true, msg: `Blindaje instalado en ${vehicle.name} (-$ ${upg.cost}).` };
+    }
+
+    if (upgradeType === 'turbo') {
+      if (vehicle.engineUpgraded) {
+        return { ok: false, msg: 'Este vehículo ya tiene turbo calibrado.' };
+      }
+      if (money < upg.cost) {
+        return { ok: false, msg: `Necesitas $ ${upg.cost} para el turbo.` };
+      }
+      spendFn(upg.cost);
+      vehicle.engineUpgraded = true;
+      vehicle.maxSpeed = Math.round(vehicle.maxSpeed * upg.speedMult);
+      vehicle.turboSpeed = Math.round(vehicle.turboSpeed * upg.speedMult);
+      vehicle.accel = Math.round(vehicle.accel * 1.12);
+      syncWorldVehicle(vehicle);
+      CiudadCero.Audio.playGarageAction();
+      return { ok: true, msg: `Turbo calibrado en ${vehicle.name} (-$ ${upg.cost}).` };
+    }
+
+    return { ok: false, msg: 'Mejora no disponible.' };
   }
 
   function recoverVehicle(slotId, garageObj, player, vehicles, money, spendFn) {
@@ -237,11 +444,19 @@ CiudadCero.Garage = (() => {
 
   return {
     init,
+    isTypeUnlocked,
+    getUnlockedTypes,
+    unlockVehicleType,
+    addOwnedVehicleRecord,
     syncWorldVehicle,
     getSlots,
     getMaxSlots,
+    exportState,
+    importState,
     storeVehicle,
     selectVehicle,
+    buyCatalogVehicle,
+    upgradeActiveVehicle,
     recoverVehicle,
     repairActiveVehicle,
     repairSlotVehicle
