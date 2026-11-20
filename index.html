@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Juego 01 — Ciudad Cero</title>
+  <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">SAGA ORIGINAL · JUEGO 01</p>
+        <h1>CIUDAD CERO</h1>
+      </div>
+      <div class="stats">
+        <span>DINERO <b id="money">$ 500</b></span>
+        <span>ESTADO <b id="status">A PIE</b></span>
+        <span>ALERTA <b id="wanted">☆☆☆☆☆</b></span>
+      </div>
+    </header>
+
+    <section class="game-frame" aria-label="Juego">
+      <canvas id="game" width="960" height="600"></canvas>
+      <div class="mission">
+        <span class="mission-tag">OBJETIVO</span>
+        <strong id="mission-title">Llega al punto amarillo</strong>
+        <small id="mission-help">Muévete con WASD o las flechas.</small>
+      </div>
+      <div class="toast" id="toast">Explora Ciudad Cero</div>
+    </section>
+
+    <footer class="controls">
+      <span><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Moverse</span>
+      <span><kbd>E</kbd> Entrar / salir del vehículo</span>
+      <span><kbd>Shift</kbd> Acelerar a pie</span>
+      <span><kbd>R</kbd> Reiniciar</span>
+    </footer>
+    <p class="note">Prototipo inicial · Los gráficos y recursos son originales y temporales.</p>
+  </main>
+  <script src="src/game.js"></script>
+</body>
+</html>
