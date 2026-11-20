@@ -4,7 +4,7 @@
   class Engine {
     constructor(options) {
       const config = options || {};
-      this.version = config.version || '0.23.0';
+      this.version = config.version || '0.24.0';
       this.events = new namespace.EventBus();
       this.scenes = new namespace.SceneManager(this.events);
       this.resources = new namespace.ResourceRegistry(this.events);
@@ -95,5 +95,5 @@
     }
   }
   namespace.Engine = Engine;
-  namespace.runtime = namespace.runtime || new Engine({ version: '0.23.0' });
+  namespace.runtime = namespace.runtime || new Engine({ version: '0.24.0' });
 })(window);
