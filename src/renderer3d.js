@@ -9,6 +9,7 @@ CiudadCero.Renderer3D = (() => {
   let playerMesh = null, playerShadow = null, facadeMaterial = null;
   let vehicleMeshes = [], pedestrianMeshes = [], npcMeshes = [];
   let active = false, lastResize = 0, lastEngineFrameTime = 0;
+  let surfaceTextures = null, qualityProfile = 'high';
   // Third-person orbit camera: follows the protagonist from behind.
   let cameraYawOffset = 0, cameraPitchOffset = 0; // cameraYawOffset is an absolute world heading
   let dragPointerId = null, lastPointerX = 0, lastPointerY = 0;
@@ -42,9 +43,116 @@ CiudadCero.Renderer3D = (() => {
     return p[Math.abs(shade || 0) % p.length];
   }
 
+
+  // High-resolution procedural material library. Textures are generated locally,
+  // so the game does not depend on external image hosts and remains offline-capable.
+  function makeSurfaceTexture(kind, size = 1024) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const palettes = {
+      asphalt: ['#303638', '#383f40', '#272e30'],
+      concrete: ['#a2a39a', '#92968f', '#b1b0a5'],
+      grass: ['#435d3d', '#506b43', '#60764a']
+    };
+    const colors = palettes[kind] || palettes.concrete;
+    ctx.fillStyle = colors[0]; ctx.fillRect(0, 0, size, size);
+    let seed = kind.length * 7919 + size;
+    const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let i = 0; i < (kind === 'grass' ? 26000 : 19000); i++) {
+      const x = rand() * size, y = rand() * size;
+      const r = kind === 'grass' ? 1 + rand() * 4 : 0.5 + rand() * 2.2;
+      ctx.globalAlpha = 0.08 + rand() * 0.22;
+      ctx.fillStyle = colors[Math.floor(rand() * colors.length)];
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (kind === 'concrete') {
+      ctx.strokeStyle = 'rgba(55,60,57,.12)'; ctx.lineWidth = 2;
+      for (let y = 0; y < size; y += 256) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(size,y); ctx.stroke(); }
+    }
+    if (kind === 'asphalt') {
+      // Fine aggregate and faint tire-wear streaks.
+      for (let i = 0; i < 80; i++) {
+        const y = rand() * size; ctx.fillStyle = 'rgba(12,16,17,.10)';
+        ctx.fillRect(0, y, size, 1 + rand() * 3);
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = renderer && renderer.capabilities ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 4;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function makeFacadeTexture() {
+    const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    const gradients = ctx.createLinearGradient(0, 0, 1024, 1024);
+    gradients.addColorStop(0, '#53666a'); gradients.addColorStop(.5, '#34494f'); gradients.addColorStop(1, '#718083');
+    ctx.fillStyle = gradients; ctx.fillRect(0, 0, 1024, 1024);
+    let seed = 45231; const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const cols = 8, rows = 9, cellW = 1024 / cols, cellH = 1024 / rows;
+    for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
+      const x = col * cellW + 17, y = row * cellH + 15;
+      const w = cellW - 34, h = cellH - 30;
+      ctx.fillStyle = '#1d2b30'; ctx.fillRect(x-5, y-5, w+10, h+10);
+      const lit = rand() > .31;
+      const glass = ctx.createLinearGradient(x, y, x+w, y+h);
+      glass.addColorStop(0, lit ? '#a9c5c4' : '#263b43');
+      glass.addColorStop(.48, lit ? '#718f94' : '#314b55');
+      glass.addColorStop(1, lit ? '#3c5a62' : '#172c35');
+      ctx.fillStyle = glass; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = 'rgba(230,239,229,.28)'; ctx.fillRect(x+5, y+4, 3, h-8);
+      ctx.fillStyle = 'rgba(9,20,24,.45)'; ctx.fillRect(x, y+h-5, w, 5);
+      ctx.fillStyle = 'rgba(195,208,201,.55)'; ctx.fillRect(x-3, y+h+2, w+6, 5);
+    }
+    // Subtle vertical concrete pilasters and horizontal floor bands.
+    ctx.fillStyle = 'rgba(190,201,194,.18)';
+    for (let x = 0; x < 1024; x += 128) ctx.fillRect(x, 0, 7, 1024);
+    for (let y = 0; y < 1024; y += 114) ctx.fillRect(0, y, 1024, 5);
+    const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = renderer && renderer.capabilities ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 4;
+    return tex;
+  }
+
+  function createSurfaceLibrary() {
+    // Canvas maps are immediate fallbacks; bundled 2K maps replace their pixel
+    // sources as soon as local files finish loading (works on GitHub Pages too).
+    surfaceTextures = {
+      asphalt: makeSurfaceTexture('asphalt'),
+      concrete: makeSurfaceTexture('concrete'),
+      grass: makeSurfaceTexture('grass'),
+      facade: makeFacadeTexture()
+    };
+    const loader = new THREE.TextureLoader();
+    const bundled = [
+      ['asphalt', 'assets/textures/asphalt_2k.jpg'],
+      ['concrete', 'assets/textures/concrete_2k.jpg'],
+      ['grass', 'assets/textures/grass_2k.jpg'],
+      ['facade', 'assets/textures/building_facade_2k.jpg']
+    ];
+    bundled.forEach(([key, url]) => {
+      loader.load(url, (loaded) => {
+        const target = surfaceTextures[key];
+        target.image = loaded.image;
+        target.colorSpace = THREE.SRGBColorSpace;
+        target.wrapS = target.wrapT = THREE.RepeatWrapping;
+        target.needsUpdate = true;
+        loaded.dispose();
+      }, undefined, () => {
+        // Keep the procedural canvas fallback if an asset is unavailable.
+      });
+    });
+  }
+
   function buildGround() {
     const cfg = World.config;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(cfg.width, cfg.height), material('#52634d'));
+    const groundMat = new THREE.MeshStandardMaterial({ color: '#a2ad91', map: surfaceTextures.grass, roughness: 1 });
+    surfaceTextures.grass.repeat.set(18, 12);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(cfg.width, cfg.height), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(cfg.width / 2, -0.16, cfg.height / 2);
     ground.receiveShadow = true;
@@ -52,19 +160,30 @@ CiudadCero.Renderer3D = (() => {
 
     // City blocks and broad asphalt streets follow the original simulation grid.
     const bs = cfg.blockSize || 300;
-    const road = material('#303a3b');
-    const sidewalk = material('#92968d');
+    surfaceTextures.asphalt.repeat.set(5, 5);
+    surfaceTextures.concrete.repeat.set(3, 3);
+    const road = new THREE.MeshStandardMaterial({ color: '#aab0ae', map: surfaceTextures.asphalt, roughness: 0.96 });
+    const sidewalk = new THREE.MeshStandardMaterial({ color: '#b8b8ad', map: surfaceTextures.concrete, roughness: 0.94 });
     for (let x = 0; x <= cfg.width; x += bs) {
       const r = new THREE.Mesh(new THREE.BoxGeometry(cfg.roadWidth || 150, 0.12, cfg.height), road);
       r.position.set(x + (cfg.roadWidth || 150) / 2, -0.045, cfg.height / 2);
       r.receiveShadow = true; root.add(r);
-      const line = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.025, cfg.height), material('#c8c6a5'));
-      line.position.set(x + (cfg.roadWidth || 150) / 2, 0.025, cfg.height / 2); root.add(line);
+      // Dashed lane separators are lightweight geometry shared by the entire avenue.
+      const laneX = x + (cfg.roadWidth || 150) / 2;
+      for (let z = 30; z < cfg.height; z += 92) {
+        const dash = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.035, 34), material('#d8d2b7'));
+        dash.position.set(laneX, 0.035, z); root.add(dash);
+      }
     }
     for (let z = 0; z <= cfg.height; z += bs) {
       const r = new THREE.Mesh(new THREE.BoxGeometry(cfg.width, 0.12, cfg.roadWidth || 150), road);
       r.position.set(cfg.width / 2, -0.045, z + (cfg.roadWidth || 150) / 2);
       r.receiveShadow = true; root.add(r);
+      const laneZ = z + (cfg.roadWidth || 150) / 2;
+      for (let x = 30; x < cfg.width; x += 92) {
+        const dash = new THREE.Mesh(new THREE.BoxGeometry(34, 0.035, 2.2), material('#d8d2b7'));
+        dash.position.set(x, 0.035, laneZ); root.add(dash);
+      }
     }
     // Sidewalk ribbons along both sides of each street.
     const sw = Math.max(8, cfg.sidewalkWidth || 18);
@@ -145,6 +264,11 @@ CiudadCero.Renderer3D = (() => {
       side.rotation.y = Math.PI / 2;
       side.position.set(b.x + b.w - 1.05, height * 0.52 + 0.12, z);
       root.add(side);
+      // Architectural corner pilasters and a visible street-level plinth.
+      const trimMat = material(id === 'centro' ? '#aab5b1' : '#777e79', 0.72, 0.08);
+      addBox(root, b.x + 1.5, 0.18, b.y + 1.5, 1.8, height, 1.8, trimMat, false);
+      addBox(root, b.x + b.w - 3.3, 0.18, b.y + b.h - 3.3, 1.8, height, 1.8, trimMat, false);
+      addBox(root, x, 0.18, z, Math.max(8, b.w - 1), 1.1, Math.max(8, b.h - 1), trimMat, false);
     }
   }
 
@@ -426,15 +550,19 @@ CiudadCero.Renderer3D = (() => {
     } catch (err) {
       canvas.remove(); renderer = null; return false;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 900;
+    qualityProfile = isMobile ? 'mobile-high' : 'ultra';
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.65 : 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.info.autoReset = true;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.12;
+    renderer.toneMappingExposure = 1.18;
+    if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = true;
     scene = new THREE.Scene();
     scene.background = new THREE.Color('#a9c5cf');
-    scene.fog = new THREE.Fog('#a9c5cf', 520, 2100);
+    scene.fog = new THREE.Fog('#a9c5cf', 680, 2650);
     camera = new THREE.PerspectiveCamera(62, 1, 0.1, 5000);
     root = new THREE.Group(); scene.add(root);
     // Connect the existing Ciudad Cero 3D pipeline to the independent engine core.
@@ -444,25 +572,17 @@ CiudadCero.Renderer3D = (() => {
       CiudadEngine.runtime.attachRenderer({ renderer, scene, camera });
       CiudadEngine.runtime.events.emit('game:renderer-ready', { game: 'Ciudad Cero', renderer: 'Three.js' });
     }
-    const facadeCanvas = document.createElement('canvas');
-    facadeCanvas.width = 128; facadeCanvas.height = 128;
-    const facadeCtx = facadeCanvas.getContext('2d');
-    facadeCtx.fillStyle = '#536c72'; facadeCtx.fillRect(0, 0, 128, 128);
-    for (let fy = 5; fy < 128; fy += 18) {
-      for (let fx = 5; fx < 128; fx += 18) {
-        facadeCtx.fillStyle = ((fx + fy) / 18) % 3 === 0 ? '#b4c5bf' : '#9ab4b8';
-        facadeCtx.fillRect(fx, fy, 11, 10);
-        facadeCtx.fillStyle = 'rgba(20,35,39,.35)'; facadeCtx.fillRect(fx, fy + 9, 11, 2);
-      }
-    }
-    const facadeTexture = new THREE.CanvasTexture(facadeCanvas);
-    facadeTexture.colorSpace = THREE.SRGBColorSpace;
-    facadeTexture.wrapS = THREE.RepeatWrapping; facadeTexture.wrapT = THREE.RepeatWrapping;
-    facadeMaterial = new THREE.MeshStandardMaterial({ map: facadeTexture, transparent: true, roughness: 0.38, metalness: 0.16, emissive: '#14252a', emissiveIntensity: 0.10, side: THREE.DoubleSide });
-    scene.add(new THREE.HemisphereLight('#dceeff', '#59634d', 2.0));
-    const sun = new THREE.DirectionalLight('#fff1d5', 3.0);
+    createSurfaceLibrary();
+    facadeMaterial = new THREE.MeshStandardMaterial({ map: surfaceTextures.facade, roughness: 0.58, metalness: 0.12, side: THREE.DoubleSide });
+    scene.add(new THREE.HemisphereLight('#e5f2ff', '#52604b', 1.85));
+    const fillLight = new THREE.DirectionalLight('#d9e9f5', 0.72);
+    fillLight.position.set(380, 260, 520); scene.add(fillLight);
+    const sun = new THREE.DirectionalLight('#fff0d7', 3.35);
     sun.position.set(-450, 900, -350); sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(qualityProfile === 'ultra' ? 2048 : 1536, qualityProfile === 'ultra' ? 2048 : 1536);
+    sun.shadow.bias = -0.00018;
+    sun.shadow.normalBias = 0.035;
+    sun.shadow.radius = 3;
     sun.shadow.camera.left = -500; sun.shadow.camera.right = 500;
     sun.shadow.camera.top = 500; sun.shadow.camera.bottom = -500;
     scene.add(sun);
