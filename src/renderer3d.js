@@ -8,7 +8,7 @@ CiudadCero.Renderer3D = (() => {
   let renderer = null, scene = null, camera = null, root = null;
   let playerMesh = null, playerShadow = null, facadeMaterial = null;
   let vehicleMeshes = [], pedestrianMeshes = [], npcMeshes = [];
-  let active = false, lastResize = 0;
+  let active = false, lastResize = 0, lastEngineFrameTime = 0;
   // Third-person orbit camera: follows the protagonist from behind.
   let cameraYawOffset = 0, cameraPitchOffset = 0; // cameraYawOffset is an absolute world heading
   let dragPointerId = null, lastPointerX = 0, lastPointerY = 0;
@@ -437,6 +437,13 @@ CiudadCero.Renderer3D = (() => {
     scene.fog = new THREE.Fog('#a9c5cf', 520, 2100);
     camera = new THREE.PerspectiveCamera(62, 1, 0.1, 5000);
     root = new THREE.Group(); scene.add(root);
+    // Connect the existing Ciudad Cero 3D pipeline to the independent engine core.
+    if (window.CiudadEngine && CiudadEngine.runtime) {
+      const platform = CiudadEngine.PlatformAdapter ? CiudadEngine.PlatformAdapter.detect() : { deviceClass: 'unknown' };
+      CiudadEngine.runtime.start(platform.deviceClass || 'unknown');
+      CiudadEngine.runtime.attachRenderer({ renderer, scene, camera });
+      CiudadEngine.runtime.events.emit('game:renderer-ready', { game: 'Ciudad Cero', renderer: 'Three.js' });
+    }
     const facadeCanvas = document.createElement('canvas');
     facadeCanvas.width = 128; facadeCanvas.height = 128;
     const facadeCtx = facadeCanvas.getContext('2d');
@@ -496,7 +503,11 @@ CiudadCero.Renderer3D = (() => {
 
   function render(state) {
     if (!active || !renderer) return false;
-    if (performance.now() - lastResize > 500) resize();
+    const frameNow = performance.now();
+    const frameDelta = lastEngineFrameTime ? (frameNow - lastEngineFrameTime) / 1000 : 0;
+    lastEngineFrameTime = frameNow;
+    if (window.CiudadEngine && CiudadEngine.runtime) CiudadEngine.runtime.update(frameDelta);
+    if (frameNow - lastResize > 500) resize();
     const p = state && state.player;
     if (!p) return false;
     if (p.inCar && p.vehicle) {
@@ -557,7 +568,7 @@ CiudadCero.Renderer3D = (() => {
   }
 
   function isActive() { return active; }
-  function getStatus() { return { active, renderer: Boolean(renderer), buildings: World.buildings.length }; }
+  function getStatus() { return { active, renderer: Boolean(renderer), buildings: World.buildings.length, engine: window.CiudadEngine && CiudadEngine.runtime ? CiudadEngine.runtime.getDiagnostics() : null }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
   window.addEventListener('resize', resize);
