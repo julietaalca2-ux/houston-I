@@ -1426,7 +1426,7 @@ CiudadCero.CityArt = (() => {
     bevel(c, x, y, w, h, '#1b211f');
   }
 
-  function drawBuilding(c, b, i) {
+  function drawBuildingBase(c, b, i) {
     const R = rng(Math.floor(b.x * 7 + b.y * 13 + i * 31));
     const id = b.districtId || 'residencial';
     shadow(c, b.x, b.y, b.w, b.h, 8);
@@ -1478,6 +1478,115 @@ CiudadCero.CityArt = (() => {
       houseUnit(c, b.x, b.y, b.w, b.h, Math.floor(R() * 99999), pal, false);
       bevel(c, b.x, b.y, b.w, b.h);
     }
+  }
+
+  // V0.8.8+ : capa de arquitectura de azoteas. Se dibuja en la caché estática,
+  // con semillas deterministas para que el aspecto no cambie entre fotogramas.
+  function drawRoofInfrastructure(c, b, i) {
+    if (!b || b.isHideoutWall || b.isGarageRoof || b.isContainerBlock) return;
+    if (b.w < 54 || b.h < 54) return;
+    const id = b.districtId || 'residencial';
+    const x = b.x, y = b.y, w = b.w, h = b.h;
+    const facade = id === 'centro' ? 34 : id === 'industrial' ? 28 : id === 'portuaria' ? 30 : id === 'comercial' || id === 'loston' ? 32 : 24;
+    const roofH = Math.max(18, h - facade);
+    const R = rng(Math.floor(x * 17 + y * 29 + w * 7 + h * 11 + i * 43));
+    const pad = Math.max(5, Math.min(10, Math.min(w, roofH) * 0.08));
+    c.save();
+    c.beginPath(); c.rect(x + 1, y + 1, w - 2, roofH - 1); c.clip();
+
+    // Borde de parapeto con luces y sombra interior.
+    c.strokeStyle = 'rgba(8,13,12,0.48)'; c.lineWidth = 2;
+    c.strokeRect(x + 2, y + 2, w - 4, roofH - 4);
+    c.strokeStyle = 'rgba(239,245,237,0.26)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(x + 3, y + 3); c.lineTo(x + w - 3, y + 3); c.moveTo(x + 3, y + 3); c.lineTo(x + 3, y + roofH - 3); c.stroke();
+
+    // Pasillos de mantenimiento y juntas de cubierta.
+    c.fillStyle = 'rgba(220,226,218,0.13)';
+    if (w > 90) c.fillRect(x + pad, y + roofH * 0.5 - 1, w - pad * 2, 2);
+    if (roofH > 70) c.fillRect(x + w * 0.5 - 1, y + pad, 2, roofH - pad * 2);
+
+    if (id === 'centro') {
+      // Paneles solares y climatización de torres.
+      const cols = Math.max(2, Math.min(5, Math.floor((w - 2 * pad) / 22)));
+      const rows = Math.max(1, Math.min(3, Math.floor((roofH - 2 * pad) / 18)));
+      const cellW = Math.min(18, (w - 2 * pad) / cols - 2);
+      for (let ry = 0; ry < rows; ry++) for (let cx = 0; cx < cols; cx++) {
+        const px = x + pad + cx * ((w - 2 * pad) / cols) + 1;
+        const py = y + pad + ry * ((roofH - 2 * pad) / rows) + 1;
+        c.fillStyle = 'rgba(5,19,29,0.55)'; c.fillRect(px + 1.5, py + 1.5, cellW, 10);
+        c.fillStyle = '#315b70'; c.fillRect(px, py, cellW, 9);
+        c.strokeStyle = 'rgba(190,225,238,0.65)'; c.lineWidth = 0.7; c.strokeRect(px + 0.4, py + 0.4, cellW - 0.8, 8);
+        c.strokeStyle = 'rgba(205,231,239,0.42)'; c.beginPath(); c.moveTo(px + cellW * 0.5, py + 1); c.lineTo(px + cellW * 0.5, py + 8); c.stroke();
+      }
+      for (let k = 0; k < 2; k++) {
+        const ax = x + w * (0.24 + k * 0.48), ay = y + roofH * 0.76;
+        c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(ax - 7, ay - 5, 16, 13);
+        c.fillStyle = '#aeb8ba'; c.fillRect(ax - 8, ay - 6, 14, 11);
+        c.fillStyle = '#48565b'; c.fillRect(ax - 5, ay - 3, 8, 5);
+        c.fillStyle = '#d7dfe0'; c.fillRect(ax - 7, ay - 5, 12, 1);
+      }
+    } else if (id === 'industrial' || id === 'portuaria') {
+      // Lucarnas largas, ventiladores y franjas de mantenimiento.
+      const strips = Math.max(2, Math.min(6, Math.floor(roofH / 18)));
+      for (let k = 0; k < strips; k++) {
+        const py = y + 7 + k * ((roofH - 14) / strips);
+        c.fillStyle = 'rgba(5,15,17,0.24)'; c.fillRect(x + 8, py + 2, w - 16, 5);
+        c.fillStyle = id === 'portuaria' ? '#83b6c0' : '#9bbac1';
+        c.fillRect(x + 8, py, w - 16, 3);
+        c.fillStyle = 'rgba(240,250,250,0.38)'; c.fillRect(x + 8, py, w - 16, 1);
+      }
+      for (let k = 0; k < Math.min(4, Math.floor(w / 35)); k++) {
+        const vx = x + 16 + k * ((w - 32) / Math.max(1, Math.min(4, Math.floor(w / 35) - 1)));
+        const vy = y + roofH * 0.72;
+        c.fillStyle = '#4a5354'; c.fillRect(vx - 5, vy - 5, 10, 10);
+        c.strokeStyle = '#c0c8c4'; c.lineWidth = 1; c.strokeRect(vx - 4.5, vy - 4.5, 9, 9);
+        c.beginPath(); c.moveTo(vx - 3, vy); c.lineTo(vx + 3, vy); c.moveTo(vx, vy - 3); c.lineTo(vx, vy + 3); c.stroke();
+      }
+    } else if (id === 'comercial' || id === 'loston') {
+      // Claraboyas, unidades HVAC y pequeños patios técnicos.
+      const n = Math.max(1, Math.min(4, Math.floor(w / 38)));
+      for (let k = 0; k < n; k++) {
+        const px = x + pad + 8 + k * ((w - 2 * pad - 16) / n);
+        const py = y + pad + 7 + (k % 2) * Math.max(12, roofH * 0.25);
+        c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(px + 2, py + 2, 18, 12);
+        c.fillStyle = '#7ea8b0'; c.fillRect(px, py, 18, 10);
+        c.strokeStyle = '#d4e8e7'; c.lineWidth = 1; c.strokeRect(px + 0.5, py + 0.5, 17, 9);
+        c.beginPath(); c.moveTo(px + 9, py + 1); c.lineTo(px + 9, py + 9); c.stroke();
+      }
+      c.fillStyle = '#69736f'; c.fillRect(x + w - 19, y + roofH - 17, 11, 9);
+      c.fillStyle = '#b7c2bd'; c.fillRect(x + w - 18, y + roofH - 18, 9, 2);
+    } else {
+      // Viviendas: tanque de agua, paneles solares ocasionales y respiraderos.
+      if (R() > 0.24) {
+        const tx = x + w * (0.68 + R() * 0.12), ty = y + roofH * (0.3 + R() * 0.25);
+        c.fillStyle = 'rgba(0,0,0,0.25)'; c.beginPath(); c.ellipse(tx + 3, ty + 4, 9, 6, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#9ca9a6'; c.fillRect(tx - 7, ty - 5, 14, 10);
+        c.fillStyle = '#c8d1cc'; c.fillRect(tx - 6, ty - 6, 12, 3);
+        c.strokeStyle = '#596661'; c.lineWidth = 1; c.strokeRect(tx - 7, ty - 5, 14, 10);
+      }
+      if (R() > 0.45) {
+        const sx = x + pad + 5, sy = y + roofH - 17;
+        c.fillStyle = '#31596a'; c.fillRect(sx, sy, Math.min(28, w * 0.35), 10);
+        c.strokeStyle = 'rgba(220,240,244,0.6)'; c.lineWidth = 0.8; c.strokeRect(sx + 0.5, sy + 0.5, Math.min(28, w * 0.35) - 1, 9);
+        c.beginPath(); c.moveTo(sx + 9, sy + 1); c.lineTo(sx + 9, sy + 9); c.moveTo(sx + 19, sy + 1); c.lineTo(sx + 19, sy + 9); c.stroke();
+      }
+    }
+
+    // Pequeños respiraderos repartidos para romper superficies demasiado vacías.
+    const vents = Math.max(1, Math.floor(w / 70));
+    for (let k = 0; k < vents; k++) {
+      const vx = x + pad + R() * Math.max(1, w - pad * 2 - 7);
+      const vy = y + pad + R() * Math.max(1, roofH - pad * 2 - 7);
+      c.fillStyle = 'rgba(0,0,0,0.28)'; c.fillRect(vx + 1, vy + 1, 7, 7);
+      c.fillStyle = '#929c99'; c.fillRect(vx, vy, 7, 7);
+      c.fillStyle = '#4d5956'; c.fillRect(vx + 2, vy + 2, 3, 3);
+    }
+    c.restore();
+  }
+
+  function drawBuilding(c, b, i) {
+    drawBuildingBase(c, b, i);
+    drawRoofInfrastructure(c, b, i);
   }
 
   /* ---------- veredas por barrio ---------- */
@@ -1680,6 +1789,35 @@ CiudadCero.CityArt = (() => {
         c.fillRect(gx2 + 2, gy2 + 1, 1, 2);
       }
     }
+
+    // Micro-urbanismo común: tapas de servicio, drenajes y bandas táctiles.
+    // Se mantiene dentro del anillo de vereda para no invadir edificios ni calles.
+    c.save();
+    c.globalAlpha = 0.72;
+    const coverX = bl + bs * (0.28 + R() * 0.44);
+    const coverY = bt + (R() > 0.5 ? 10 : bs - 10);
+    c.fillStyle = 'rgba(25,31,29,0.30)';
+    c.beginPath(); c.ellipse(coverX + 1, coverY + 1, 4.8, 3.2, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = id === 'centro' ? '#68757a' : '#626d66';
+    c.beginPath(); c.ellipse(coverX, coverY, 4.5, 3, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(225,232,222,0.5)'; c.lineWidth = 0.7;
+    c.beginPath(); c.ellipse(coverX, coverY, 3.1, 1.8, 0, 0, Math.PI * 2); c.stroke();
+    c.strokeStyle = 'rgba(20,26,22,0.45)'; c.beginPath(); c.moveTo(coverX - 2, coverY); c.lineTo(coverX + 2, coverY); c.stroke();
+
+    if (id === 'centro' || id === 'comercial' || id === 'loston') {
+      const tx = bl + bs * (0.25 + R() * 0.5);
+      const ty = bt + bs * (R() > 0.5 ? 0.12 : 0.88);
+      c.fillStyle = 'rgba(244,238,205,0.48)';
+      for (let k = -2; k <= 2; k++) c.fillRect(tx + k * 2.2, ty - 4, 1, 8);
+      c.fillStyle = 'rgba(25,32,29,0.28)'; c.fillRect(tx - 7, ty - 5, 14, 1);
+    }
+    if (id === 'residencial' && R() > 0.35) {
+      // Pequeñas juntas de jardín y piedras decorativas junto al cordón.
+      const px = bl + 18 + R() * (bs - 36);
+      c.fillStyle = 'rgba(186,198,164,0.55)';
+      c.fillRect(px, bt + 5, 3, 1.2); c.fillRect(px + 5, bt + 5, 2, 1.2);
+    }
+    c.restore();
   }
 
   /* ---------- mobiliario ---------- */
