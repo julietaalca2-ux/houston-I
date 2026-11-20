@@ -148,7 +148,7 @@ Advanced Lighting & Shadows introduces lighting profiles with device-conscious s
 - No changes to VehicleSystem physics, steering, AI, input mapping or world coordinates.
 
 
-## CIUDAD ENGINE V0.23.0 — 4K World, Vehicles & Characters
+## CIUDAD ENGINE V0.24.0 — 4K World, Vehicles & Characters
 
 - Added a bundled 4K procedural material library for asphalt, sidewalks, concrete, brick, stucco, roof tiles, grass, foliage, steel, vehicle paint, tire rubber, clothing fabric and skin microdetail.
 - Desktop Ultra streams the 4K base-color maps into the existing world, vehicle and character material slots.

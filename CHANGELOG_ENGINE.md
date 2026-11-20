@@ -125,10 +125,11 @@ Adds the optional ECS Vehicle Engine (`vehicles/VehicleSystem.js` and `VehicleFa
 - Added a source-level smoke test for the vehicle visual factory. Visual appearance still requires device/browser playtesting.
 
 
-## V0.23.0 — 4K World, Vehicles & Characters
+## V0.24.0 — 4K World, Vehicles & Characters
 
 - Bundled 4K procedural base-color textures for eight environment material families and four character/vehicle material families.
 - Connected desktop Ultra texture streaming to environment, vehicle paint/tire and character fabric/skin materials.
 - Kept mobile on the existing 2K assets and PBR maps; 4K source files remain bundled but are not loaded on iPhone/Android.
 - Added HighResolutionAssetIntegration smoke coverage for required assets and platform gating.
 - No visual iPhone-device validation is claimed.
+\n\n## V0.24.0 — Neighborhood Scale & Street Infrastructure\n- Residential homes raised to 2.6–3.1 storeys with repeated window bays and balcony ledges.\n- Street lighting coverage increased across the complete road grid.\n- Traffic signal assemblies generated at all world junctions.\n- Vehicle render groups enlarged and vertically corrected without changing physics/AI coordinates.\n
