@@ -60,6 +60,20 @@ canvas#game {
   cursor: crosshair;
 }
 
+/* v0.8.9: WebGL world sits above the legacy canvas while HUD stays on top. */
+canvas#game-3d {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  touch-action: none;
+}
+.game-frame { position: relative; }
+canvas#game { position: relative; z-index: 0; }
+
 .hidden {
   display: none !important;
 }

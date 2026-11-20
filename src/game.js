@@ -1622,7 +1622,7 @@ CiudadCero.Game = (() => {
 
     update(dt);
     const missionInfo = Story.getDynamicInstruction(state.player.inCar);
-    Renderer.render(ctx, viewW, viewH, {
+    const frameState = {
       simTime,
       player: state.player,
       vehicles: state.vehicles,
@@ -1636,7 +1636,14 @@ CiudadCero.Game = (() => {
       camera: state.camera,
       policeHUD: Police.getHUDState(),
       roadblocks: Police.state.roadblocks
-    });
+    };
+    // Prefer the full 3D world when WebGL is available; retain the original 2D
+    // renderer as a complete fallback for browsers without WebGL/Three.js.
+    if (CiudadCero.Renderer3D && CiudadCero.Renderer3D.isActive()) {
+      if (!CiudadCero.Renderer3D.render(frameState)) Renderer.render(ctx, viewW, viewH, frameState);
+    } else {
+      Renderer.render(ctx, viewW, viewH, frameState);
+    }
 
     requestAnimationFrame(loop);
   }
