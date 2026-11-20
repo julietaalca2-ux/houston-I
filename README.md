@@ -1,4 +1,18 @@
-# CIUDAD CERO — Versión 0.7: Infraestructura Urbana, Semáforos Inteligentes y Mapas Mejorados
+# CIUDAD CERO — Versión 0.7.5: Ciudad Viva (Fachadas, Parques, Árboles y Barrios con Personalidad)
+
+## Novedades de la Versión 0.7.5
+
+1. **Edificios y casas rediseñados** (`src/cityart.js`): fachadas con ventanas, puertas, balcones, techos a dos aguas con tejas y chimeneas, edificios de departamentos, rascacielos con muro cortina y helipuerto, locales con toldos y carteles de neón, galpones con portones, fábricas con silos y chimeneas, casas rurales con paneles solares. Todos con sombras proyectadas, bordes biselados y texturas.
+2. **Parques grandes, medianos y pequeños**: césped texturizado con franjas de corte, setos, caminos, fuentes, estanques, canteros de flores, bancos, farolas, arbustos y árboles. Plazas duras con adoquín en Centro y Comercial. Jardines de bolsillo sobre las veredas.
+3. **Árboles con volumen**: 7 especies (roble, arce, cerezo en flor, olivo, pino, álamo, palmera), copas con lóbulos y luces, sombras y troncos con corteza.
+4. **Mapa y minimapa mejorados**: el minimapa dibuja calles/avenidas, manzanas por barrio, edificios, parques y agua desde una caché; el mapa ampliado suma un velo de color por barrio.
+5. **Barrios diferenciados**: veredas propias (ladrillo, granito, damero, hormigón húmedo, chapa, grava), franjas de color en cordones y mobiliario propio de cada zona.
+
+Todo el arte se dibuja una sola vez en la caché estática del mapa: sin costo extra por fotograma. En modo *rendimiento* se reduce el detalle. Las partidas de v0.7 y anteriores se cargan sin cambios (misma clave de guardado).
+
+---
+
+## Base: Versión 0.7 — Infraestructura Urbana, Semáforos Inteligentes y Mapas Mejorados
 
 **Saga Original · Juego 01 · Acción, Historia y Conducción Cenital 2D**
 
