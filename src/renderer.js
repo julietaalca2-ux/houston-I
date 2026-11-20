@@ -20,7 +20,7 @@ CiudadCero.Renderer = (() => {
     const prevDetail = CityArt.getDetail();
     highQuality = quality !== 'performance';
     CityArt.setDetail(quality);
-    // v0.7.5: si cambió el nivel de detalle se regenera la caché estática del mapa
+    // v0.7.9: si cambió el nivel de detalle se regenera la caché estática del mapa
     if (CityArt.getDetail() !== prevDetail) {
       mapTiles = null;
       CityArt.resetCaches();
@@ -327,7 +327,7 @@ CiudadCero.Renderer = (() => {
         c.fillRect(blockLeft + 2, blockTop + blockSize - 13, 11, 11);
         c.fillRect(blockLeft + blockSize - 13, blockTop + blockSize - 13, 11, 11);
 
-        // v0.7.5: decoración propia de cada barrio sobre la vereda
+        // v0.7.9: decoración propia de cada barrio sobre la vereda
         CityArt.decorateBlock(c, blockLeft, blockTop, blockSize, dist, Math.round(x / wCfg.blockSize), Math.round(y / wCfg.blockSize));
 
         // Industrial & Port hazard yellow/black curb stripes
@@ -359,7 +359,7 @@ CiudadCero.Renderer = (() => {
         c.lineTo(w.x + w.w - 14, wy);
         c.stroke();
       }
-      // v0.7.5: muelle de piedra, espuma y amarras
+      // v0.7.9: muelle de piedra, espuma y amarras
       c.strokeStyle = '#8b9696';
       c.lineWidth = 3;
       c.strokeRect(w.x - 1.5, w.y - 1.5, w.w + 3, w.h + 3);
@@ -403,7 +403,7 @@ CiudadCero.Renderer = (() => {
       c.fillText('P · ESTACIONAMIENTO', pl.x + pl.w * 0.5, pl.y + pl.h * 0.5 + 4);
     }
 
-    // 8. Parks, plazas & periphery meadows (v0.7.5: césped texturizado, caminos, mobiliario y árboles)
+    // 8. Parks, plazas & periphery meadows (v0.7.9: césped texturizado, caminos, mobiliario y árboles)
     for (let i = 0; i < World.parks.length; i++) {
       const p = World.parks[i];
       if (p.x + p.w + 30 < ox || p.x - 30 > ox + tw || p.y + p.h + 30 < oy || p.y - 30 > oy + th) continue;
@@ -458,7 +458,7 @@ CiudadCero.Renderer = (() => {
       c.fillText('ESCONDITE', h.x, h.y + 3);
     }
 
-    // 11. District-styled Buildings (v0.7.5: fachadas, ventanas, puertas, balcones, techos y sombras)
+    // 11. District-styled Buildings (v0.7.9: fachadas, ventanas, puertas, balcones, techos y sombras)
     for (let i = 0; i < World.buildings.length; i++) {
       const b = World.buildings[i];
       if (b.x + b.w + 14 < ox || b.x > ox + tw || b.y + b.h + 14 < oy || b.y > oy + th) continue;
@@ -1023,7 +1023,7 @@ CiudadCero.Renderer = (() => {
     const sx = mapW / wCfg.width;
     const sy = mapH / wCfg.height;
 
-    // v0.7.5: capa base (barrios, calles, manzanas, edificios, parques y agua) en caché
+    // v0.7.9: capa base (barrios, calles, manzanas, edificios, parques y agua) en caché
     ctx.drawImage(CityArt.getMinimapBase(mapW, mapH), mx, my, mapW, mapH);
 
     // Live Traffic Light indicators at major intersections
@@ -1188,7 +1188,7 @@ CiudadCero.Renderer = (() => {
 
     // District borders & names
     const districts = Config.DISTRICTS || [];
-    // v0.7.5: leve velo de color por barrio para distinguirlos mejor
+    // v0.7.9: leve velo de color por barrio para distinguirlos mejor
     for (let i = 0; i < districts.length; i++) {
       const d = districts[i];
       ctx.save();

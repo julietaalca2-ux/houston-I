@@ -4,7 +4,7 @@ CiudadCero.Config = {
   GAME_INFO: {
     title: 'Ciudad Cero',
     installment: 1,
-    version: '0.7.5',
+    version: '0.7.9',
     subtitle: 'Ciudad Viva: Fachadas, Parques y Barrios'
   },
 

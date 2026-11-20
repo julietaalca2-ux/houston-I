@@ -7,8 +7,8 @@ CiudadCero.Entities = (() => {
   let nextVehicleId = 1;
   let nextPedId = 1;
 
-  const SKIN_POOL = ['#f4ccb0', '#e5b392', '#d29b76', '#b87f5a', '#8f5d3e', '#69412a'];
-  const HAIR_POOL = ['#17191a', '#2d2118', '#4a3222', '#6e4c2e', '#8c3b2b', '#8d969e'];
+  const SKIN_POOL = ['#edd0b4', '#dfb08a', '#cfa078', '#bd835b', '#8c583a'];
+  const HAIR_POOL = ['#1c1f24', '#2e211b', '#4a2c1d', '#5c4938', '#382a24', '#69645e'];
 
   function randomItem(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
@@ -16,110 +16,106 @@ CiudadCero.Entities = (() => {
 
   function createPlayer() {
     return {
-      id: 'mateo',
-      visualId: 'mateo',
-      name: 'Mateo "Cero" Vega',
       x: Config.PLAYER.startX,
       y: Config.PLAYER.startY,
       angle: 0,
       visualAngle: 0,
-      radius: Config.PLAYER.radius,
       speed: 0,
+      radius: Config.PLAYER.radius,
       inCar: false,
       vehicle: null,
       walkPhase: 0,
       idlePhase: 0,
-      enterExitAnim: null
+      enterExitAnim: null,
+      lastStepBucket: 0
     };
   }
 
-  function createVehicle(opts) {
-    const spec = Config.VEHICLE_TYPES[opts.typeId] || Config.VEHICLE_TYPES.sedan;
-    const armorBonus = opts.armorUpgraded ? 70 : 0;
-    const speedMult = opts.engineUpgraded ? 1.12 : 1.0;
-    const accelMult = opts.engineUpgraded ? 1.12 : 1.0;
+  function createVehicle(opts = {}) {
+    const civilKeys = ['compact', 'coupe', 'muscle', 'sedan', 'taxi', 'suv', 'van', 'truck'];
+    const typeKey = opts.typeId || randomItem(civilKeys);
+    const spec = Config.VEHICLE_TYPES[typeKey] || Config.VEHICLE_TYPES.sedan;
+    const color = opts.color || randomItem(spec.colors);
+    const armorUpgraded = Boolean(opts.armorUpgraded);
+    const engineUpgraded = Boolean(opts.engineUpgraded);
+    const baseMaxHp = opts.maxHp || spec.maxHp || 120;
+    const maxHp = baseMaxHp;
+    const speedMult = engineUpgraded && !opts.maxHp ? 1.12 : 1.0;
 
     return {
       id: nextVehicleId++,
       typeId: spec.id,
-      name: spec.name,
-      category: spec.category || 'civil',
-      color: opts.color || randomItem(spec.colors),
-      x: opts.x,
-      y: opts.y,
+      name: opts.customName || spec.name,
+      color,
+      x: opts.x || 520,
+      y: opts.y || 390,
+      angle: opts.angle || 0,
+      speed: 0,
       vx: 0,
       vy: 0,
-      speed: 0,
-      angle: opts.angle || 0,
       length: spec.length,
       width: spec.width,
       maxSpeed: Math.round(spec.maxSpeed * speedMult),
       turboSpeed: Math.round(spec.turboSpeed * speedMult),
       reverseSpeed: spec.reverseSpeed,
-      accel: Math.round(spec.accel * accelMult),
+      accel: Math.round(spec.accel * speedMult),
       brake: spec.brake,
       turnRate: spec.turnRate,
       grip: spec.grip,
       mass: spec.mass,
-      hp: opts.hp !== undefined ? opts.hp : spec.maxHp + armorBonus,
-      maxHp: opts.maxHp !== undefined ? opts.maxHp : spec.maxHp + armorBonus,
-      armorUpgraded: Boolean(opts.armorUpgraded),
-      engineUpgraded: Boolean(opts.engineUpgraded),
-      isPolice: Boolean(spec.isPolice),
-      policeRole: spec.policeRole || null,
+      hp: opts.hp !== undefined ? opts.hp : maxHp,
+      maxHp,
+      armorUpgraded,
+      engineUpgraded,
+      isPlayerOwned: Boolean(opts.isPlayerOwned),
+      isPolice: Boolean(spec.isPolice || opts.isPolice),
+      policeRole: spec.policeRole || opts.policeRole || null,
+      policeState: opts.policeState || 'patrol',
       sirenActive: Boolean(opts.sirenActive),
       sirenPhase: Math.random() * Math.PI * 2,
-      policeState: opts.policeState || 'patrol',
-      isRoadblock: Boolean(opts.isRoadblock),
-      isChaseTarget: Boolean(opts.isChaseTarget),
       isMissionTarget: Boolean(opts.isMissionTarget),
-      isPlayerOwned: Boolean(opts.isPlayerOwned),
+      isChaseTarget: Boolean(opts.isChaseTarget),
       isAI: Boolean(opts.isAI),
       isParked: Boolean(opts.isParked),
-      aiAxis: opts.aiAxis || 'h',
-      aiDir: opts.aiDir || 1,
-      aiLanePos: opts.aiLanePos || opts.y,
-      turnCooldown: 1 + Math.random() * 2,
-      stunTimer: 0,
       brakeLights: false,
       reversing: false,
+      aiAxis: opts.aiAxis || 'h',
+      aiDir: opts.aiDir || 1,
+      aiLanePos: opts.aiLanePos || 408,
+      turnCooldown: 1.5,
+      stunTimer: 0,
+      doorAnim: null,
       stoppedAtSignal: false,
       signalLaunchTimer: 0,
       yieldingToEmergency: false,
-      steerVisual: 0,
-      turningTimer: 0,
-      stuckTimer: 0,
-      unstickTimer: 0
+      laneShiftOffset: 0
     };
   }
 
-  function spawnTrafficVehicle(existingVehicles, playerRef, preferNear = false) {
+  function spawnTrafficVehicle(existingVehicles, playerRef, preferNearPlayer = false) {
     const lanes = World.getLaneCoords();
     const weightedTypes = [
-      'sedan', 'sedan',
-      'compact', 'compact',
-      'taxi', 'taxi',
-      'suv', 'suv',
-      'van', 'coupe', 'muscle', 'truck'
+      'sedan', 'sedan', 'compact', 'compact',
+      'taxi', 'coupe', 'muscle', 'suv', 'van', 'truck'
     ];
 
     for (let attempt = 0; attempt < 30; attempt++) {
       const lane = randomItem(lanes);
       let x, y, angle;
       if (lane.axis === 'h') {
-        if (preferNear && playerRef) {
-          x = Math.max(90, Math.min(Config.WORLD.width - 90, playerRef.x + (Math.random() - 0.5) * 1800));
+        if (preferNearPlayer && playerRef) {
+          x = Math.max(90, Math.min(Config.WORLD.width - 90, playerRef.x + (Math.random() - 0.5) * 2200));
         } else {
-          x = 80 + Math.random() * (Config.WORLD.width - 160);
+          x = 90 + Math.random() * (Config.WORLD.width - 180);
         }
         y = lane.pos;
         angle = lane.dir > 0 ? 0 : Math.PI;
       } else {
         x = lane.pos;
-        if (preferNear && playerRef) {
-          y = Math.max(90, Math.min(Config.WORLD.height - 90, playerRef.y + (Math.random() - 0.5) * 1600));
+        if (preferNearPlayer && playerRef) {
+          y = Math.max(90, Math.min(Config.WORLD.height - 90, playerRef.y + (Math.random() - 0.5) * 2000));
         } else {
-          y = 80 + Math.random() * (Config.WORLD.height - 160);
+          y = 90 + Math.random() * (Config.WORLD.height - 180);
         }
         angle = lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       }
@@ -252,8 +248,8 @@ CiudadCero.Entities = (() => {
       ],
       periferia: [
         { role: 'resident', shirt: '#7fa653', sec: '#4f6b30', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'cap', hatColor: '#3b4d38', acc: 'backpack', w: 16.4 },
-        { role: 'resident', shirt: '#b56576', sec: '#7a3f4d', outfit: 'casual_hoodie', hairStyle: 'ponytail', hat: 'none', acc: 'none', w: 15.2 },
-        { role: 'worker', shirt: '#d4a373', sec: '#8c6239', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'none', acc: 'box', w: 16.8 }
+        { role: 'resident', shirt: '#d48c59', sec: '#8c552e', outfit: 'casual_hoodie', hairStyle: 'long_hair', hat: 'none', acc: 'none', w: 15.4 },
+        { role: 'resident', shirt: '#577590', sec: '#35495c', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'none', acc: 'none', w: 16.2 }
       ]
     };
 
@@ -267,30 +263,31 @@ CiudadCero.Entities = (() => {
       hair,
       skin,
       visualProfile: {
-        shoulderW: arch.w,
-        torsoDepth: 8.6,
+        shoulderW: arch.w || 15.8,
+        torsoDepth: arch.w > 17 ? 9.4 : 8.5,
         headR: 4.5,
         skin,
         torsoPrimary: arch.shirt,
         torsoSecondary: arch.sec,
-        accent: '#d6f36a',
-        trim: '#dce4df',
+        accent: '#f5d94b',
+        trim: '#f4f7f5',
         sleeve: arch.shirt,
         glove: skin,
-        shoe: '#1d2226',
+        shoe: '#1b201d',
         hairColor: hair,
         hairStyle: arch.hairStyle,
         outfitStyle: arch.outfit,
         hatType: arch.hat,
-        hatColor: arch.hatColor || '#26313a',
-        accessory: arch.acc
+        hatColor: arch.hatColor || '#facc15',
+        accessory: arch.acc,
+        bagColor: randomItem(['#2b3a4a', '#5c4738', '#3d5a45', '#7a3b3b'])
       }
     };
   }
 
   function createPedestrian(forcedLoopIdx = null, forcePolice = false) {
     const loopIdx =
-      forcedLoopIdx !== null
+      forcedLoopIdx !== null && World.sidewalkNodes[forcedLoopIdx]
         ? forcedLoopIdx
         : Math.floor(Math.random() * World.sidewalkNodes.length);
     const loop = World.sidewalkNodes[loopIdx];
@@ -324,7 +321,6 @@ CiudadCero.Entities = (() => {
       panicTimer: 0,
       alertIconTimer: 0,
       pausedTimer: 0,
-      curbWaitTimer: 0,
       waitingAtCrosswalk: false,
       knockTimer: 0,
       vx: 0,
@@ -333,6 +329,7 @@ CiudadCero.Entities = (() => {
   }
 
   function createFootPolicePatrols() {
+    // Place patrolling foot police officers near Comisaría Central, Centro, Puerto, and Industrial
     const civicTargets = [
       { x: 2925, y: 525 },  // Comisaría Central
       { x: 2325, y: 825 },  // Plaza Torre Cero

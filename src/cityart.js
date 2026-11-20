@@ -1,7 +1,7 @@
 window.CiudadCero = window.CiudadCero || {};
 
 /*
- * CityArt (v0.7.5)
+ * CityArt (v0.7.9)
  * Dibujo procedural de fachadas, techos, parques, árboles, veredas por barrio
  * y capa base del minimapa. Todo se dibuja UNA sola vez en las caches estáticas
  * del mapa, por lo que no agrega costo por fotograma (ideal para celulares).
@@ -277,6 +277,11 @@ CiudadCero.CityArt = (() => {
       c.arc(x + r * 0.12, cy + r * 0.2, r * 0.7, -0.2, Math.PI * 0.75);
       c.arc(x - r * 0.05, cy + r * 0.05, r * 0.5, Math.PI * 0.75, -0.2, true);
       c.fill();
+    }
+    if (detail > 0.7) {
+      // Reflejos suaves en la copa para separar visualmente los planos de follaje.
+      circ(c, x - r * 0.34, cy - r * 0.42, Math.max(1, r * 0.075), 'rgba(255,255,255,0.18)');
+      circ(c, x + r * 0.28, cy - r * 0.18, Math.max(1, r * 0.055), 'rgba(255,255,255,0.12)');
     }
     if (species === 'blossom' && detail > 0.7) {
       for (let k = 0; k < 9; k++) {
@@ -831,6 +836,15 @@ CiudadCero.CityArt = (() => {
       // pequeño techito del porche
       c.fillStyle = tone(roofCol, -0.2);
       c.fillRect(x + w * 0.5 - 7, fy + fh - 19, 14, 3);
+      // Umbral, escalón y aplique de entrada: detalles pequeños que no alteran colisiones.
+      c.fillStyle = 'rgba(0,0,0,0.28)';
+      c.fillRect(x + w * 0.5 - 7, fy + fh - 2, 14, 2);
+      c.fillStyle = tone(wall, 0.22);
+      c.fillRect(x + w * 0.5 - 7, fy + fh - 1, 14, 1);
+      c.fillStyle = '#d8c58a';
+      c.fillRect(x + w * 0.5 + 7, fy + fh - 15, 1.8, 2.4);
+      c.fillStyle = 'rgba(255,230,160,0.22)';
+      c.fillRect(x + w * 0.5 + 5, fy + fh - 17, 5, 6);
       if (withBalcony) {
         c.fillStyle = '#d9d2c2';
         c.fillRect(x + 2, fy + fh - 7, w - 4, 3);
@@ -897,6 +911,13 @@ CiudadCero.CityArt = (() => {
       }
     }
     door(c, x + w * 0.5 - 5, fy + fh - 12, 10, 12, '#3b4a52');
+    // Marquesina de acceso y zócalo perimetral para dar profundidad a la planta baja.
+    c.fillStyle = '#aeb4b0';
+    c.fillRect(x + w * 0.5 - 9, fy + fh - 14, 18, 2);
+    c.fillStyle = 'rgba(0,0,0,0.28)';
+    c.fillRect(x + w * 0.5 - 8, fy + fh - 12, 16, 1);
+    c.fillStyle = 'rgba(25,31,29,0.34)';
+    c.fillRect(x, fy + fh - 2, w, 2);
     bevel(c, x, y, w, h);
   }
 

@@ -150,7 +150,7 @@ CiudadCero.Game = (() => {
     Input.setMode(false);
     updateCamera(1);
     UI.renderDialogue(Story.getCurrentDialogueLine());
-    UI.showToast('Ciudad Cero v0.7.5 · Ciudad Viva: Fachadas, Parques y Barrios');
+    UI.showToast('Ciudad Cero v0.7.9 · Ciudad Viva: Pulido Urbano');
   }
 
   function loadOrInitGame(isManualLoad = false) {
