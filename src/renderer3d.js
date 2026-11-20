@@ -611,8 +611,9 @@ CiudadCero.Renderer3D = (() => {
     {
       const cfg = (window.CiudadCero && CiudadCero.Config && CiudadCero.Config.VEHICLE_TYPES) || {};
       const vt = cfg[typeId] || cfg[kind] || { length: 42, width: 20 };
-      const sx = (vt.width || 20) / 8.6, sz = (vt.length || 42) / 17.8;
-      const sy = sz * 1.45;
+      const BIG = 1.3; // extra visual size so cars read as real cars next to pedestrians
+      const sx = (vt.width || 20) / 8.6 * BIG, sz = (vt.length || 42) / 17.8 * BIG;
+      const sy = sz * 1.75;
       group.children.slice().forEach((c) => {
         if (wheelGroups.includes(c)) {
           c.position.set(c.position.x * sx, c.position.y * sz, c.position.z * sz);
