@@ -7,19 +7,20 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#101411">
-  <title>Juego 01 — Ciudad Cero v0.3</title>
+  <title>Juego 01 — Ciudad Cero v0.4 · Historia y Campaña</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div class="brand">
-        <p class="eyebrow">SAGA ORIGINAL · JUEGO 01 · v0.3</p>
+        <p class="eyebrow">SAGA ORIGINAL · JUEGO 01 · v0.4</p>
         <h1>CIUDAD CERO</h1>
       </div>
 
       <div class="hud-right">
         <div class="stats">
+          <span>CAMPAÑA <b id="chapter-badge">CAPÍTULO 1</b></span>
           <span>DINERO <b id="money">$ 500</b></span>
           <span>ESTADO <b id="status">A PIE</b></span>
           <span>MISIONES <b id="missions-count">0</b></span>
@@ -27,10 +28,11 @@
         </div>
 
         <div class="quick-actions">
+          <button type="button" class="hud-btn hud-btn-story" id="btn-story-top" title="Historia, Personajes y Misiones (H)">HISTORIA</button>
           <button type="button" class="hud-btn" id="btn-garage-top" title="Abrir Garaje (G)">GARAJE</button>
           <button type="button" class="hud-btn" id="btn-audio" title="Activar o silenciar sonido">SONIDO: ON</button>
           <button type="button" class="hud-btn" id="btn-touch-toggle" title="Mostrar u ocultar controles táctiles">TÁCTIL: AUTO</button>
-          <button type="button" class="hud-btn" id="btn-reset" title="Reiniciar partida (R)">REINICIAR</button>
+          <button type="button" class="hud-btn" id="btn-reset" title="Iniciar nueva partida (R)">NUEVA</button>
         </div>
       </div>
     </header>
@@ -38,15 +40,26 @@
     <section class="game-frame" id="game-frame" aria-label="Área de juego Ciudad Cero">
       <canvas id="game" width="960" height="600"></canvas>
 
-      <!-- Panel de Objetivo / Misión -->
+      <!-- Panel de Objetivo / Misión Activa -->
       <div class="mission" id="mission-box">
         <div class="mission-head">
-          <span class="mission-tag" id="mission-tag">OBJETIVO</span>
+          <span class="mission-tag" id="mission-tag">CAP. 1 · MISIÓN 1.1</span>
           <span class="mission-timer hidden" id="mission-timer">00s</span>
           <span class="mission-dist" id="mission-dist">0 m</span>
         </div>
-        <strong id="mission-title">Llega al punto amarillo</strong>
-        <small id="mission-help">Muévete con WASD, flechas o el joystick.</small>
+        <strong id="mission-title">El Taller de la Avenida Cero</strong>
+        <small id="mission-help">Acércate a Nora Salgado junto al Garaje Central.</small>
+        <div class="target-hp-wrap hidden" id="target-hp-wrap">
+          <div class="target-hp-bar" id="target-hp-bar" style="width: 100%"></div>
+        </div>
+      </div>
+
+      <!-- Banner de Misión Completada y Recompensa -->
+      <div class="reward-banner hidden" id="reward-banner" role="status" aria-live="polite">
+        <span class="reward-eyebrow">OBJETIVO CUMPLIDO</span>
+        <strong id="reward-title">MISIÓN COMPLETADA</strong>
+        <span class="reward-cash" id="reward-amount">+$ 250</span>
+        <small class="reward-unlock hidden" id="reward-unlock">VEHÍCULO DESBLOQUEADO</small>
       </div>
 
       <!-- Indicador de Búsqueda y Escape Policial -->
@@ -73,37 +86,106 @@
         </div>
       </div>
 
+      <!-- Ventana de Diálogos Narrativos -->
+      <div class="dialogue-box hidden" id="dialogue-box" role="dialog" aria-label="Diálogo de personajes">
+        <div class="dialogue-avatar" id="dialogue-avatar">M</div>
+        <div class="dialogue-content">
+          <div class="dialogue-head">
+            <div>
+              <strong id="dialogue-name">Mateo "Cero" Vega</strong>
+              <span id="dialogue-role">Protagonista</span>
+            </div>
+            <span class="dialogue-counter" id="dialogue-counter">1/2</span>
+          </div>
+          <p id="dialogue-text">Ciudad Cero... Cinco años sin pisar estas avenidas.</p>
+          <div class="dialogue-actions">
+            <button type="button" class="g-btn" id="btn-dialogue-next">CONTINUAR ▸</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Notificación flotante -->
       <div class="toast" id="toast">Explora Ciudad Cero</div>
 
-      <!-- Modal Interactivo de Garaje -->
+      <!-- Modal Interactivo de Garaje, Flota, Mejoras y Catálogo -->
       <div class="garage-modal hidden" id="garage-modal" role="dialog" aria-modal="true" aria-labelledby="garage-modal-title">
         <div class="garage-card">
           <div class="garage-header">
             <div>
-              <span class="garage-tag">TALLER &amp; DEPÓSITO VEHICULAR</span>
+              <span class="garage-tag">TALLER, MEJORAS &amp; CATÁLOGO VEHICULAR</span>
               <h2 id="garage-modal-title">GARAJE CIUDAD CERO</h2>
             </div>
             <button type="button" class="hud-btn garage-close" id="btn-garage-close" aria-label="Cerrar garaje">✕ CERRAR</button>
           </div>
 
           <div class="garage-current" id="garage-current-box"></div>
+          <div class="garage-upgrades" id="garage-upgrades-box"></div>
 
           <div class="garage-fleet-head">
-            <span>VEHÍCULOS GUARDADOS (<b id="garage-count">0/6</b>)</span>
+            <span>MI FLOTA GUARDADA (<b id="garage-count">0/8</b>)</span>
             <small>Selecciona, repara o recupera tus autos</small>
           </div>
-
           <div class="garage-list" id="garage-list"></div>
+
+          <div class="garage-fleet-head">
+            <span>CATÁLOGO DE VEHÍCULOS DE CIUDAD CERO</span>
+            <small>Desbloquea modelos en la campaña y adquiérelos aquí</small>
+          </div>
+          <div class="garage-list" id="garage-catalog-list"></div>
+        </div>
+      </div>
+
+      <!-- Modal de Historia, Campaña, Personajes y Misiones Secundarias -->
+      <div class="garage-modal hidden" id="story-modal" role="dialog" aria-modal="true" aria-labelledby="story-chapter-title">
+        <div class="garage-card story-card">
+          <div class="garage-header">
+            <div>
+              <span class="garage-tag">ARCHIVO NARRATIVO · AUTOGUARDADO ACTIVO</span>
+              <h2 id="story-chapter-title">CAPÍTULO 1: MOTOR EN FRÍO</h2>
+            </div>
+            <button type="button" class="hud-btn garage-close" id="btn-story-close" aria-label="Cerrar historia">✕ CERRAR</button>
+          </div>
+
+          <div class="story-tabs" role="tablist">
+            <button type="button" class="hud-btn active" data-story-tab="chapters">CAMPAÑA</button>
+            <button type="button" class="hud-btn" data-story-tab="characters">PERSONAJES</button>
+            <button type="button" class="hud-btn" data-story-tab="side">SECUNDARIAS</button>
+          </div>
+
+          <div class="story-body" id="story-body"></div>
+
+          <div class="story-footer">
+            <small>Tu progreso se guarda automáticamente en este navegador.</small>
+            <button type="button" class="hud-btn btn-danger" id="btn-story-newgame">NUEVA PARTIDA</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal de Confirmación de Nueva Partida -->
+      <div class="garage-modal hidden" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="garage-card confirm-card">
+          <span class="garage-tag">CONFIRMACIÓN REQUERIDA</span>
+          <h2 id="confirm-title">¿INICIAR NUEVA PARTIDA?</h2>
+          <p class="confirm-text">Se borrará todo el progreso guardado de la campaña, el dinero acumulado, las misiones completadas y los vehículos desbloqueados en Ciudad Cero v0.4.</p>
+          <div class="confirm-actions">
+            <button type="button" class="hud-btn" id="btn-confirm-no">CANCELAR</button>
+            <button type="button" class="g-btn g-btn-danger" id="btn-confirm-yes">SÍ, REINICIAR DESDE CERO</button>
+          </div>
         </div>
       </div>
 
       <!-- Controles táctiles adaptativos (Android / iPhone) -->
       <div class="touch-layer" id="touch-layer" data-mode="foot" aria-hidden="false">
-        <button type="button" class="t-btn t-btn-garage hidden" id="btn-garage-touch" aria-label="Abrir garaje">
-          <span class="t-icon">🔧</span>
-          <span class="t-label">GARAJE</span>
-        </button>
+        <div class="touch-context-bar">
+          <button type="button" class="t-btn t-btn-talk hidden" id="btn-talk-touch" aria-label="Hablar con personaje">
+            <span class="t-icon">💬</span>
+            <span class="t-label">HABLAR</span>
+          </button>
+          <button type="button" class="t-btn t-btn-garage hidden" id="btn-garage-touch" aria-label="Abrir garaje">
+            <span class="t-icon">🔧</span>
+            <span class="t-label">GARAJE</span>
+          </button>
+        </div>
 
         <!-- MODO A PIE -->
         <div class="touch-foot" id="touch-foot">
@@ -165,16 +247,18 @@
 
     <footer class="controls">
       <span><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Moverse / Conducir</span>
-      <span><kbd>E</kbd> Subir / bajar del vehículo</span>
-      <span><kbd>G</kbd> Abrir Garaje (en zona de taller)</span>
+      <span><kbd>E</kbd> Subir / bajar</span>
+      <span><kbd>F</kbd> Hablar con contacto</span>
+      <span><kbd>H</kbd> Historia y Misiones</span>
+      <span><kbd>G</kbd> Garaje</span>
       <span><kbd>Shift</kbd> Correr / Turbo</span>
-      <span><kbd>Espacio</kbd> Bocina-Sirena / Freno mano</span>
-      <span><kbd>R</kbd> Reiniciar</span>
+      <span><kbd>Espacio</kbd> Bocina / Freno mano</span>
     </footer>
-    <p class="note">Ciudad Cero v0.3 · Sistema Policial, Persecuciones y Garajes · Compatible con PC, Android y iPhone.</p>
+    <p class="note">Ciudad Cero v0.4 · Historia y Campaña (3 Capítulos), Misiones Secundarias y Guardado Automático · PC, Android y iPhone.</p>
   </main>
 
   <script src="src/config.js"></script>
+  <script src="src/save.js"></script>
   <script src="src/audio.js"></script>
   <script src="src/input.js"></script>
   <script src="src/world.js"></script>
@@ -182,6 +266,7 @@
   <script src="src/physics.js"></script>
   <script src="src/garage.js"></script>
   <script src="src/police.js"></script>
+  <script src="src/story.js"></script>
   <script src="src/renderer.js"></script>
   <script src="src/ui.js"></script>
   <script src="src/game.js"></script>
