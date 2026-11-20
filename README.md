@@ -1,46 +1,64 @@
-# CIUDAD CERO — Versión 0.7.5: Ciudad Viva (Fachadas, Parques, Árboles y Barrios con Personalidad)
+# CIUDAD CERO — Versión 0.7.9: Pulido Integral (Ciudad, Física, Tráfico, Policía y Móvil)
+
+## Novedades de la Versión 0.7.9
+
+1. **Gráficos urbanos, edificios y parques perfeccionados** (`src/cityart.js`, `src/renderer.js`):
+   - **Árboles y vegetación con doble penumbra**: Sombras proyectadas más suaves y naturales, copas con contraste solar y detalles foliares en roble, arce, cerezo, olivo, pino, álamo y palmera.
+   - **Parques y plazas**: Pérgolas arquitectónicas en parques grandes, senderos con borde de piedra, fuentes y jardines floridos.
+   - **Calles y veredas**: Rampas peatonales táctiles en las 4 esquinas de cada manzana y franjas de color por barrio sobre el cordón.
+2. **Vehículos, tráfico inteligente y peatones** (`src/game.js`, `src/entities.js`, `src/renderer.js`):
+   - **Dirección y ruedas delanteras**: Curva de giro progresiva según velocidad, estabilidad a alta velocidad y giro visual visible de las ruedas delanteras al doblar.
+   - **Tráfico sin atascos**: Giros suaves en esquinas, prevención automática de bloqueos mutuos en intersecciones y respeto a semáforos y sirenas.
+   - **Peatones más naturales**: Espera segura en el cordón antes de cruzar si se acercan vehículos rápidos y reacción al bocinazo para despejar la calzada.
+3. **Policía y persecuciones más dinámicas** (`src/police.js`):
+   - Sensores laterales ampliados para esquivar esquinas a alta velocidad y maniobra automática de desatasco en retroceso si una patrulla queda bloqueada.
+4. **Personajes, HUD, Mapa y Estabilidad Móvil** (`src/characters.js`, `src/ui.js`, `src/style.css`, `src/save.js`):
+   - Indicador direccional en el anillo de Mateo y leve inclinación al esprintar.
+   - Minimapa con indicador cardinal (`N`) y marco de cámara; mapa ampliado con barrio de destino en la ruta GPS.
+   - Alerta visual cuando el vehículo tiene baja integridad (`≤ 30% HP`), protección ante cambios de pestaña (`visibilitychange`), bloqueo de gestos táctiles accidentales en Android/iPhone y compatibilidad total con partidas guardadas de v0.7.5 y anteriores.
+
+---
+
+# CIUDAD CERO — Versión 0.7.5: Ciudad Viva (Fachadas, Parques y Barrios)
 
 ## Novedades de la Versión 0.7.5
 
-1. **Edificios y casas rediseñados** (`src/cityart.js`): fachadas con ventanas, puertas, balcones, techos a dos aguas con tejas y chimeneas, edificios de departamentos, rascacielos con muro cortina y helipuerto, locales con toldos y carteles de neón, galpones con portones, fábricas con silos y chimeneas, casas rurales con paneles solares. Todos con sombras proyectadas, bordes biselados y texturas.
-2. **Parques grandes, medianos y pequeños**: césped texturizado con franjas de corte, setos, caminos, fuentes, estanques, canteros de flores, bancos, farolas, arbustos y árboles. Plazas duras con adoquín en Centro y Comercial. Jardines de bolsillo sobre las veredas.
-3. **Árboles con volumen**: 7 especies (roble, arce, cerezo en flor, olivo, pino, álamo, palmera), copas con lóbulos y luces, sombras y troncos con corteza.
-4. **Mapa y minimapa mejorados**: el minimapa dibuja calles/avenidas, manzanas por barrio, edificios, parques y agua desde una caché; el mapa ampliado suma un velo de color por barrio.
-5. **Barrios diferenciados**: veredas propias (ladrillo, granito, damero, hormigón húmedo, chapa, grava), franjas de color en cordones y mobiliario propio de cada zona.
-
-Todo el arte se dibuja una sola vez en la caché estática del mapa: sin costo extra por fotograma. En modo *rendimiento* se reduce el detalle. Las partidas de v0.7 y anteriores se cargan sin cambios (misma clave de guardado).
+1. **Nuevo módulo visual procedural (`src/cityart.js`)**:
+   - **Edificios y casas diferenciados por barrio**:
+     - *Residencial*: casas unifamiliares con techos a dos aguas de teja, chimeneas, patios y departamentos con balcones y tendederos.
+     - *Centro Urbano*: torres de cristal y acero con muros cortina, ventanas iluminadas, cornisas y azoteas técnicas.
+     - *Comercial*: locales con escaparates luminosos, toldos rayados de colores, carteles de neón y terrazas con mesas y sombrillas.
+     - *Zona Portuaria*: almacenes con techos metálicos acanalados, muelles de carga, patios de contenedores apilados y grúas.
+     - *Zona Industrial*: fábricas con dientes de sierra, silos cilíndricos, chimeneas humeantes y pasarelas metálicas.
+     - *Periferia*: granjas y galpones rurales con tejados de chapa, silos pequeños y árboles dispersos.
+   - **Parques variados y vegetación 2D**:
+     - Parques grandes, medianos y pequeños con caminos curvos, canteros de flores, bancos, farolas, fuentes de agua y estanques.
+     - Especies de árboles con volumen y sombra proyectada: roble, arce, cerezo en flor, olivo, pino, álamo y palmera.
+   - **Veredas y mobiliario por barrio**:
+     - Patrones de pavimento propios (ladrillo en espiga, granito pulido, damero comercial, hormigón húmedo portuario, chapa industrial y grava periférica), jardineras, jardines de bolsillo, bolardos y barriles.
+   - **Mapa y minimapa mejorados**:
+     - Caché de mapa base con tintes por barrio, parques destacados, bordes de distrito y etiquetas legibles.
 
 ---
 
-## Base: Versión 0.7 — Infraestructura Urbana, Semáforos Inteligentes y Mapas Mejorados
-
-**Saga Original · Juego 01 · Acción, Historia y Conducción Cenital 2D**
-
-**Ciudad Cero v0.7** evoluciona directamente sobre la base de la v0.6 con una **renovación integral de la infraestructura vial y urbana**, incorporando **asfalto texturizado procedural, veredas con baldosas, cordones con bisel 3D, rampas peatonales, mobiliario urbano, red sincronizada de semáforos funcionales de 3 luces, tráfico inteligente que respeta las señales y mapas mejorados (minimapa y mapa ampliado interactivo)**, conservando intactas todas las mecánicas, personajes, historia, persecuciones policiales, garajes, controles táctiles y partidas guardadas.
-
----
+# CIUDAD CERO — Versión 0.7: Infraestructura Urbana y Tráfico Inteligente
 
 ## Novedades de la Versión 0.7
 
-1. **Asfalto Texturizado, Señalización Vial, Veredas y Cordones**:
-   - **Textura de asfalto procedural**: Grano mineral, microporos, juntas bituminosas y huellas de rodadura en carriles principales para una superficie urbana realista optimizada con caché de cuadrantes.
-   - **Jerarquía vial completa**: Doble línea amarilla continua en avenidas principales, línea discontinua en calles secundarias, líneas blancas de borde de calzada, **líneas blancas de detención** ante cada intersección, sendas peatonales tipo cebra, tapas de alcantarilla y rejillas pluviales.
-   - **Veredas y cordones con relieve 3D**: Veredas elevadas con trama de baldosas de hormigón, bisel iluminado superior/izquierdo, sombra de cuneta exterior, rampas táctiles en las esquinas, cordones de seguridad amarillo/negro en zonas portuarias e industriales y mobiliario urbano (hidrantes, paradas de colectivo, bancos y árboles).
-2. **Semáforos Funcionales Sincronizados (Rojo · Amarillo · Verde)**:
-   - Postes galvanizados en las 4 esquinas de las intersecciones de avenida con brazos voladizos sobre los carriles y **cabezales de 3 luces (Rojo, Amarillo y Verde)** con halo luminoso, visera oscura, indicador peatonal en poste e iluminación dinámica sobre la línea de detención.
-   - Coordinación de **onda verde progresiva** a lo largo de las avenidas principales.
-3. **Tráfico Inteligente que Respeta Señales y Peatones**:
-   - **Detención en luz roja y amarilla**: Los vehículos civiles frenan suavemente detrás de la línea blanca de detención, forman filas ordenadas y arrancan con reacción escalonada natural al cambiar a verde. Si un vehículo ya cruzó el umbral al ponerse amarillo, completa el cruce sin bloquear la intersección.
-   - **Ceda el paso a peatones y sirenas**: El tráfico detecta peatones cruzando la calzada y reduce velocidad orillándose ligeramente cuando se aproxima una patrulla policial con sirenas encendidas.
-4. **Minimapa y Mapa Ampliado Interactivos Mejorados**:
-   - **Minimapa en tiempo real**: Muestra retícula de avenidas, semáforos activos en vivo (`🟢/🟡/🔴`), línea de ruta GPS punteada hacia el destino y perímetros de búsqueda policial.
-   - **Mapa Ampliado (`[M]` o tocando el minimapa)**: Incluye nombres de avenidas principales (`AV. CERO`, `AV. CENTRAL`, `BULEVAR ESTE`, `AV. DE LOS MUELLES`, `RUTA INDUSTRIAL`, `AUTOPISTA PERIFÉRICA`), estado de semáforos en vivo, línea de ruta GPS con distancia en metros, zoom con rueda/botones y accesos directos tanto a los **6 barrios** como a los **12 puntos de interés**.
-5. **Compatibilidad Total de Guardado**:
-   - Carga y migra automáticamente partidas guardadas desde `ciudad_cero_v06_save`, `ciudad_cero_v05_save` y `ciudad_cero_v04_save` hacia `ciudad_cero_v07_save`.
+1. **Infraestructura Vial Realista (`src/renderer.js`, `src/world.js`)**:
+   - **Textura de asfalto procedural** con grano mineral y juntas bituminosas, veredas de losetas texturizadas con cordones con sombra 3D y esquinas redondeadas.
+   - **Calles principales vs secundarias**: las avenidas pares lucen doble línea amarilla continua y marcas de carril; las calles locales conservan línea discontinua blanca.
+   - **Sendas peatonales y líneas de detención**: pasos de cebra blancos en los accesos de cada intersección y líneas de frenado previas.
+   - **Mobiliario urbano**: farolas callejeras con halo luminoso cálido, hidrantes, paradas de autobús, bancos y carteles luminosos comerciales.
+2. **Semáforos Sincronizados de 4 Vías (`src/world.js`, `src/renderer.js`, `src/game.js`)**:
+   - Controladores de tráfico sincronizados en las intersecciones principales con fases **Verde → Amarillo → Rojo** e indicadores peatonales **CRUCE / ALTO**.
+   - Semáforos visibles tanto en el mundo 2D (con halo de luz real) como en el minimapa y mapa ampliado.
+3. **Tráfico y Peatones Inteligentes (`src/game.js`, `src/entities.js`)**:
+   - **Detección de semáforos**: los vehículos civiles frenan suavemente ante la luz roja y amarilla, mantienen distancia de seguridad en fila y arrancan de forma escalonada al cambiar a verde.
+   - **Cruce peatonal inteligente y prioridad de emergencia**: los vehículos ceden el paso ante peatones en la calzada y reducen la velocidad cuando una patrulla policial pasa con sirena activa.
+4. **Mapa Interactivo con Navegación GPS (`src/ui.js`, `src/renderer.js`, `src/game.js`)**:
+   - Toca o haz clic en cualquier punto del mapa ampliado (`[M]`), barrio o lugar destacado para fijar una **ruta GPS personalizada** visible en el minimapa, en el mapa completo y con flecha direccional en pantalla.
 
----
+## Cómo ejecutar
 
-## Cómo Ejecutar
-
-1. Descomprime `ciudad_cero_v0.7.zip`.
-2. Abre `index.html` en cualquier navegador moderno (Chrome, Safari, Edge, Firefox) o sírvelo con un servidor local (`npx serve .` o `python3 -m http.server 8080`).
+Abre `index.html` directamente en cualquier navegador moderno de PC o celular, o publícalo como sitio estático en GitHub Pages / Vercel.
