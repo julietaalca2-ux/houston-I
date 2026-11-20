@@ -1,110 +1,118 @@
 window.CiudadCero = window.CiudadCero || {};
 
-(() => {
+CiudadCero.Game = (() => {
   const Config = CiudadCero.Config;
   const World = CiudadCero.World;
   const Entities = CiudadCero.Entities;
   const Physics = CiudadCero.Physics;
-  const Renderer = CiudadCero.Renderer;
   const Input = CiudadCero.Input;
-  const Audio = CiudadCero.Audio;
+  const Renderer = CiudadCero.Renderer;
   const UI = CiudadCero.UI;
+  const Audio = CiudadCero.Audio;
+  const Police = CiudadCero.Police;
+  const Garage = CiudadCero.Garage;
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const gameFrame = document.getElementById('game-frame');
 
-  // Dimensiones lógicas del viewport visible
   let viewW = 960;
   let viewH = 600;
+  let lastTime = 0;
 
   const state = {
-    time: 0,
+    money: 500,
+    missionsCompleted: 0,
+    chainIndex: 0,
     player: null,
     vehicles: [],
     pedestrians: [],
-    skids: [],
-    particles: [],
-    nearestVehicle: null,
-    camera: { x: 0, y: 0 },
-    money: 500,
-    wanted: 0,
-    wantedDecayTimer: 0,
-    missionsCompleted: 0,
     mission: null,
-    chainIndex: 0
+    missionTimeLeft: 0,
+    camera: { x: 0, y: 0 }
   };
 
   function resizeCanvas() {
-    if (!gameFrame) return;
-    const rect = gameFrame.getBoundingClientRect();
-    const isMobileViewport = window.innerWidth <= 900 || window.innerHeight <= 560;
-
-    if (isMobileViewport) {
-      viewW = Math.max(320, Math.round(rect.width));
-      viewH = Math.max(240, Math.round(rect.height));
-    } else {
-      viewW = 960;
-      viewH = 600;
-    }
-
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 10 || rect.height < 10) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    viewW = Math.round(rect.width);
+    viewH = Math.round(rect.height);
     canvas.width = Math.round(viewW * dpr);
     canvas.height = Math.round(viewH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  function spawnParticles(x, y, color, count = 8) {
-    for (let i = 0; i < count; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const spd = 40 + Math.random() * 130;
-      state.particles.push({
-        x,
-        y,
-        vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd,
-        color,
-        life: 0.25 + Math.random() * 0.25,
-        maxLife: 0.5
+  function startMission(missionData) {
+    state.vehicles.forEach((v) => { v.isMissionTarget = false; });
+
+    const m = Object.assign({}, missionData);
+    state.mission = m;
+    state.missionTimeLeft = m.timeLimit || 0;
+
+    if (m.triggerWanted) {
+      Police.setMinWanted(
+        m.triggerWanted,
+        state.player.x,
+        state.player.y,
+        'Alerta de misión',
+        (msg) => UI.showToast(msg)
+      );
+    }
+
+    if (m.type === 'recover_vehicle') {
+      const targetCar = Entities.createVehicle({
+        typeId: m.vehicleType || 'coupe',
+        color: m.vehicleColor || '#22a37a',
+        x: m.vehicleX,
+        y: m.vehicleY,
+        angle: 0,
+        isAI: false,
+        isParked: true,
+        isMissionTarget: true
       });
-    }
-    if (state.particles.length > 140) {
-      state.particles.splice(0, state.particles.length - 140);
-    }
-  }
-
-  function addSkidMark(x, y) {
-    state.skids.push({ x, y, alpha: 0.42 });
-    if (state.skids.length > 260) {
-      state.skids.shift();
+      state.vehicles.push(targetCar);
+      m.targetVehicleId = targetCar.id;
     }
   }
 
-  function initWorldEntities() {
+  function advanceNextMission() {
+    const chain = Config.CHAIN_MISSIONS;
+    const template = chain[state.chainIndex % chain.length];
+    state.chainIndex += 1;
+    startMission(template);
+  }
+
+  function resetWorld() {
+    state.money = 500;
+    state.missionsCompleted = 0;
+    state.chainIndex = 0;
     state.player = Entities.createPlayer();
     state.vehicles = [];
     state.pedestrians = [];
-    state.skids = [];
-    state.particles = [];
+    Police.reset();
+    UI.closeGarageModal();
+    Input.setBlocked(false);
 
-    // Vehículo inicial del jugador (igual que en v0.1, ahora Coupé GT deportivo)
     const starterCar = Entities.createVehicle({
       typeId: 'coupe',
       color: '#d94f3d',
       x: 520,
       y: 390,
       angle: 0,
+      isPlayerOwned: true,
       isAI: false,
       isParked: true
     });
     state.vehicles.push(starterCar);
+    Garage.init(starterCar);
 
-    // Autos estacionados en distintos sectores de Ciudad Cero
-    const parkedTypes = ['sedan', 'taxi', 'suv', 'van', 'coupe'];
-    World.parkedSpots.slice(0, Config.TRAFFIC.parkedVehicles).forEach((spot, idx) => {
+    const parkedSpecs = ['sedan', 'taxi', 'suv', 'van', 'coupe'];
+    World.parkedSpots.forEach((spot, idx) => {
+      if (idx >= Config.TRAFFIC.parkedVehicles) return;
+      if (Math.hypot(spot.x - starterCar.x, spot.y - starterCar.y) < 120) return;
       state.vehicles.push(
         Entities.createVehicle({
-          typeId: parkedTypes[idx % parkedTypes.length],
+          typeId: parkedSpecs[idx % parkedSpecs.length],
           x: spot.x,
           y: spot.y,
           angle: spot.angle,
@@ -114,36 +122,20 @@ window.CiudadCero = window.CiudadCero || {};
       );
     });
 
-    // Tráfico circulando con IA
     for (let i = 0; i < Config.TRAFFIC.targetVehicles; i++) {
-      const tv = Entities.spawnTrafficVehicle(state.vehicles, state.player);
-      if (tv) state.vehicles.push(tv);
+      const v = Entities.spawnTrafficVehicle(state.vehicles, state.player);
+      if (v) state.vehicles.push(v);
     }
 
-    // Peatones caminando por las aceras
     for (let i = 0; i < Config.TRAFFIC.targetPedestrians; i++) {
       state.pedestrians.push(Entities.createPedestrian());
     }
-  }
 
-  function resetGame() {
-    state.money = 500;
-    state.wanted = 0;
-    state.wantedDecayTimer = 0;
-    state.missionsCompleted = 0;
-    state.chainIndex = 0;
-    state.mission = Object.assign({}, Config.INITIAL_MISSION);
+    startMission(Config.INITIAL_MISSION);
 
-    Input.clearTouchState();
-    initWorldEntities();
-    state.nearestVehicle = findNearestVehicle();
-
-    const actor = state.player;
-    state.camera.x = Physics.clamp(actor.x - viewW * 0.5, 0, Config.WORLD.width - viewW);
-    state.camera.y = Physics.clamp(actor.y - viewH * 0.5, 0, Config.WORLD.height - viewH);
-
-    UI.sync(state);
-    UI.say('Ciudad Cero v0.2 lista. ¡Explora!');
+    Input.setMode(false);
+    updateCamera(1);
+    UI.showToast('Ciudad Cero v0.3 · Explora, conduce o visita el Garaje');
   }
 
   function findNearestVehicle() {
@@ -151,59 +143,214 @@ window.CiudadCero = window.CiudadCero || {};
     let bestDist = Config.PLAYER.enterRadius;
     for (let i = 0; i < state.vehicles.length; i++) {
       const v = state.vehicles[i];
-      const d = Math.hypot(state.player.x - v.x, state.player.y - v.y);
+      const d = Math.hypot(v.x - state.player.x, v.y - state.player.y);
       if (d < bestDist) {
-        bestDist = d;
         best = v;
+        bestDist = d;
       }
     }
     return best;
   }
 
-  function handleEnterExitVehicle() {
+  function toggleEnterExitVehicle() {
     const p = state.player;
     if (p.inCar && p.vehicle) {
       const v = p.vehicle;
       const exitPos = Physics.findSafeExitSpot(v, state.vehicles);
-      p.inCar = false;
-      p.vehicle = null;
       p.x = exitPos.x;
       p.y = exitPos.y;
       p.angle = v.angle;
+      p.inCar = false;
+      p.vehicle = null;
       v.brakeLights = false;
       v.reversing = false;
+      Input.setMode(false);
       Audio.playDoor(false);
-      UI.say('Has bajado del ' + v.name);
-      UI.sync(state);
+      UI.showToast('Saliste del vehículo');
       return;
     }
 
-    const targetCar = findNearestVehicle();
-    if (targetCar) {
-      p.inCar = true;
-      p.vehicle = targetCar;
-      targetCar.isAI = false;
-      targetCar.isParked = false;
-      Audio.playDoor(true);
-      UI.say('Subiste a: ' + targetCar.name);
-      UI.sync(state);
+    const nearCar = findNearestVehicle();
+    if (!nearCar) {
+      UI.showToast('Acércate a un vehículo para subir');
+      return;
+    }
+
+    p.inCar = true;
+    p.vehicle = nearCar;
+    p.x = nearCar.x;
+    p.y = nearCar.y;
+    nearCar.isAI = false;
+    nearCar.isParked = false;
+    Input.setMode(true);
+    Audio.playDoor(true);
+
+    if (nearCar.isMissionTarget && state.mission && state.mission.type === 'recover_vehicle') {
+      nearCar.isMissionTarget = false;
+      nearCar.isPlayerOwned = true;
+      Police.setMinWanted(
+        state.mission.stealWanted || 2,
+        nearCar.x,
+        nearCar.y,
+        '¡Vehículo recuperado! Llévalo al Garaje Central',
+        (msg) => UI.showToast(msg, 3200)
+      );
+      return;
+    }
+
+    if (nearCar.isPolice && !nearCar.isPlayerOwned) {
+      nearCar.sirenActive = true;
+      Police.setMinWanted(
+        2,
+        nearCar.x,
+        nearCar.y,
+        '¡Robo de patrulla policial!',
+        (msg) => UI.showToast(msg, 3000)
+      );
+    } else if (!nearCar.isPlayerOwned) {
+      const policeNear = state.vehicles.some(
+        (v) => v.isPolice && Math.hypot(v.x - nearCar.x, v.y - nearCar.y) < 380
+      );
+      if (policeNear || Math.random() < 0.65) {
+        Police.addWanted(
+          1,
+          nearCar.x,
+          nearCar.y,
+          `Robo de ${nearCar.name}`,
+          (msg) => UI.showToast(msg)
+        );
+      } else {
+        UI.showToast(`Subiste a: ${nearCar.name}`);
+      }
     } else {
-      UI.say('Acércate a un vehículo para subir.');
+      UI.showToast(`Conduciendo: ${nearCar.name}`);
     }
   }
 
-  function handleHorn() {
-    if (state.player.inCar) {
-      Audio.playHorn();
-      // Peatones cercanos se alertan con la bocina
+  function triggerHorn() {
+    if (state.player.inCar && state.player.vehicle) {
       const v = state.player.vehicle;
-      for (let i = 0; i < state.pedestrians.length; i++) {
-        const ped = state.pedestrians[i];
-        if (Math.hypot(ped.x - v.x, ped.y - v.y) < 150) {
-          ped.panicTimer = 1.6;
-        }
+      if (v.isPolice) {
+        v.sirenActive = !v.sirenActive;
+        Audio.playHorn(true);
+        UI.showToast(v.sirenActive ? 'Sirena policial ACTIVADA' : 'Sirena policial APAGADA');
+      } else {
+        Audio.playHorn(false);
+        state.pedestrians.forEach((ped) => {
+          if (Math.hypot(ped.x - v.x, ped.y - v.y) < 170) {
+            ped.panicTimer = 1.6;
+          }
+        });
       }
     }
+  }
+
+  function getActiveGarageContext() {
+    const p = state.player;
+    const g = World.getGarageAt(p.x, p.y, 26);
+    if (!g) return null;
+
+    let activeVehicle = p.inCar ? p.vehicle : null;
+    if (!activeVehicle) {
+      activeVehicle = state.vehicles.find(
+        (v) => !v.isPolice && Math.hypot(v.x - g.x, v.y - g.y) < 58
+      ) || null;
+    }
+
+    return {
+      garage: g,
+      activeVehicle,
+      money: state.money,
+      slots: Garage.getSlots(),
+      maxSlots: Garage.getMaxSlots()
+    };
+  }
+
+  function refreshGarageModal() {
+    const ctxData = getActiveGarageContext();
+    if (!ctxData) {
+      UI.closeGarageModal();
+      Input.setBlocked(false);
+      return;
+    }
+
+    UI.renderGarageModal(ctxData, {
+      onRepairActive: () => {
+        const res = Garage.repairActiveVehicle(ctxData.activeVehicle, state.money, (amt) => {
+          state.money -= amt;
+        });
+        UI.showToast(res.msg);
+        refreshGarageModal();
+      },
+      onStoreActive: () => {
+        const res = Garage.storeVehicle(
+          ctxData.activeVehicle,
+          state.vehicles,
+          state.player,
+          () => Input.setMode(false)
+        );
+        UI.showToast(res.msg);
+        refreshGarageModal();
+      },
+      onRepairSlot: (slotId) => {
+        const res = Garage.repairSlotVehicle(slotId, state.vehicles, state.money, (amt) => {
+          state.money -= amt;
+        });
+        UI.showToast(res.msg);
+        refreshGarageModal();
+      },
+      onSelectSlot: (slotId) => {
+        const res = Garage.selectVehicle(slotId, ctxData.garage, state.player, state.vehicles);
+        UI.showToast(res.msg);
+        if (res.ok) {
+          Input.setMode(true);
+          UI.closeGarageModal();
+          Input.setBlocked(false);
+        } else {
+          refreshGarageModal();
+        }
+      },
+      onRecoverSlot: (slotId) => {
+        const res = Garage.recoverVehicle(
+          slotId,
+          ctxData.garage,
+          state.player,
+          state.vehicles,
+          state.money,
+          (amt) => { state.money -= amt; }
+        );
+        UI.showToast(res.msg);
+        if (res.ok) {
+          Input.setMode(true);
+          UI.closeGarageModal();
+          Input.setBlocked(false);
+        } else {
+          refreshGarageModal();
+        }
+      }
+    });
+  }
+
+  function handleGarageAction(forceClose = false) {
+    if (forceClose || UI.isGarageOpen()) {
+      UI.closeGarageModal();
+      Input.setBlocked(false);
+      return;
+    }
+
+    const ctxData = getActiveGarageContext();
+    if (!ctxData) {
+      UI.showToast('Acércate a un Garaje (marcador amarillo) para abrirlo');
+      return;
+    }
+
+    if (Police.state.wanted > 0 && Police.state.playerInSight) {
+      UI.showToast('¡Pierde de vista a la policía antes de entrar al garaje!');
+      return;
+    }
+
+    Input.setBlocked(true);
+    refreshGarageModal();
   }
 
   function updatePlayerOnFoot(dt) {
@@ -212,431 +359,559 @@ window.CiudadCero = window.CiudadCero || {};
     const mag = Math.hypot(move.dx, move.dy);
 
     if (mag > 0.01) {
-      const spd = move.sprint ? Config.PLAYER.sprintSpeed : Config.PLAYER.walkSpeed;
-      const vx = move.dx * spd;
-      const vy = move.dy * spd;
-      p.angle = Math.atan2(vy, vx);
-      p.speed = spd * mag;
+      const speed = move.sprint ? Config.PLAYER.sprintSpeed : Config.PLAYER.walkSpeed;
+      p.speed = speed * Math.min(1, mag);
+      p.angle = Math.atan2(move.dy, move.dx);
+      Physics.moveCircleEntity(
+        p,
+        Math.cos(p.angle) * p.speed * dt,
+        Math.sin(p.angle) * p.speed * dt,
+        p.radius
+      );
       p.walkPhase += dt * (move.sprint ? 15 : 10);
-      Physics.moveCircleEntity(p, vx * dt, vy * dt, p.radius);
     } else {
       p.speed = 0;
     }
 
-    // Evitar que el jugador a pie quede dentro de un vehículo detenido
-    for (let i = 0; i < state.vehicles.length; i++) {
-      const v = state.vehicles[i];
-      const dx = p.x - v.x;
-      const dy = p.y - v.y;
-      const dist = Math.hypot(dx, dy);
-      const minR = p.radius + v.width * 0.55;
-      if (dist > 0 && dist < minR) {
-        const push = minR - dist;
-        Physics.moveCircleEntity(p, (dx / dist) * push, (dy / dist) * push, p.radius);
-      }
-    }
+    Input.setNearbyVehicle(Boolean(findNearestVehicle()));
   }
 
-  function updateDrivenVehicle(v, dt) {
+  function updatePlayerVehicle(dt) {
+    const p = state.player;
+    const v = p.vehicle;
+    if (!v) return;
+
     const ctrl = Input.getCarInput();
-    const maxForward = ctrl.turbo ? v.turboSpeed : v.maxSpeed;
+    const topForward = ctrl.turbo ? v.turboSpeed : v.maxSpeed;
 
     v.brakeLights = false;
     v.reversing = false;
 
     if (ctrl.throttle > 0) {
-      v.speed = Math.min(maxForward, v.speed + v.accel * dt);
+      v.speed += v.accel * (ctrl.turbo ? 1.25 : 1.0) * dt;
     } else if (ctrl.brake > 0) {
       if (v.speed > 12) {
-        v.speed = Math.max(0, v.speed - v.brake * dt);
+        v.speed -= v.brake * dt;
         v.brakeLights = true;
       } else {
-        v.speed = Math.max(-v.reverseSpeed, v.speed - v.accel * 0.78 * dt);
+        v.speed -= v.accel * 0.72 * dt;
         v.reversing = true;
       }
     } else {
-      v.speed *= Math.pow(0.95, dt * 60);
+      v.speed *= Math.pow(0.24, dt);
       if (Math.abs(v.speed) < 3) v.speed = 0;
     }
 
     if (ctrl.handbrake) {
-      v.speed *= Math.pow(0.9, dt * 60);
+      v.speed *= Math.pow(0.08, dt);
       v.brakeLights = true;
     }
 
-    // Giro proporcional a la velocidad (realista y cómodo en móvil y PC)
-    const speedFactor = Physics.clamp(Math.abs(v.speed) / 85, 0, 1);
-    const reverseSign = v.speed >= -1 ? 1 : -1;
-    if (ctrl.steer !== 0 && speedFactor > 0.05) {
-      v.angle += ctrl.steer * v.turnRate * speedFactor * reverseSign * dt;
+    v.speed = Physics.clamp(v.speed, -v.reverseSpeed, topForward);
+
+    const speedRatio = Math.min(1, Math.abs(v.speed) / 95);
+    const reverseSign = v.speed >= 0 ? 1 : -1;
+    if (Math.abs(ctrl.steer) > 0.01 && speedRatio > 0.04) {
+      v.angle = Physics.normalizeAngle(
+        v.angle + ctrl.steer * v.turnRate * speedRatio * reverseSign * dt
+      );
     }
 
-    // Física con agarre lateral (permite derrapes controlados en curvas cerradas)
     const forwardX = Math.cos(v.angle);
     const forwardY = Math.sin(v.angle);
     const rightX = -forwardY;
     const rightY = forwardX;
 
-    const currentLateral = v.vx * rightX + v.vy * rightY;
-    const gripFactor = ctrl.handbrake ? 0.84 : v.grip;
-    const lateralVel = currentLateral * Math.pow(1 - (1 - gripFactor) * 6, dt * 60);
+    const lateralVel = v.vx * rightX + v.vy * rightY;
+    const lateralGrip = ctrl.handbrake ? 0.96 : v.grip;
+    const dampedLateral = lateralVel * Math.pow(1 - lateralGrip, dt * 8);
 
-    v.vx = forwardX * v.speed + rightX * lateralVel;
-    v.vy = forwardY * v.speed + rightY * lateralVel;
+    if ((Math.abs(lateralVel) > 58 || ctrl.handbrake) && Math.abs(v.speed) > 90) {
+      Renderer.addSkidParticle(
+        v.x - forwardX * (v.length * 0.35),
+        v.y - forwardY * (v.length * 0.35),
+        v.angle
+      );
+    }
+
+    v.vx = forwardX * v.speed + rightX * dampedLateral;
+    v.vy = forwardY * v.speed + rightY * dampedLateral;
 
     v.x += v.vx * dt;
     v.y += v.vy * dt;
 
-    // Dejar marcas de neumático si frena fuerte o derrapa
-    if (
-      (Math.abs(lateralVel) > 48 || (ctrl.handbrake && Math.abs(v.speed) > 90)) &&
-      Math.random() < 0.65
-    ) {
-      addSkidMark(v.x - forwardX * (v.length * 0.35), v.y - forwardY * (v.length * 0.35));
+    if (v.isPolice) {
+      v.sirenPhase = (v.sirenPhase || 0) + dt * (v.sirenActive ? 10 : 0);
     }
+
+    p.x = v.x;
+    p.y = v.y;
+    p.angle = v.angle;
+    Garage.syncWorldVehicle(v);
   }
 
-  function isPathBlockedForAI(v) {
-    const cos = Math.cos(v.angle);
-    const sin = Math.sin(v.angle);
-    const lookDist = Config.TRAFFIC.lookAheadDist;
-
-    // Revisar otros vehículos adelante
-    for (let i = 0; i < state.vehicles.length; i++) {
-      const other = state.vehicles[i];
-      if (other === v) continue;
-      const dx = other.x - v.x;
-      const dy = other.y - v.y;
-      const forwardProj = dx * cos + dy * sin;
-      const sideProj = Math.abs(-dx * sin + dy * cos);
-      if (forwardProj > 18 && forwardProj < lookDist && sideProj < 26) {
-        return true;
-      }
-    }
-
-    // Revisar jugador o peatones cruzando frente al auto
-    if (!state.player.inCar) {
-      const dx = state.player.x - v.x;
-      const dy = state.player.y - v.y;
-      const f = dx * cos + dy * sin;
-      const s = Math.abs(-dx * sin + dy * cos);
-      if (f > 14 && f < lookDist * 0.85 && s < 22) return true;
-    }
-
-    for (let i = 0; i < state.pedestrians.length; i++) {
-      const ped = state.pedestrians[i];
-      const dx = ped.x - v.x;
-      const dy = ped.y - v.y;
-      const f = dx * cos + dy * sin;
-      const s = Math.abs(-dx * sin + dy * cos);
-      if (f > 14 && f < lookDist * 0.85 && s < 20) return true;
-    }
-
-    return false;
-  }
-
-  function updateAIVehicle(v, dt) {
-    if (v.isParked) {
-      v.vx *= 0.85;
-      v.vy *= 0.85;
-      v.speed = 0;
-      v.brakeLights = false;
+  function updateTrafficVehicle(v, dt) {
+    if (!v.isAI || v.isParked) {
+      v.vx *= Math.pow(0.1, dt);
+      v.vy *= Math.pow(0.1, dt);
+      v.speed = Math.hypot(v.vx, v.vy);
       return;
     }
 
     if (v.stunTimer > 0) {
       v.stunTimer -= dt;
-      v.vx *= Math.pow(0.9, dt * 60);
-      v.vy *= Math.pow(0.9, dt * 60);
+      v.vx *= 0.92;
+      v.vy *= 0.92;
       v.x += v.vx * dt;
       v.y += v.vy * dt;
-      v.brakeLights = true;
       return;
     }
 
     v.turnCooldown = Math.max(0, v.turnCooldown - dt);
-    const blocked = isPathBlockedForAI(v);
 
-    // Detectar si está cerca del centro de una intersección para decidir giro ocasional
-    const rx = ((v.x % Config.WORLD.blockSize) + Config.WORLD.blockSize) % Config.WORLD.blockSize;
-    const ry = ((v.y % Config.WORLD.blockSize) + Config.WORLD.blockSize) % Config.WORLD.blockSize;
-    const inIntersection = rx < Config.WORLD.roadWidth && ry < Config.WORLD.roadWidth;
+    const bs = Config.WORLD.blockSize;
+    const rw = Config.WORLD.roadWidth;
 
-    if (inIntersection && v.turnCooldown <= 0 && !blocked) {
-      const cellX = Math.floor(v.x / Config.WORLD.blockSize) * Config.WORLD.blockSize;
-      const cellY = Math.floor(v.y / Config.WORLD.blockSize) * Config.WORLD.blockSize;
-
-      if (v.aiAxis === 'h') {
-        const targetX = v.aiDir > 0 ? cellX + 42 : cellX + 108;
-        if (Math.abs(v.x - targetX) < 12 && Math.random() < 0.32) {
+    if (v.turnCooldown <= 0) {
+      const rx = ((v.x % bs) + bs) % bs;
+      const ry = ((v.y % bs) + bs) % bs;
+      if (rx > 34 && rx < rw - 34 && ry > 34 && ry < rw - 34 && Math.random() < 0.025) {
+        const blockX = Math.floor(v.x / bs) * bs;
+        const blockY = Math.floor(v.y / bs) * bs;
+        const newDir = Math.random() < 0.5 ? 1 : -1;
+        if (v.aiAxis === 'h') {
           v.aiAxis = 'v';
-          v.aiDir = Math.random() < 0.5 ? 1 : -1;
-          v.aiLanePos = v.aiDir > 0 ? cellX + 108 : cellX + 42;
-          v.turnCooldown = 2.4;
-        }
-      } else {
-        const targetY = v.aiDir > 0 ? cellY + 42 : cellY + 108;
-        if (Math.abs(v.y - targetY) < 12 && Math.random() < 0.32) {
+          v.aiDir = newDir;
+          v.aiLanePos = blockX + (newDir > 0 ? 108 : 42);
+        } else {
           v.aiAxis = 'h';
-          v.aiDir = Math.random() < 0.5 ? 1 : -1;
-          v.aiLanePos = v.aiDir > 0 ? cellY + 108 : cellY + 42;
-          v.turnCooldown = 2.4;
+          v.aiDir = newDir;
+          v.aiLanePos = blockY + (newDir > 0 ? 108 : 42);
+        }
+        v.turnCooldown = 3.2;
+      }
+    }
+
+    if (v.aiAxis === 'h') {
+      if (v.x > Config.WORLD.width - 55) v.aiDir = -1;
+      if (v.x < 55) v.aiDir = 1;
+    } else {
+      if (v.y > Config.WORLD.height - 55) v.aiDir = -1;
+      if (v.y < 55) v.aiDir = 1;
+    }
+
+    let targetAngle;
+    if (v.aiAxis === 'h') {
+      const aimX = v.x + v.aiDir * 90;
+      targetAngle = Math.atan2(v.aiLanePos - v.y, aimX - v.x);
+    } else {
+      const aimY = v.y + v.aiDir * 90;
+      targetAngle = Math.atan2(aimY - v.y, v.aiLanePos - v.x);
+    }
+
+    const angleDiff = Physics.normalizeAngle(targetAngle - v.angle);
+    v.angle = Physics.normalizeAngle(
+      v.angle + Physics.clamp(angleDiff, -v.turnRate * dt, v.turnRate * dt)
+    );
+
+    const forwardX = Math.cos(v.angle);
+    const forwardY = Math.sin(v.angle);
+    let obstacleAhead = false;
+
+    for (let i = 0; i < state.vehicles.length; i++) {
+      const other = state.vehicles[i];
+      if (other === v) continue;
+      const dx = other.x - v.x;
+      const dy = other.y - v.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < Config.TRAFFIC.lookAheadDist) {
+        const dot = (dx * forwardX + dy * forwardY) / (dist || 1);
+        if (dot > 0.72) {
+          obstacleAhead = true;
+          break;
         }
       }
     }
 
-    // Calcular ángulo objetivo siguiendo el carril asignado
-    let desiredAngle;
-    if (v.aiAxis === 'h') {
-      const laneErr = Physics.clamp((v.aiLanePos - v.y) * 0.025, -0.45, 0.45);
-      desiredAngle = v.aiDir > 0 ? laneErr : Math.PI - laneErr;
-    } else {
-      const laneErr = Physics.clamp((v.aiLanePos - v.x) * 0.025, -0.45, 0.45);
-      desiredAngle = v.aiDir > 0 ? Math.PI * 0.5 - laneErr : -Math.PI * 0.5 + laneErr;
+    if (!obstacleAhead && !state.player.inCar) {
+      const pdx = state.player.x - v.x;
+      const pdy = state.player.y - v.y;
+      const pdist = Math.hypot(pdx, pdy);
+      if (pdist < 64 && (pdx * forwardX + pdy * forwardY) / (pdist || 1) > 0.72) {
+        obstacleAhead = true;
+      }
     }
 
-    const diff = Physics.normalizeAngle(desiredAngle - v.angle);
-    v.angle = Physics.normalizeAngle(v.angle + Physics.clamp(diff, -3.2 * dt, 3.2 * dt));
+    const desiredSpeed = obstacleAhead ? 0 : Config.TRAFFIC.aiCruiseSpeed;
+    v.brakeLights = obstacleAhead && v.speed > 15;
 
-    const targetSpd = blocked ? 0 : Config.TRAFFIC.aiCruiseSpeed;
-    v.brakeLights = blocked;
-
-    if (v.speed < targetSpd) {
-      v.speed = Math.min(targetSpd, v.speed + 140 * dt);
+    if (v.speed < desiredSpeed) {
+      v.speed = Math.min(desiredSpeed, v.speed + v.accel * 0.65 * dt);
     } else {
-      v.speed = Math.max(targetSpd, v.speed - 260 * dt);
+      v.speed = Math.max(desiredSpeed, v.speed - v.brake * 0.9 * dt);
     }
 
-    v.vx = Math.cos(v.angle) * v.speed;
-    v.vy = Math.sin(v.angle) * v.speed;
+    v.vx = forwardX * v.speed;
+    v.vy = forwardY * v.speed;
     v.x += v.vx * dt;
     v.y += v.vy * dt;
-
-    // Dar la vuelta suavemente al llegar al borde del mapa
-    const pad = 42;
-    if (v.x < pad && v.aiAxis === 'h' && v.aiDir < 0) {
-      v.aiDir = 1;
-      v.aiLanePos += 66;
-    } else if (v.x > Config.WORLD.width - pad && v.aiAxis === 'h' && v.aiDir > 0) {
-      v.aiDir = -1;
-      v.aiLanePos -= 66;
-    }
-    if (v.y < pad && v.aiAxis === 'v' && v.aiDir < 0) {
-      v.aiDir = 1;
-      v.aiLanePos += 66;
-    } else if (v.y > Config.WORLD.height - pad && v.aiAxis === 'v' && v.aiDir > 0) {
-      v.aiDir = -1;
-      v.aiLanePos -= 66;
-    }
   }
 
   function updatePedestrians(dt) {
+    const p = state.player;
     for (let i = 0; i < state.pedestrians.length; i++) {
       const ped = state.pedestrians[i];
 
       if (ped.knockTimer > 0) {
         ped.knockTimer -= dt;
-        Physics.moveCircleEntity(ped, ped.vx * dt, ped.vy * dt, ped.radius);
-        ped.vx *= 0.86;
-        ped.vy *= 0.86;
+        ped.x += ped.vx * dt;
+        ped.y += ped.vy * dt;
+        ped.vx *= 0.88;
+        ped.vy *= 0.88;
         continue;
       }
 
-      if (ped.panicTimer > 0) {
-        ped.panicTimer -= dt;
-      }
-
-      const target = ped.loop[ped.targetIdx];
-      const dx = target.x - ped.x;
-      const dy = target.y - ped.y;
-      const dist = Math.hypot(dx, dy);
-
-      if (dist < 8) {
-        ped.targetIdx = (ped.targetIdx + ped.loopDir + ped.loop.length) % ped.loop.length;
-      } else {
-        const spd = ped.panicTimer > 0 ? ped.speed * 1.85 : ped.speed;
-        const vx = (dx / dist) * spd;
-        const vy = (dy / dist) * spd;
-        ped.angle = Math.atan2(vy, vx);
-        ped.walkPhase += dt * (ped.panicTimer > 0 ? 14 : 8);
-        Physics.moveCircleEntity(ped, vx * dt, vy * dt, ped.radius);
-      }
-
-      // Colisión suave entre vehículos y peatones
+      let threat = null;
       for (let j = 0; j < state.vehicles.length; j++) {
         const v = state.vehicles[j];
-        const vDist = Math.hypot(ped.x - v.x, ped.y - v.y);
-        if (vDist < 22) {
-          const pushAng = Math.atan2(ped.y - v.y, ped.x - v.x);
-          const vSpd = Math.hypot(v.vx, v.vy);
-          if (vSpd > 95) {
-            ped.knockTimer = 1.1;
-            ped.panicTimer = 3.5;
-            ped.vx = Math.cos(pushAng) * 165;
-            ped.vy = Math.sin(pushAng) * 165;
-            spawnParticles(ped.x, ped.y, '#e8e4d8', 5);
-            if (v === state.player.vehicle && state.wanted < 5) {
-              state.wanted += 1;
-              state.wantedDecayTimer = 14;
-              Audio.playAlert();
-              UI.say('¡Cuidado con los peatones! Nivel de alerta: ' + state.wanted + '★');
-              UI.sync(state);
-            }
-          } else {
-            Physics.moveCircleEntity(ped, Math.cos(pushAng) * 4, Math.sin(pushAng) * 4, ped.radius);
+        const vSpd = Math.hypot(v.vx, v.vy);
+        if (vSpd < 25) continue;
+        const dx = ped.x - v.x;
+        const dy = ped.y - v.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < v.length * 0.5 + ped.radius + 3 && vSpd > 65) {
+          ped.knockTimer = 2.6;
+          const pushAngle = Math.atan2(dy, dx);
+          ped.vx = Math.cos(pushAngle) * 120;
+          ped.vy = Math.sin(pushAngle) * 120;
+          if (v === p.vehicle) {
+            Police.addWanted(
+              1,
+              ped.x,
+              ped.y,
+              'Atropello reportado',
+              (msg) => UI.showToast(msg)
+            );
+            Audio.playCrash(0.45);
+          }
+          break;
+        }
+
+        if (dist < 62) {
+          threat = v;
+        }
+      }
+
+      if (ped.knockTimer > 0) continue;
+
+      if (threat || ped.panicTimer > 0) {
+        if (ped.panicTimer > 0) ped.panicTimer -= dt;
+        const fleeFrom = threat || p;
+        const fleeAngle = Math.atan2(ped.y - fleeFrom.y, ped.x - fleeFrom.x);
+        ped.angle = fleeAngle;
+        Physics.moveCircleEntity(
+          ped,
+          Math.cos(fleeAngle) * ped.speed * 1.75 * dt,
+          Math.sin(fleeAngle) * ped.speed * 1.75 * dt,
+          ped.radius
+        );
+        ped.walkPhase += dt * 15;
+      } else {
+        const target = ped.loop[ped.targetIdx];
+        const dx = target.x - ped.x;
+        const dy = target.y - ped.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 10) {
+          ped.targetIdx = (ped.targetIdx + ped.loopDir + ped.loop.length) % ped.loop.length;
+        } else {
+          ped.angle = Math.atan2(dy, dx);
+          Physics.moveCircleEntity(
+            ped,
+            Math.cos(ped.angle) * ped.speed * dt,
+            Math.sin(ped.angle) * ped.speed * dt,
+            ped.radius
+          );
+          ped.walkPhase += dt * 8;
+        }
+      }
+    }
+  }
+
+  function completeMission(m) {
+    state.money += m.reward;
+    state.missionsCompleted += 1;
+    Audio.playMissionComplete();
+    UI.showToast(`¡Misión completada! +$ ${m.reward}`, 3000);
+    advanceNextMission();
+  }
+
+  function updateMission(dt) {
+    const m = state.mission;
+    const p = state.player;
+    if (!m) return;
+
+    if (state.missionTimeLeft > 0) {
+      state.missionTimeLeft -= dt;
+      if (state.missionTimeLeft <= 0) {
+        state.missionTimeLeft = 0;
+        Audio.playMissionFail();
+        Police.addWanted(
+          m.failWantedBonus || 1,
+          p.x,
+          p.y,
+          '¡Tiempo agotado! Alerta policial activada',
+          (msg) => UI.showToast(msg, 3200)
+        );
+        advanceNextMission();
+        return;
+      }
+    }
+
+    if (m.type === 'escape_police') {
+      if (Police.state.wanted === 0) {
+        completeMission(m);
+      }
+      return;
+    }
+
+    if (m.type === 'recover_vehicle') {
+      const targetVeh = state.vehicles.find((v) => v.id === m.targetVehicleId);
+      if (targetVeh) {
+        m.x = p.vehicle === targetVeh ? Config.GARAGES[0].x : targetVeh.x;
+        m.y = p.vehicle === targetVeh ? Config.GARAGES[0].y : targetVeh.y;
+        if (p.vehicle === targetVeh) {
+          const distGarage = Math.hypot(targetVeh.x - Config.GARAGES[0].x, targetVeh.y - Config.GARAGES[0].y);
+          if (distGarage <= m.radius) {
+            completeMission(m);
           }
         }
       }
+      return;
+    }
+
+    const dist = Math.hypot(p.x - m.x, p.y - m.y);
+    if (dist <= m.radius) {
+      if (m.minWantedRequired && Police.state.wanted < m.minWantedRequired) {
+        UI.showToast(`Necesitas al menos ${m.minWantedRequired}★ de búsqueda activa para este encargo`);
+        return;
+      }
+      completeMission(m);
     }
   }
 
-  function advanceMission() {
-    state.missionsCompleted += 1;
-    state.money += state.mission.reward;
-    Audio.playMissionComplete();
-    spawnParticles(state.mission.x, state.mission.y, '#f5d94b', 16);
+  function updateCamera(dt) {
+    const p = state.player;
+    const lookAheadX = p.inCar && p.vehicle ? p.vehicle.vx * 0.25 : 0;
+    const lookAheadY = p.inCar && p.vehicle ? p.vehicle.vy * 0.25 : 0;
 
-    const earned = state.mission.reward;
-    const nextTemplate =
-      Config.CHAIN_MISSIONS[state.chainIndex % Config.CHAIN_MISSIONS.length];
-    state.chainIndex += 1;
+    const targetX = Physics.clamp(
+      p.x + lookAheadX - viewW * 0.5,
+      0,
+      Math.max(0, Config.WORLD.width - viewW)
+    );
+    const targetY = Physics.clamp(
+      p.y + lookAheadY - viewH * 0.5,
+      0,
+      Math.max(0, Config.WORLD.height - viewH)
+    );
 
-    state.mission = Object.assign({ id: state.missionsCompleted + 1 }, nextTemplate);
-    UI.sync(state);
-    UI.say(`¡Misión completada! +$${earned} · Nuevo objetivo activo`, 3.0);
+    const smooth = 1 - Math.pow(0.0015, dt);
+    state.camera.x += (targetX - state.camera.x) * smooth;
+    state.camera.y += (targetY - state.camera.y) * smooth;
   }
 
   function update(dt) {
-    state.time += dt;
+    if (UI.isGarageOpen()) {
+      return;
+    }
 
-    if (state.player.inCar && state.player.vehicle) {
-      updateDrivenVehicle(state.player.vehicle, dt);
-      state.player.x = state.player.vehicle.x;
-      state.player.y = state.player.vehicle.y;
-      state.nearestVehicle = null;
+    if (state.player.inCar) {
+      updatePlayerVehicle(dt);
     } else {
       updatePlayerOnFoot(dt);
-      const near = findNearestVehicle();
-      if (near !== state.nearestVehicle) {
-        state.nearestVehicle = near;
-        Input.setNearbyVehicle(Boolean(near));
+    }
+
+    for (let i = 0; i < state.vehicles.length; i++) {
+      const v = state.vehicles[i];
+      if (v !== state.player.vehicle && !v.isPolice) {
+        updateTrafficVehicle(v, dt);
       }
     }
 
-    // Actualizar vehículos de tráfico y estacionados
-    for (let i = 0; i < state.vehicles.length; i++) {
-      const v = state.vehicles[i];
-      if (v === state.player.vehicle) continue;
-      updateAIVehicle(v, dt);
-    }
-
-    // Resolver colisiones entre vehículos
-    Physics.resolveVehicleCollisions(
-      state.vehicles,
-      state.player.vehicle,
-      (cx, cy, intensity, involvesPlayer) => {
-        spawnParticles(cx, cy, '#ffd966', 7);
-        if (involvesPlayer) {
-          Audio.playCrash(intensity);
+    Police.update(dt, state.vehicles, state.player, {
+      updateCivilTraffic: updateTrafficVehicle,
+      onNotify: (msg) => UI.showToast(msg, 2800),
+      onStarReduced: (rem) => UI.showToast(`Rastro enfriándose · Quedan ${rem}★`),
+      onEscaped: () => UI.showToast('¡Has escapado de la policía! (0★)', 3000),
+      onBusted: () => {
+        const fine = Math.min(state.money, 100);
+        state.money -= fine;
+        Police.clearWanted();
+        if (state.player.inCar && state.player.vehicle) {
+          state.player.inCar = false;
+          state.player.vehicle = null;
+          Input.setMode(false);
+        }
+        state.player.x = Config.PLAYER.startX;
+        state.player.y = Config.PLAYER.startY;
+        Audio.playMissionFail();
+        UI.showToast(`🚨 ¡Detenido por la policía! Fianza: -$ ${fine}`, 3600);
+        if (state.mission && (state.mission.type === 'timed_stealth' || state.mission.type === 'wanted_run')) {
+          advanceNextMission();
         }
       }
-    );
+    });
 
-    // Resolver colisiones de todos los vehículos contra edificios
     for (let i = 0; i < state.vehicles.length; i++) {
       const v = state.vehicles[i];
-      Physics.resolveVehicleBuildings(v, (bx, by, intensity) => {
-        spawnParticles(bx, by, '#d6cfc2', 5);
+      Physics.resolveVehicleBuildings(v, (ix, iy, intensity) => {
         if (v === state.player.vehicle) {
           Audio.playCrash(intensity);
+          Renderer.addSparkParticles(ix, iy, 6);
+          if (intensity > 0.65) {
+            Police.registerIncident(0.55, ix, iy, (msg) => UI.showToast(msg));
+          }
         }
       });
     }
 
-    // Mantener coordenadas del jugador sincronizadas con su auto
+    Physics.resolveVehicleCollisions(state.vehicles, state.player.vehicle, (info) => {
+      Renderer.addSparkParticles(info.x, info.y, 7);
+      if (info.involvesPlayer) {
+        Audio.playCrash(info.intensity);
+        if (info.involvesPolice) {
+          if (Police.state.wanted === 0) {
+            Police.addWanted(
+              1,
+              info.x,
+              info.y,
+              '¡Choque contra patrulla policial!',
+              (msg) => UI.showToast(msg)
+            );
+          } else if (info.intensity > 0.55) {
+            Police.addWanted(
+              1,
+              info.x,
+              info.y,
+              '¡Embistiendo unidades policiales!',
+              (msg) => UI.showToast(msg)
+            );
+          }
+        } else if (info.intensity > 0.45) {
+          Police.registerIncident(info.intensity * 0.7, info.x, info.y, (msg) => UI.showToast(msg));
+        }
+      }
+    });
+
     if (state.player.inCar && state.player.vehicle) {
       state.player.x = state.player.vehicle.x;
       state.player.y = state.player.vehicle.y;
     }
 
     updatePedestrians(dt);
+    updateMission(dt);
+    Renderer.updateEffects(dt, state.vehicles);
+    updateCamera(dt);
 
-    // Actualizar partículas
-    for (let i = state.particles.length - 1; i >= 0; i--) {
-      const pt = state.particles[i];
-      pt.x += pt.vx * dt;
-      pt.y += pt.vy * dt;
-      pt.life -= dt;
-      if (pt.life <= 0) state.particles.splice(i, 1);
-    }
+    const p = state.player;
+    const v = p.vehicle;
+    const nearGarage = Boolean(World.getGarageAt(p.x, p.y, 26));
+    Input.setNearbyGarage(nearGarage);
 
-    // Reducción gradual del nivel de alerta si no hay incidentes
-    if (state.wanted > 0) {
-      state.wantedDecayTimer -= dt;
-      if (state.wantedDecayTimer <= 0) {
-        state.wanted -= 1;
-        state.wantedDecayTimer = 12;
-        UI.sync(state);
-      }
-    }
+    const dist = state.mission ? Math.hypot(p.x - state.mission.x, p.y - state.mission.y) : 0;
+    const speedKmh = v ? Math.abs(v.speed) * 0.42 : 0;
+    const vehicleHpPct = v ? (v.hp / v.maxHp) * 100 : 100;
 
-    // Comprobar llegada al punto de misión
-    const actor = state.player.inCar ? state.player.vehicle : state.player;
-    if (
-      state.mission &&
-      Math.hypot(actor.x - state.mission.x, actor.y - state.mission.y) <
-        state.mission.radius + 16
-    ) {
-      advanceMission();
-    }
-
-    // Cámara suave con anticipación de movimiento
-    const lookX = state.player.inCar ? state.player.vehicle.vx * 0.22 : 0;
-    const lookY = state.player.inCar ? state.player.vehicle.vy * 0.22 : 0;
-    const targetCamX = Physics.clamp(
-      actor.x + lookX - viewW * 0.5,
-      0,
-      Math.max(0, Config.WORLD.width - viewW)
-    );
-    const targetCamY = Physics.clamp(
-      actor.y + lookY - viewH * 0.5,
-      0,
-      Math.max(0, Config.WORLD.height - viewH)
-    );
-    const smooth = 1 - Math.pow(0.001, dt);
-    state.camera.x += (targetCamX - state.camera.x) * smooth;
-    state.camera.y += (targetCamY - state.camera.y) * smooth;
-
-    UI.tick(dt);
-    UI.updateLiveTelemetry(actor, state.mission, state.player.vehicle);
+    UI.updateHUD({
+      money: state.money,
+      inCar: p.inCar,
+      vehicleName: v ? v.name : '',
+      missionsCompleted: state.missionsCompleted,
+      wanted: Police.state.wanted,
+      policeHUD: Police.getHUDState(),
+      nearGarage,
+      mission: state.mission,
+      missionTimeLeft: state.missionTimeLeft,
+      missionDist: dist,
+      speedKmh,
+      vehicleHpPct
+    });
   }
 
-  let lastTime = performance.now();
   function loop(now) {
     const dt = Math.min((now - lastTime) / 1000, 0.05);
     lastTime = now;
+
     update(dt);
-    Renderer.render(ctx, viewW, viewH, state);
+    Renderer.render(ctx, viewW, viewH, {
+      player: state.player,
+      vehicles: state.vehicles,
+      pedestrians: state.pedestrians,
+      mission: state.mission,
+      camera: state.camera,
+      policeHUD: Police.getHUDState(),
+      roadblocks: Police.state.roadblocks
+    });
+
     requestAnimationFrame(loop);
   }
 
-  // Inicialización general
-  Input.init({
-    onEnterExit: handleEnterExitVehicle,
-    onReset: resetGame,
-    onHorn: handleHorn
-  });
+  function init() {
+    UI.init();
+    Input.init({
+      onEnterExit: toggleEnterExitVehicle,
+      onReset: resetWorld,
+      onHorn: triggerHorn,
+      onGarage: handleGarageAction
+    });
 
-  UI.init({
-    onReset: resetGame
-  });
+    const btnAudio = document.getElementById('btn-audio');
+    if (btnAudio) {
+      btnAudio.addEventListener('click', () => {
+        const enabled = Audio.toggle();
+        UI.updateAudioButton(enabled);
+      });
+    }
 
-  window.addEventListener('resize', resizeCanvas);
-  window.addEventListener('orientationchange', () => {
-    setTimeout(resizeCanvas, 120);
-  });
+    const btnTouch = document.getElementById('btn-touch-toggle');
+    if (btnTouch) {
+      btnTouch.addEventListener('click', () => {
+        const mode = Input.cycleTouchMode();
+        UI.updateTouchButton(Input.getTouchModeLabel(), mode);
+      });
+      UI.updateTouchButton(Input.getTouchModeLabel(), 'auto');
+    }
 
-  resizeCanvas();
-  resetGame();
-  requestAnimationFrame(loop);
+    const btnReset = document.getElementById('btn-reset');
+    if (btnReset) {
+      btnReset.addEventListener('click', resetWorld);
+    }
+
+    const btnGarageTop = document.getElementById('btn-garage-top');
+    if (btnGarageTop) {
+      btnGarageTop.addEventListener('click', () => handleGarageAction(false));
+    }
+
+    const btnGarageClose = document.getElementById('btn-garage-close');
+    if (btnGarageClose) {
+      btnGarageClose.addEventListener('click', () => handleGarageAction(true));
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(resizeCanvas, 120);
+    });
+
+    resizeCanvas();
+    resetWorld();
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  return { init, state, resetWorld };
 })();
+
+window.addEventListener('DOMContentLoaded', () => {
+  CiudadCero.Game.init();
+});
