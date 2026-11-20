@@ -4,10 +4,11 @@
   class Engine {
     constructor(options) {
       const config = options || {};
-      this.version = config.version || '0.1.0';
+      this.version = config.version || '0.2.0';
       this.events = new namespace.EventBus();
       this.scenes = new namespace.SceneManager(this.events);
       this.resources = new namespace.ResourceRegistry(this.events);
+      this.assets = new namespace.AssetManager(this.resources, this.events);
       this.renderer = null;
       this.scene = null;
       this.camera = null;
@@ -49,10 +50,10 @@
         version: this.version, started: this.started, platform: this.platform,
         rendererAttached: Boolean(this.renderer), frame: this.frame,
         elapsed: Number(this.elapsed.toFixed(3)), sceneCount: this.scenes.getCount(),
-        resourceCount: this.resources.getCount()
+        resourceCount: this.resources.getCount(), pendingAssetLoads: this.assets.pending.size
       };
     }
   }
   namespace.Engine = Engine;
-  namespace.runtime = namespace.runtime || new Engine({ version: '0.1.0' });
+  namespace.runtime = namespace.runtime || new Engine({ version: '0.2.0' });
 })(window);
