@@ -61,7 +61,8 @@ CiudadCero.Config = {
       groundTint: '#364137',
       blockTint: '#727d6e',
       description: 'Avenidas arboladas, viviendas de ladrillo, Parque Central y el taller de Nora en Avenida Cero.',
-      bounds: { x1: 0, y1: 0, x2: 1500, y2: 1500 },
+      bounds: { x1: 0, y1: 0, x2: 1500, y2: 1200 },
+      extraBounds: { x1: 3600, y1: 1800, x2: 4800, y2: 3000 },
       center: { x: 750, y: 750 },
       avenueLabel: 'Av. Cero y Calle del Parque'
     },
@@ -73,7 +74,7 @@ CiudadCero.Config = {
       groundTint: '#31393c',
       blockTint: '#687378',
       description: 'Rascacielos corporativos, plazas financieras, tráfico intenso y vigilancia policial constante.',
-      bounds: { x1: 1500, y1: 0, x2: 3300, y2: 1500 },
+      bounds: { x1: 1500, y1: 600, x2: 3300, y2: 2100 },
       center: { x: 2400, y: 750 },
       avenueLabel: 'Av. Central y Torre Cero'
     },
@@ -86,6 +87,7 @@ CiudadCero.Config = {
       blockTint: '#777469',
       description: 'Galerías iluminadas, tiendas con toldos de color, carteles de neón y amplios estacionamientos.',
       bounds: { x1: 3300, y1: 0, x2: 4800, y2: 1800 },
+      extraBounds: { x1: 1500, y1: 0, x2: 3300, y2: 600 },
       center: { x: 4050, y: 900 },
       avenueLabel: 'Bulevar Comercial Este'
     },
@@ -97,7 +99,7 @@ CiudadCero.Config = {
       groundTint: '#2d3738',
       blockTint: '#626f70',
       description: 'Muelles del sur, dársenas de contenedores, grúas de carga y almacenes aduaneros.',
-      bounds: { x1: 0, y1: 1500, x2: 1800, y2: 3000 },
+      bounds: { x1: 2400, y1: 2100, x2: 3600, y2: 3600 },
       center: { x: 900, y: 2250 },
       avenueLabel: 'Av. de los Muelles Sur'
     },
@@ -109,7 +111,7 @@ CiudadCero.Config = {
       groundTint: '#393430',
       blockTint: '#6e6760',
       description: 'Naves metálicas, silos de combustible, patios de maniobra y talleres pesados.',
-      bounds: { x1: 1800, y1: 1500, x2: 3600, y2: 3000 },
+      bounds: { x1: 900, y1: 2100, x2: 2400, y2: 3600 },
       center: { x: 2700, y: 2250 },
       avenueLabel: 'Ruta Industrial Pesada'
     },
