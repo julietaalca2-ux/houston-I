@@ -189,9 +189,9 @@ CiudadCero.Input = (() => {
       updateStick(e.clientX, e.clientY);
     });
 
-    zone.addEventListener('pointerup', resetStick);
-    zone.addEventListener('pointercancel', resetStick);
-    zone.addEventListener('lostpointercapture', resetStick);
+    zone.addEventListener('pointerup', (e) => { e.stopPropagation(); resetStick(e); });
+    zone.addEventListener('pointercancel', (e) => { e.stopPropagation(); resetStick(e); });
+    zone.addEventListener('lostpointercapture', (e) => { e.stopPropagation(); resetStick(e); });
 
     return () => resetStick({});
   }

@@ -281,10 +281,22 @@ CiudadCero.Renderer3D = (() => {
     // Dragging on the world rotates the orbit camera; gameplay controls remain
     // available because the touch joystick/buttons are separate overlay elements.
     canvas.addEventListener('pointerdown', (event) => {
-      // Only a drag that starts on the 3D canvas rotates the camera.
-      // Touches that originate on the joystick or action buttons must never reach camera control.
+      // Camera control is exclusive to a drag that begins on the visible world.
+      // Also guard the joystick's screen rectangle: on some mobile browsers a
+      // transformed overlay can report the canvas as the event target.
       if (event.target !== canvas) return;
       if (event.button !== undefined && event.button !== 0) return;
+      const touchLayer = document.getElementById('touch-layer');
+      const joyZone = document.getElementById('joy-zone');
+      const carJoyZone = document.getElementById('car-joy-zone');
+      const inside = (el) => {
+        if (!el || el.classList.contains('hidden') || !el.getClientRects().length) return false;
+        const r = el.getBoundingClientRect();
+        return event.clientX >= r.left && event.clientX <= r.right &&
+          event.clientY >= r.top && event.clientY <= r.bottom;
+      };
+      if (touchLayer && touchLayer.classList.contains('visible') &&
+          (inside(joyZone) || inside(carJoyZone))) return;
       event.preventDefault();
       dragPointerId = event.pointerId;
       lastPointerX = event.clientX; lastPointerY = event.clientY;
@@ -296,7 +308,7 @@ CiudadCero.Renderer3D = (() => {
       const dy = event.clientY - lastPointerY;
       lastPointerX = event.clientX; lastPointerY = event.clientY;
       cameraYawOffset = ((cameraYawOffset - dx * 0.0030 + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-      cameraPitchOffset = clamp(cameraPitchOffset + dy * 0.0018, -0.12, 0.24);
+      cameraPitchOffset = clamp(cameraPitchOffset + dy * 0.0032, -0.42, 0.62);
     });
     const releaseCameraDrag = (event) => { if (dragPointerId === event.pointerId) dragPointerId = null; };
     canvas.addEventListener('pointerup', releaseCameraDrag);
@@ -410,7 +422,7 @@ CiudadCero.Renderer3D = (() => {
     if (!cameraReady) cameraYawOffset = angle;
     const orbitAngle = cameraYawOffset;
     const distance = p.inCar ? 92 : 58;
-    const cameraHeight = (p.inCar ? 34 : 29) + cameraPitchOffset * 42;
+    const cameraHeight = Math.max(2.5, (p.inCar ? 34 : 29) + cameraPitchOffset * distance);
     const targetHeight = p.inCar ? 8 : 8.5;
     const forwardX = Math.cos(angle), forwardZ = Math.sin(angle);
     const target = new THREE.Vector3(p.x + forwardX * 5, targetHeight, p.y + forwardZ * 5);
