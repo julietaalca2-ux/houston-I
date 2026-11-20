@@ -25,10 +25,11 @@ CiudadCero.Entities = (() => {
   }
 
   function createVehicle(opts = {}) {
-    const typeKeys = Object.keys(Config.VEHICLE_TYPES);
-    const typeKey = opts.typeId || randomItem(typeKeys);
+    const civilKeys = ['coupe', 'sedan', 'taxi', 'suv', 'van'];
+    const typeKey = opts.typeId || randomItem(civilKeys);
     const spec = Config.VEHICLE_TYPES[typeKey] || Config.VEHICLE_TYPES.sedan;
     const color = opts.color || randomItem(spec.colors);
+    const maxHp = spec.maxHp || 120;
 
     return {
       id: nextVehicleId++,
@@ -51,12 +52,19 @@ CiudadCero.Entities = (() => {
       turnRate: spec.turnRate,
       grip: spec.grip,
       mass: spec.mass,
+      hp: opts.hp !== undefined ? opts.hp : maxHp,
+      maxHp,
+      isPlayerOwned: Boolean(opts.isPlayerOwned),
+      isPolice: Boolean(spec.isPolice || opts.isPolice),
+      policeRole: spec.policeRole || opts.policeRole || null,
+      policeState: opts.policeState || 'patrol',
+      sirenActive: Boolean(opts.sirenActive),
+      sirenPhase: Math.random() * Math.PI * 2,
+      isMissionTarget: Boolean(opts.isMissionTarget),
       isAI: Boolean(opts.isAI),
       isParked: Boolean(opts.isParked),
       brakeLights: false,
       reversing: false,
-      steerVisual: 0,
-      // Datos de navegación IA
       aiAxis: opts.aiAxis || 'h',
       aiDir: opts.aiDir || 1,
       aiLanePos: opts.aiLanePos || 408,
@@ -82,7 +90,6 @@ CiudadCero.Entities = (() => {
         angle = lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       }
 
-      // Evitar aparecer encima del jugador o de otro vehículo
       if (playerRef && Math.hypot(x - playerRef.x, y - playerRef.y) < 260) {
         continue;
       }
@@ -104,6 +111,51 @@ CiudadCero.Entities = (() => {
       });
     }
     return null;
+  }
+
+  function spawnPoliceVehicle(existingVehicles, playerRef, typeId = 'police_patrol', nearPlayer = false) {
+    const lanes = World.getLaneCoords();
+    let bestCandidate = null;
+
+    for (let attempt = 0; attempt < 35; attempt++) {
+      const lane = randomItem(lanes);
+      let x, y, angle;
+      if (lane.axis === 'h') {
+        x = 90 + Math.random() * (Config.WORLD.width - 180);
+        y = lane.pos;
+        angle = lane.dir > 0 ? 0 : Math.PI;
+      } else {
+        x = lane.pos;
+        y = 90 + Math.random() * (Config.WORLD.height - 180);
+        angle = lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      }
+
+      const distToPlayer = playerRef ? Math.hypot(x - playerRef.x, y - playerRef.y) : 500;
+      if (distToPlayer < 260) continue;
+      if (nearPlayer && distToPlayer > 720) continue;
+
+      const tooClose = existingVehicles.some(
+        (v) => Math.hypot(v.x - x, v.y - y) < 110
+      );
+      if (tooClose) continue;
+
+      bestCandidate = createVehicle({
+        typeId,
+        x,
+        y,
+        angle,
+        isAI: true,
+        isParked: false,
+        sirenActive: nearPlayer,
+        policeState: nearPlayer ? 'pursue' : 'patrol',
+        aiAxis: lane.axis,
+        aiDir: lane.dir,
+        aiLanePos: lane.pos
+      });
+      break;
+    }
+
+    return bestCandidate;
   }
 
   function createPedestrian() {
@@ -146,6 +198,7 @@ CiudadCero.Entities = (() => {
     createPlayer,
     createVehicle,
     spawnTrafficVehicle,
+    spawnPoliceVehicle,
     createPedestrian
   };
 })();
