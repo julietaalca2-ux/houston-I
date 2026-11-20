@@ -2,42 +2,131 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Juego 01 — Ciudad Cero</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#101411">
+  <title>Juego 01 — Ciudad Cero v0.2</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">SAGA ORIGINAL · JUEGO 01</p>
+      <div class="brand">
+        <p class="eyebrow">SAGA ORIGINAL · JUEGO 01 · v0.2</p>
         <h1>CIUDAD CERO</h1>
       </div>
-      <div class="stats">
-        <span>DINERO <b id="money">$ 500</b></span>
-        <span>ESTADO <b id="status">A PIE</b></span>
-        <span>ALERTA <b id="wanted">☆☆☆☆☆</b></span>
+
+      <div class="hud-right">
+        <div class="stats">
+          <span>DINERO <b id="money">$ 500</b></span>
+          <span>ESTADO <b id="status">A PIE</b></span>
+          <span>MISIONES <b id="missions-count">0</b></span>
+          <span>ALERTA <b id="wanted">☆☆☆☆☆</b></span>
+        </div>
+
+        <div class="quick-actions">
+          <button type="button" class="hud-btn" id="btn-audio" title="Activar o silenciar sonido">SONIDO: ON</button>
+          <button type="button" class="hud-btn" id="btn-touch-toggle" title="Mostrar u ocultar controles táctiles">TÁCTIL: AUTO</button>
+          <button type="button" class="hud-btn" id="btn-reset" title="Reiniciar partida (R)">REINICIAR</button>
+        </div>
       </div>
     </header>
 
-    <section class="game-frame" aria-label="Juego">
+    <section class="game-frame" id="game-frame" aria-label="Área de juego Ciudad Cero">
       <canvas id="game" width="960" height="600"></canvas>
-      <div class="mission">
-        <span class="mission-tag">OBJETIVO</span>
+
+      <div class="mission" id="mission-box">
+        <div class="mission-head">
+          <span class="mission-tag">OBJETIVO</span>
+          <span class="mission-dist" id="mission-dist">0 m</span>
+        </div>
         <strong id="mission-title">Llega al punto amarillo</strong>
-        <small id="mission-help">Muévete con WASD o las flechas.</small>
+        <small id="mission-help">Muévete con WASD, flechas o el joystick.</small>
       </div>
+
+      <div class="vehicle-hud hidden" id="vehicle-hud">
+        <span class="veh-model" id="veh-model">COUPÉ GT</span>
+        <strong class="veh-speed"><span id="veh-speed">0</span> <small>KM/H</small></strong>
+      </div>
+
       <div class="toast" id="toast">Explora Ciudad Cero</div>
+
+      <!-- Controles táctiles adaptativos (Android / iPhone) -->
+      <div class="touch-layer" id="touch-layer" data-mode="foot" aria-hidden="false">
+        <!-- MODO A PIE -->
+        <div class="touch-foot" id="touch-foot">
+          <div class="joy-zone" id="joy-zone" aria-label="Joystick de movimiento">
+            <div class="joy-base" id="joy-base">
+              <div class="joy-stick" id="joy-stick"></div>
+            </div>
+          </div>
+
+          <div class="foot-actions">
+            <button type="button" class="t-btn t-btn-action" id="btn-enter-foot" aria-label="Subir a vehículo">
+              <span class="t-icon">🚗</span>
+              <span class="t-label">SUBIR</span>
+            </button>
+            <button type="button" class="t-btn t-btn-sprint" id="btn-sprint" aria-label="Correr">
+              <span class="t-icon">⚡</span>
+              <span class="t-label">CORRER</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- MODO CONDUCIENDO -->
+        <div class="touch-car" id="touch-car">
+          <div class="steer-group">
+            <button type="button" class="t-btn t-btn-steer" id="btn-steer-left" aria-label="Girar izquierda">
+              <span class="t-icon">◀</span>
+              <span class="t-label">IZQ</span>
+            </button>
+            <button type="button" class="t-btn t-btn-steer" id="btn-steer-right" aria-label="Girar derecha">
+              <span class="t-icon">▶</span>
+              <span class="t-label">DER</span>
+            </button>
+          </div>
+
+          <div class="drive-group">
+            <button type="button" class="t-btn t-btn-exit" id="btn-exit-car" aria-label="Salir del vehículo">
+              <span class="t-icon">🚪</span>
+              <span class="t-label">BAJAR</span>
+            </button>
+            <div class="pedals">
+              <button type="button" class="t-btn t-btn-brake" id="btn-brake" aria-label="Frenar o reversa">
+                <span class="t-icon">▼</span>
+                <span class="t-label">FRENO</span>
+              </button>
+              <button type="button" class="t-btn t-btn-gas" id="btn-gas" aria-label="Acelerar">
+                <span class="t-icon">▲</span>
+                <span class="t-label">GAS</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <footer class="controls">
-      <span><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Moverse</span>
+      <span><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Moverse / Conducir</span>
       <span><kbd>E</kbd> Entrar / salir del vehículo</span>
-      <span><kbd>Shift</kbd> Acelerar a pie</span>
+      <span><kbd>Shift</kbd> Correr / Turbo</span>
+      <span><kbd>Espacio</kbd> Bocina / Freno de mano</span>
       <span><kbd>R</kbd> Reiniciar</span>
     </footer>
-    <p class="note">Prototipo inicial · Los gráficos y recursos son originales y temporales.</p>
+    <p class="note">Ciudad Cero v0.2 · Universo, código y gráficos originales · Compatible con PC, Android y iPhone.</p>
   </main>
+
+  <!-- Módulos ordenados (compatibles con file:// y GitHub Pages sin bundler) -->
+  <script src="src/config.js"></script>
+  <script src="src/audio.js"></script>
+  <script src="src/input.js"></script>
+  <script src="src/world.js"></script>
+  <script src="src/entities.js"></script>
+  <script src="src/physics.js"></script>
+  <script src="src/renderer.js"></script>
+  <script src="src/ui.js"></script>
   <script src="src/game.js"></script>
 </body>
 </html>
