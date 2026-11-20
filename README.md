@@ -73,3 +73,15 @@ Todo el arte se dibuja una sola vez en la caché estática del mapa: sin costo e
 1. Descomprime `ciudad_cero_v0.7.zip`.
 2. Abre `index.html` en cualquier navegador moderno (Chrome, Safari, Edge, Firefox) o sírvelo con un servidor local (`npx serve .` o `python3 -m http.server 8080`).
 
+
+
+## V0.8.1 — Minimapa HD y expansión a Loston
+
+- Mundo ampliado de 4800 × 3600 a 7200 × 3600 unidades.
+- Nueva isla de Loston al este, rodeada de agua.
+- Tres barrios: Centro de Loston, Barrio del Faro y Las Palmeras.
+- Puente vial de Loston con tablero y barandas; el canal bloquea el paso fuera del puente.
+- El GPS por calles evita nodos situados dentro del agua.
+- Minimapa con caché de mayor resolución (4x), proporción adaptada al mundo y superficie más grande.
+- Mapa completo ampliado a 1200 × 600 para mostrar ambas zonas en una sola vista.
+- Caché de renderizado dividida en mosaicos de 2400 × 1800 para controlar el uso de memoria en celulares.
