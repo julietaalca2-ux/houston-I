@@ -6,6 +6,7 @@ Primera capa interna del motor propio de CIUDAD CERO.
 - `EventBus`: eventos desacoplados entre sistemas.
 - `SceneManager`: registro y selección de escenas.
 - `ResourceRegistry`: registro de recursos cargados.
+- `AssetManager`: carga asíncrona de modelos GLB/GLTF, caché, instanciación y descarga.
 - `Engine`: ciclo de vida, actualización y diagnóstico.
 - `PlatformAdapter`: detección de capacidades del navegador/dispositivo.
 
@@ -16,7 +17,7 @@ El renderizador 3D existente de CIUDAD CERO conecta su renderer, escena y cámar
 La base del juego sigue usando scripts clásicos y Three.js 0.160.0 desde CDN. Los módulos de CIUDAD ENGINE también se publican como scripts clásicos para no obligar a migrar todo el proyecto de una vez.
 
 ## Próximas fases
-1. Adaptador de recursos GLB y carga asíncrona.
+1. Sistema de entidades/componentes.
 2. Sistema de entidades/componentes.
 3. Abstracción del backend gráfico y pruebas WebGPU.
 4. Física, animación y herramientas de depuración.
