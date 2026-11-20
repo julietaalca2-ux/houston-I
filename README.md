@@ -1,32 +1,29 @@
-# CIUDAD CERO v0.8.7 — POLICE INTELLIGENCE
+# CIUDAD CERO v0.8.8 — WORLD REBUILD
 
-Actualización integrada del sistema policial sobre la base del proyecto v0.8.6.
+Versión construida directamente sobre `CIUDAD_CERO_V0.8.7_FIX`, conservando los sistemas de juego y la integración POLICE INTELLIGENCE.
 
-## Sistemas incluidos
+## Objetivo de la versión: renovación masiva del mapa
 
-- Patrullaje ambiental sin persecución cuando el nivel de búsqueda está en cero.
-- Variación de velocidad y comportamiento de circulación para evitar patrullas sincronizadas.
-- Cinco niveles de búsqueda con refuerzos progresivos y unidades especializadas.
-- Persecución vehicular, interceptación, búsqueda de última ubicación y pérdida gradual de interés.
-- Bloqueos de calles en niveles altos de alerta.
-- Patrulleros que pueden detenerse y desplegar agentes a pie como apoyo durante una alerta cercana.
-- Agentes a pie que patrullan, reciben el último punto conocido, avanzan hacia la zona, contienen al jugador y regresan al vehículo al finalizar la alerta.
-- Coordinación básica entre unidades mediante objetivos compartidos, despliegue con enfriamiento y roles de patrulla/interceptor/apoyo.
-- Detención arcade no gráfica mediante proximidad y control de la situación.
-- HUD, notificaciones y audio de alerta conectados al sistema existente.
+- Reorganización de las huellas de edificios por parcela: los bloques ya no se representan únicamente como un rectángulo grande.
+- Centro urbano con torres, anexos y podios en distintas posiciones, creando manzanas de densidad y siluetas variadas.
+- Barrio residencial con viviendas pareadas, pequeños conjuntos y patios interiores.
+- Barrio comercial y Loston con tiras de locales, esquinas comerciales y patios peatonales.
+- Zona industrial y portuaria con naves longitudinales, anexos de servicio y patios abiertos.
+- Periferia de baja densidad con casas aisladas y lotes amplios.
+- Se mantienen las calles, intersecciones, semáforos, puentes, agua, parques, callejones, garajes, escondites y coordenadas del mundo para no romper navegación, tráfico, colisiones ni misiones.
+- Se conservan los sistemas policiales y el resto de funcionalidades de la versión base.
 
-## Archivos principales modificados
+## Archivos modificados
 
-- `src/police.js`: despacho, despliegue y retorno de agentes, persecución, búsqueda y detención.
-- `src/npc_ai.js`: integración de estados de agentes desplegados con la IA peatonal.
-- `src/game.js`: creación y registro de agentes de apoyo.
-- `src/entities.js` y `src/config.js`: datos de patrullas y unidades.
-- `index.html`: versión visible del proyecto.
+- `src/world.js`: generación de huellas urbanas por parcela y distribución de edificios.
+- `src/cityart.js`: selección visual de locales de Loston según su tipo de parcela.
+- `index.html`: identificación de versión.
+- `README.md`: documentación de la versión.
 
-## Validación
+## Validación técnica
 
-- Se verificó la sintaxis de los archivos JavaScript con `node --check`.
-- Se verificaron las referencias locales de scripts y estilos del HTML.
-- Se verificó la integridad del ZIP.
+- Sintaxis de todos los archivos JavaScript comprobada con `node --check`.
+- Referencias locales de scripts y estilos verificadas.
+- Integridad del ZIP verificada.
 
-Nota: la IA y los sistemas se integran en el código del juego; el comportamiento final debe probarse también ejecutando el juego en navegador para ajustar balance, rutas y rendimiento.
+La validación de sintaxis no reemplaza una prueba de juego en navegador. Se recomienda probar el arranque, conducción, tráfico, peatones, colisiones y mapa completo en el dispositivo objetivo.
