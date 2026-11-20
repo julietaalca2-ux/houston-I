@@ -3,6 +3,7 @@ window.CiudadCero = window.CiudadCero || {};
 CiudadCero.Audio = (() => {
   let ctx = null;
   let enabled = true;
+  let sirenPhase = 0;
 
   function ensureContext() {
     if (!enabled) return null;
@@ -62,9 +63,21 @@ CiudadCero.Audio = (() => {
       }
     },
 
-    playHorn() {
-      tone(340, 0.16, 'sawtooth', 0.06, 330);
-      tone(425, 0.16, 'sawtooth', 0.05, 415);
+    playHorn(isPolice = false) {
+      if (isPolice) {
+        tone(680, 0.18, 'sawtooth', 0.055, 880);
+        setTimeout(() => tone(880, 0.18, 'sawtooth', 0.055, 640), 170);
+      } else {
+        tone(340, 0.16, 'sawtooth', 0.06, 330);
+        tone(425, 0.16, 'sawtooth', 0.05, 415);
+      }
+    },
+
+    playSirenPulse() {
+      sirenPhase = (sirenPhase + 1) % 2;
+      const f1 = sirenPhase === 0 ? 640 : 840;
+      const f2 = sirenPhase === 0 ? 820 : 620;
+      tone(f1, 0.24, 'triangle', 0.026, f2);
     },
 
     playCrash(intensity = 0.5) {
@@ -80,8 +93,24 @@ CiudadCero.Audio = (() => {
       });
     },
 
+    playMissionFail() {
+      tone(240, 0.22, 'sawtooth', 0.08, 175);
+      setTimeout(() => tone(175, 0.28, 'sawtooth', 0.08, 125), 180);
+    },
+
     playAlert() {
       tone(660, 0.11, 'square', 0.05, 520);
+      setTimeout(() => tone(780, 0.12, 'square', 0.05, 640), 110);
+    },
+
+    playEscapeSuccess() {
+      tone(440, 0.14, 'sine', 0.07, 587.33);
+      setTimeout(() => tone(587.33, 0.22, 'triangle', 0.08, 880), 120);
+    },
+
+    playGarageAction() {
+      tone(290, 0.09, 'square', 0.06, 440);
+      setTimeout(() => tone(520, 0.14, 'triangle', 0.08, 660), 80);
     }
   };
 })();
