@@ -325,7 +325,7 @@ CiudadCero.Entities = (() => {
       angle: 0,
       visualAngle: 0,
       radius: forcePolice ? 8 : 7,
-      speed: forcePolice ? 34 : 36 + Math.random() * 18,
+      speed: forcePolice ? 32 : 31 + Math.random() * 15,
       shirt: look.shirt,
       hair: look.hair,
       skin: look.skin,

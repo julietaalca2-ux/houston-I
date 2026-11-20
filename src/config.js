@@ -41,8 +41,8 @@ CiudadCero.Config = {
   PLAYER: {
     startX: 380,
     startY: 390,
-    walkSpeed: 92,
-    sprintSpeed: 152,
+    walkSpeed: 82,
+    sprintSpeed: 126,
     staminaMax: 100,
     staminaDrain: 12,
     staminaRecovery: 18,

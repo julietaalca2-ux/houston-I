@@ -10,7 +10,7 @@ CiudadCero.Renderer3D = (() => {
   let vehicleMeshes = [], pedestrianMeshes = [], npcMeshes = [];
   let active = false, lastResize = 0;
   // Third-person orbit camera: follows the protagonist from behind.
-  let cameraYawOffset = 0, cameraPitchOffset = 0;
+  let cameraYawOffset = 0, cameraPitchOffset = 0; // cameraYawOffset is an absolute world heading
   let dragPointerId = null, lastPointerX = 0, lastPointerY = 0;
   let cameraReady = false;
   const THREE = window.THREE;
@@ -281,7 +281,11 @@ CiudadCero.Renderer3D = (() => {
     // Dragging on the world rotates the orbit camera; gameplay controls remain
     // available because the touch joystick/buttons are separate overlay elements.
     canvas.addEventListener('pointerdown', (event) => {
+      // Only a drag that starts on the 3D canvas rotates the camera.
+      // Touches that originate on the joystick or action buttons must never reach camera control.
+      if (event.target !== canvas) return;
       if (event.button !== undefined && event.button !== 0) return;
+      event.preventDefault();
       dragPointerId = event.pointerId;
       lastPointerX = event.clientX; lastPointerY = event.clientY;
       try { canvas.setPointerCapture(event.pointerId); } catch (_) {}
@@ -291,8 +295,8 @@ CiudadCero.Renderer3D = (() => {
       const dx = event.clientX - lastPointerX;
       const dy = event.clientY - lastPointerY;
       lastPointerX = event.clientX; lastPointerY = event.clientY;
-      cameraYawOffset = ((cameraYawOffset - dx * 0.0045 + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-      cameraPitchOffset = clamp(cameraPitchOffset + dy * 0.0025, -0.10, 0.22);
+      cameraYawOffset = ((cameraYawOffset - dx * 0.0030 + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      cameraPitchOffset = clamp(cameraPitchOffset + dy * 0.0018, -0.12, 0.24);
     });
     const releaseCameraDrag = (event) => { if (dragPointerId === event.pointerId) dragPointerId = null; };
     canvas.addEventListener('pointerup', releaseCameraDrag);
@@ -403,7 +407,8 @@ CiudadCero.Renderer3D = (() => {
     // above shoulder height. Drag horizontally to orbit; drag vertically to
     // adjust the viewing pitch. The camera target leads the character a little.
     const angle = p.angle || 0;
-    const orbitAngle = angle + cameraYawOffset;
+    if (!cameraReady) cameraYawOffset = angle;
+    const orbitAngle = cameraYawOffset;
     const distance = p.inCar ? 92 : 58;
     const cameraHeight = (p.inCar ? 34 : 29) + cameraPitchOffset * 42;
     const targetHeight = p.inCar ? 8 : 8.5;
@@ -424,7 +429,9 @@ CiudadCero.Renderer3D = (() => {
   // Camera-relative controls: joystick up follows camera forward, left/right
   // strafe relative to the current camera heading.
   function transformMovement(dx, dy, playerAngle) {
-    const heading = (Number(playerAngle) || 0) + cameraYawOffset;
+    // Movement is camera-relative, but independent from the character's last facing angle.
+    // This prevents a feedback loop that made the player circle when the camera was rotated.
+    const heading = cameraYawOffset;
     const fx = Math.cos(heading), fz = Math.sin(heading);
     const rx = -Math.sin(heading), rz = Math.cos(heading);
     return { dx: rx * dx + fx * (-dy), dy: rz * dx + fz * (-dy) };

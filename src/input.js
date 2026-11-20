@@ -21,7 +21,7 @@ CiudadCero.Input = (() => {
   const settings = {
     mode: 'auto',
     showJoystick: true,
-    sensitivity: 1.0,
+    sensitivity: 0.82,
     buttonSize: 'normal',
     opacity: 0.85,
     carSteerMode: 'buttons',
@@ -138,7 +138,7 @@ CiudadCero.Input = (() => {
       }
       stick.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
 
-      const sens = Math.max(0.5, Math.min(2.0, Number(settings.sensitivity) || 1.0));
+      const sens = Math.max(0.55, Math.min(1.0, Number(settings.sensitivity) || 0.82));
       let normX = (dx / maxRadius) * sens;
       let normY = (dy / maxRadius) * sens;
       const mag = Math.hypot(normX, normY);
@@ -146,7 +146,7 @@ CiudadCero.Input = (() => {
         normX /= mag;
         normY /= mag;
       }
-      if (mag < 0.14) {
+      if (mag < 0.12) {
         touch.joyX = 0;
         touch.joyY = 0;
       } else {
@@ -168,6 +168,7 @@ CiudadCero.Input = (() => {
 
     zone.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       CiudadCero.Audio.unlock();
       if (blocked) return;
       if (pointerId !== null) return;
@@ -180,6 +181,7 @@ CiudadCero.Input = (() => {
     zone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
+      e.stopPropagation();
       if (blocked) {
         resetStick(e);
         return;

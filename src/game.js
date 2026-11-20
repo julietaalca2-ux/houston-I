@@ -925,8 +925,9 @@ CiudadCero.Game = (() => {
     }
 
     if (mag > 0.01) {
-      const speed = canSprint ? Config.PLAYER.sprintSpeed : Config.PLAYER.walkSpeed;
-      p.speed = speed * Math.min(1, mag);
+      const targetSpeed = (canSprint ? Config.PLAYER.sprintSpeed : Config.PLAYER.walkSpeed) * Math.min(1, mag);
+      const acceleration = 300;
+      p.speed += (targetSpeed - p.speed) * Math.min(1, acceleration * dt / Math.max(targetSpeed, 1));
       p.angle = Math.atan2(move.dy, move.dx);
       Physics.moveCircleEntity(
         p,
@@ -934,9 +935,9 @@ CiudadCero.Game = (() => {
         Math.sin(p.angle) * p.speed * dt,
         p.radius
       );
-      p.walkPhase += dt * (canSprint ? 12 : 7);
+      p.walkPhase += dt * (canSprint ? 10 : 6.5);
     } else {
-      p.speed = 0;
+      p.speed = Math.max(0, p.speed - 340 * dt);
     }
 
     Input.setNearbyVehicle(Boolean(findNearestVehicle()));
