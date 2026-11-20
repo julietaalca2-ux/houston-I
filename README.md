@@ -24,3 +24,10 @@ Se revisó la sintaxis de JavaScript y la integridad del ZIP. La apariencia y re
 - Movimiento relativo a la orientación absoluta de la cámara, sin realimentación con el ángulo del personaje.
 - Sensibilidad de cámara reducida y eje vertical suavizado.
 - Aceleración y frenado a pie suavizados; velocidades de caminata/carrera y peatones reajustadas.
+
+
+## V0.8.9 — CAMERA TOUCH ZONES & VERTICAL LOOK
+- The movement joystick has an additional screen-area guard so a touch beginning over it cannot start a camera drag on mobile browsers.
+- Joystick pointer events are stopped through release/cancel as well as during movement.
+- Vertical camera drag has a wider pitch range: swipe up to look toward the sky and swipe down to look toward the ground.
+- Camera height is calculated from the orbit distance and clamped above the ground.
