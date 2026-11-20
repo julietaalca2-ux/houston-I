@@ -4,11 +4,31 @@
   class Engine {
     constructor(options) {
       const config = options || {};
-      this.version = config.version || '0.2.0';
+      this.version = config.version || '0.13.0';
       this.events = new namespace.EventBus();
       this.scenes = new namespace.SceneManager(this.events);
       this.resources = new namespace.ResourceRegistry(this.events);
       this.assets = new namespace.AssetManager(this.resources, this.events);
+      this.world = new namespace.ECSWorld(this.events);
+      this.physicsSystem = new namespace.PhysicsSystem(config.physics);
+      this.world.addSystem(this.physicsSystem);
+      this.physics = new namespace.PhysicsFactory(this.world);
+      this.characterSystem = new namespace.CharacterSystem({ events: this.events });
+      this.characterTransformSystem = new namespace.CharacterTransformSystem();
+      this.world.addSystem(this.characterTransformSystem);
+      this.world.addSystem(this.characterSystem);
+      this.characters = new namespace.CharacterManager(this);
+      this.vehicleAISystem = new namespace.VehicleAISystem(config.vehicleAI);
+      this.world.addSystem(this.vehicleAISystem);
+      this.vehicleSystem = new namespace.VehicleSystem(config.vehicles);
+      this.world.addSystem(this.vehicleSystem);
+      this.vehicles = new namespace.VehicleFactory(this.world, config.vehicles);
+      this.worldBoundsSystem = new namespace.WorldBoundsSystem(config.worldBounds);
+      this.sceneSyncSystem = new namespace.SceneSyncSystem(config.sceneSync);
+      this.world.addSystem(this.worldBoundsSystem);
+      this.world.addSystem(this.sceneSyncSystem);
+      this.worldBridge = new namespace.WorldBridge(this);
+      this.rendering = new namespace.RenderingPipeline({ quality: config.renderQuality || 'high' });
       this.renderer = null;
       this.scene = null;
       this.camera = null;
@@ -33,6 +53,8 @@
       this.renderer = value.renderer;
       this.scene = value.scene;
       this.camera = value.camera;
+      this.rendering.attach({ renderer: value.renderer, scene: value.scene, camera: value.camera });
+      this.worldBridge.attachScene(value.scene);
       this.start(this.platform);
       this.events.emit('renderer:attached', { renderer: value.renderer, scene: value.scene, camera: value.camera });
       return true;
@@ -43,6 +65,7 @@
       this.lastDelta = delta;
       this.elapsed += delta;
       this.frame += 1;
+      this.world.update(delta, this.elapsed);
       this.events.emit('engine:update', { delta, elapsed: this.elapsed, frame: this.frame });
     }
     getDiagnostics() {
@@ -50,10 +73,18 @@
         version: this.version, started: this.started, platform: this.platform,
         rendererAttached: Boolean(this.renderer), frame: this.frame,
         elapsed: Number(this.elapsed.toFixed(3)), sceneCount: this.scenes.getCount(),
-        resourceCount: this.resources.getCount(), pendingAssetLoads: this.assets.pending.size
+        resourceCount: this.resources.getCount(), pendingAssetLoads: this.assets.pending.size,
+        entityCount: this.world.getEntityCount(), componentCount: this.world.getComponentCount(),
+        systemCount: this.world.getSystemCount(), characterCount: this.characters.getCount(),
+        vehicleCount: this.world.query('Vehicle').length,
+        vehicles: Object.assign({}, this.vehicleSystem.lastStats),
+        vehicleAI: Object.assign({}, this.vehicleAISystem.lastStats),
+        world: this.worldBridge.getDiagnostics(),
+        physics: Object.assign({}, this.physicsSystem.lastStats),
+        rendering: this.rendering.getDiagnostics()
       };
     }
   }
   namespace.Engine = Engine;
-  namespace.runtime = namespace.runtime || new Engine({ version: '0.2.0' });
+  namespace.runtime = namespace.runtime || new Engine({ version: '0.13.0' });
 })(window);
