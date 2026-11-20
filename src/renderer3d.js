@@ -575,10 +575,11 @@ CiudadCero.Renderer3D = (() => {
       const sidewall = add(new THREE.TorusGeometry(1.02,0.18,8,28), rubber, side*0.39,0,0); sidewall.rotation.y = Math.PI/2;
       const rim = add(new THREE.CylinderGeometry(0.88,0.88,0.76,24), alloy, 0,0,0); rim.rotation.z = Math.PI/2;
       const hub = add(new THREE.CylinderGeometry(0.24,0.24,0.82,16), trim, 0,0,0); hub.rotation.z = Math.PI/2;
+      wheel.add(tread, sidewall, rim, hub);
       for (let i=0;i<10;i++) {
         const a = i*Math.PI/5;
         const spoke = box(alloy, side*0.43, Math.sin(a)*0.55, Math.cos(a)*0.55, 0.11, 0.68, 0.13, false);
-        spoke.rotation.x = -a;
+        spoke.rotation.x = -a; wheel.add(spoke);
       }
       // Fender arch is suggested by a dark upper wheel-well lip.
       const arch = add(new THREE.TorusGeometry(1.42,0.09,7,28,Math.PI), trim, side*4.02,1.28,axle*wheelZ);
@@ -611,9 +612,9 @@ CiudadCero.Renderer3D = (() => {
     {
       const cfg = (window.CiudadCero && CiudadCero.Config && CiudadCero.Config.VEHICLE_TYPES) || {};
       const vt = cfg[typeId] || cfg[kind] || { length: 42, width: 20 };
-      const BIG = 1.3; // extra visual size so cars read as real cars next to pedestrians
-      const sx = (vt.width || 20) / 8.6 * BIG, sz = (vt.length || 42) / 17.8 * BIG;
-      const sy = sz * 1.75;
+      const BIG = 1.1;
+      const sx = (vt.width || 20) / 8.6 * 0.9 * BIG, sz = (vt.length || 42) / 17.8 * BIG;
+      const sy = sz * 1.4;
       group.children.slice().forEach((c) => {
         if (wheelGroups.includes(c)) {
           c.position.set(c.position.x * sx, c.position.y * sz, c.position.z * sz);
