@@ -6,14 +6,15 @@
   const ns = global.CiudadEngine = global.CiudadEngine || {};
   class CityDetailSystem {
     constructor(options = {}) {
-      this.options = Object.assign({ lampSpacing: 210, maxStreetLights: 180, maxRoofUnits: 240, maxBenches: 70 }, options);
+      this.options = Object.assign({ lampSpacing: 145, maxStreetLights: 3000, maxRoofUnits: 360, maxBenches: 100, maxTrafficSignals: 900 }, options);
+      this.signalMeshes = [];
       this.stats = { streetLights: 0, roofUnits: 0, benches: 0, trafficSignals: 0 };
       this.group = null;
     }
     build(THREE, scene, world, textureSet = {}) {
       if (!THREE || !scene || !world || !Array.isArray(world.buildings)) return this.stats;
       if (this.group) scene.remove(this.group);
-      const group = new THREE.Group(); group.name = 'CiudadCero_16_CityDetails'; this.group = group;
+      const group = new THREE.Group(); group.name = 'CiudadCero_24_CityDetails'; this.group = group;
       const metal = new THREE.MeshStandardMaterial({ color: '#8d999a', map: textureSet.metal || null, metalness: .78, roughness: .36 });
       const concrete = new THREE.MeshStandardMaterial({ color: '#777e79', roughness: .94 });
       const lampGlass = new THREE.MeshStandardMaterial({ color: '#fff1c2', emissive: '#ffce72', emissiveIntensity: .8, roughness: .24 });
@@ -39,6 +40,45 @@
         temp.position.set(x + Math.cos(rot)*7.1, 23.4, z - Math.sin(rot)*7.1); temp.rotation.set(0,0,0); temp.updateMatrix(); bulbMesh.setMatrixAt(i,temp.matrix);
       }
       poleMesh.castShadow = true; armMesh.castShadow = true; group.add(poleMesh,armMesh,bulbMesh); this.stats.streetLights = poleMesh.count;
+      // V0.24.0: four-corner traffic signal sets at every generated intersection.
+      // The world grid already supplies synchronized phase offsets for each junction.
+      const junctions = Array.isArray(world.trafficLights) ? world.trafficLights : [];
+      const signalPosts = [];
+      junctions.forEach((j, ji) => {
+        const cx = Number(j.x), cz = Number(j.y);
+        if (!Number.isFinite(cx) || !Number.isFinite(cz)) return;
+        const offsets = [[-1,-1],[1,-1],[-1,1],[1,1]];
+        offsets.forEach(([sx,sz], corner) => {
+          const px = cx + sx * (rw * 0.42), pz = cz + sz * (rw * 0.42);
+          signalPosts.push({ x:px, z:pz, phase:Number(j.phaseOffset)||0, corner, junction:ji });
+        });
+      });
+      const signalCount = Math.min(signalPosts.length, this.options.maxTrafficSignals);
+      const signalMetal = new THREE.MeshStandardMaterial({ color:'#252b2d', metalness:.72, roughness:.38 });
+      const signalHousing = new THREE.MeshStandardMaterial({ color:'#171d20', roughness:.62 });
+      const redLamp = new THREE.MeshStandardMaterial({ color:'#ff2638', emissive:'#ff1024', emissiveIntensity:1.25, roughness:.2 });
+      const amberLamp = new THREE.MeshStandardMaterial({ color:'#ffc247', emissive:'#ff9d16', emissiveIntensity:.95, roughness:.2 });
+      const greenLamp = new THREE.MeshStandardMaterial({ color:'#35e078', emissive:'#0bc85a', emissiveIntensity:1.1, roughness:.2 });
+      const postGeo = new THREE.CylinderGeometry(.48,.72,13,8);
+      const postMesh = new THREE.InstancedMesh(postGeo,signalMetal,signalCount);
+      const headGeo = new THREE.BoxGeometry(2.6,7.2,2.1);
+      const headMesh = new THREE.InstancedMesh(headGeo,signalHousing,signalCount);
+      const lensGeo = new THREE.SphereGeometry(.72,10,8);
+      const redMesh = new THREE.InstancedMesh(lensGeo,redLamp,signalCount);
+      const amberMesh = new THREE.InstancedMesh(lensGeo,amberLamp,signalCount);
+      const greenMesh = new THREE.InstancedMesh(lensGeo,greenLamp,signalCount);
+      for (let i=0;i<signalCount;i++) {
+        const q=signalPosts[i], rot=(q.corner%2===0?0:Math.PI/2);
+        temp.position.set(q.x,6.5,q.z); temp.rotation.set(0,rot,0); temp.updateMatrix(); postMesh.setMatrixAt(i,temp.matrix);
+        temp.position.set(q.x,14.2,q.z); temp.rotation.set(0,rot,0); temp.updateMatrix(); headMesh.setMatrixAt(i,temp.matrix);
+        const faceZ=q.z-1.12;
+        temp.position.set(q.x,16.1,faceZ); temp.rotation.set(0,0,0); temp.updateMatrix(); redMesh.setMatrixAt(i,temp.matrix);
+        temp.position.set(q.x,14.2,faceZ); temp.updateMatrix(); amberMesh.setMatrixAt(i,temp.matrix);
+        temp.position.set(q.x,12.3,faceZ); temp.updateMatrix(); greenMesh.setMatrixAt(i,temp.matrix);
+      }
+      group.add(postMesh,headMesh,redMesh,amberMesh,greenMesh);
+      this.stats.trafficSignals=signalCount;
+
       // Rooftop air-conditioning banks, vents and water tanks add a readable skyline silhouette.
       const roofCandidates = world.buildings.filter(b => b && b.w > 25 && b.h > 25 && !b.isHideoutWall).slice(0,this.options.maxRoofUnits);
       const acGeo = new THREE.BoxGeometry(8,4,6); const ac = new THREE.InstancedMesh(acGeo,acMat,roofCandidates.length);
