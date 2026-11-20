@@ -179,13 +179,92 @@ CiudadCero.Renderer3D = (() => {
     return group;
   }
 
-  function makePerson(color = '#d6d9d2') {
+  // Detailed stylized human model built from softly rounded anatomical parts.
+  // All proportions are authored in one local group so player/NPC animation stays cheap.
+  function makePerson(color = '#d6d9d2', options = {}) {
     const g = new THREE.Group();
-    const shirt = material(color);
-    const skin = material('#c89d7d');
-    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(2.1, 4.2, 3, 6), shirt); torso.position.y = 6.5; torso.castShadow = true; g.add(torso);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(1.8, 10, 8), skin); head.position.y = 11.2; head.castShadow = true; g.add(head);
+    const skinTone = options.skin || ['#c88f6d', '#e0b493', '#9b694f', '#f0c9a5'][Math.abs(options.variant || 0) % 4];
+    const skin = material(skinTone, 0.92);
+    const shirt = material(color, 0.82);
+    const pants = material(options.pants || '#303b45', 0.9);
+    const shoes = material('#202426', 0.94);
+    const hair = material(options.hair || ['#292421', '#49352a', '#17191b', '#76543b'][Math.abs(options.variant || 0) % 4], 0.98);
+    const detail = material(options.police ? '#d9e0e2' : '#c7c5b9');
+    const addCapsule = (parent, radius, length, mat, x, y, z, rz = 0) => {
+      const m = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 4, 8), mat);
+      m.position.set(x, y, z); m.rotation.z = rz; m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+    };
+    // Pelvis, torso, neck and layered clothing.
+    addCapsule(g, 1.75, 2.0, pants, 0, 3.0, 0);
+    addCapsule(g, 2.25, 4.0, shirt, 0, 7.1, 0);
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.22, 6, 12), detail);
+    collar.position.set(0, 9.15, 0.08); collar.rotation.x = Math.PI / 2; g.add(collar);
+    addCapsule(g, 0.55, 0.65, skin, 0, 9.55, 0);
+    // Head, ears, hair cap and a short rear hair mass.
+    const head = new THREE.Mesh(new THREE.SphereGeometry(1.72, 16, 12), skin);
+    head.position.set(0, 11.45, 0); head.scale.set(0.92, 1.08, 0.88); head.castShadow = true; g.add(head);
+    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(1.76, 14, 9, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
+    hairCap.position.set(0, 11.75, -0.08); hairCap.scale.set(1.0, 0.78, 1.0); hairCap.castShadow = true; g.add(hairCap);
+    const hairBack = new THREE.Mesh(new THREE.SphereGeometry(1.38, 12, 9), hair);
+    hairBack.position.set(0, 10.95, -0.92); hairBack.scale.set(0.92, 0.95, 0.48); g.add(hairBack);
+    for (const side of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 7), skin);
+      ear.position.set(side * 1.55, 11.35, 0); g.add(ear);
+      // Eyes and brows are on the forward (+Z) side of the face.
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), material('#242b2c'));
+      eye.position.set(side * 0.58, 11.62, 1.48); g.add(eye);
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.11, 0.12), hair);
+      brow.position.set(side * 0.58, 11.94, 1.46); g.add(brow);
+    }
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), skin);
+    nose.position.set(0, 11.25, 1.57); nose.scale.set(0.72, 1.0, 0.8); g.add(nose);
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.09, 0.08), material('#754b42'));
+    mouth.position.set(0, 10.82, 1.48); g.add(mouth);
+    // Shoulder pivots allow a natural alternating walk cycle.
+    const arms = [], legs = [];
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Group(); arm.position.set(side * 2.25, 8.45, 0); g.add(arm);
+      addCapsule(arm, 0.78, 2.35, shirt, 0, -1.45, 0, side * -0.04);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.67, 0.67, 0.28, 10), detail);
+      cuff.position.set(0, -2.72, 0); arm.add(cuff);
+      addCapsule(arm, 0.58, 1.45, skin, 0, -3.55, 0);
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.62, 9, 7), skin); hand.position.set(0, -4.45, 0.05); arm.add(hand);
+      arms.push(arm);
+      const leg = new THREE.Group(); leg.position.set(side * 0.95, 3.1, 0); g.add(leg);
+      addCapsule(leg, 0.88, 2.7, pants, 0, -1.9, 0);
+      const shin = addCapsule(leg, 0.68, 2.0, pants, 0, -4.0, 0.08);
+      const shoe = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.78, 2.15), shoes);
+      shoe.position.set(0, -5.05, 0.48); shoe.castShadow = true; leg.add(shoe);
+      legs.push(leg);
+    }
+    // Small outfit-specific details keep police and mission cast recognizable.
+    if (options.police) {
+      const badge = new THREE.Mesh(new THREE.CircleGeometry(0.42, 8), material('#d7b85b'));
+      badge.position.set(-0.9, 7.7, 2.12); g.add(badge);
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.42, 2.15), material('#202a32'));
+      belt.position.set(0, 4.75, 0); g.add(belt);
+    } else {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.4, 0.08), detail);
+      seam.position.set(0, 6.9, 2.22); g.add(seam);
+    }
+    g.userData = { arms, legs, walkPhase: Math.random() * Math.PI * 2, lastX: 0, lastZ: 0 };
     return g;
+  }
+
+  function animatePerson(mesh, item, time, player = false) {
+    if (!mesh || mesh.userData.carMode || !mesh.userData.legs) return;
+    const dx = Number.isFinite(item && item.x) ? item.x - mesh.userData.lastX : 0;
+    const dz = Number.isFinite(item && item.y) ? item.y - mesh.userData.lastZ : 0;
+    const speed = Math.min(1, Math.hypot(dx, dz) / 2.2);
+    mesh.userData.lastX = item && item.x || mesh.userData.lastX;
+    mesh.userData.lastZ = item && item.y || mesh.userData.lastZ;
+    const phase = time * (speed > 0.025 ? 9 + speed * 5 : 1.2) + mesh.userData.walkPhase;
+    const swing = speed > 0.025 ? Math.sin(phase) * 0.62 * speed : Math.sin(time * 1.4 + mesh.userData.walkPhase) * 0.025;
+    mesh.userData.legs[0].rotation.x = swing;
+    mesh.userData.legs[1].rotation.x = -swing;
+    mesh.userData.arms[0].rotation.x = -swing * 0.82;
+    mesh.userData.arms[1].rotation.x = swing * 0.82;
+    mesh.position.y = Math.abs(swing) * 0.42;
   }
 
   function init() {
@@ -258,7 +337,7 @@ CiudadCero.Renderer3D = (() => {
     sun.shadow.camera.top = 500; sun.shadow.camera.bottom = -500;
     scene.add(sun);
     buildCity();
-    playerMesh = makePerson('#d4e0ce'); scene.add(playerMesh);
+    playerMesh = makePerson('#435f70', { variant: 1, pants: '#26333c' }); scene.add(playerMesh);
     playerShadow = new THREE.Mesh(new THREE.CircleGeometry(5.5, 16), new THREE.MeshBasicMaterial({ color: '#17231c', transparent: true, opacity: 0.28 }));
     playerShadow.rotation.x = -Math.PI / 2; playerShadow.position.y = 0.08; scene.add(playerShadow);
     active = true;
@@ -304,18 +383,21 @@ CiudadCero.Renderer3D = (() => {
         scene.add(playerMesh); playerMesh.userData.carMode = true;
       }
     } else if (playerMesh.userData.carMode) {
-      scene.remove(playerMesh); playerMesh = makePerson('#d4e0ce'); scene.add(playerMesh);
+      scene.remove(playerMesh); playerMesh = makePerson('#435f70', { variant: 1, pants: '#26333c' }); scene.add(playerMesh);
     }
     playerMesh.position.set(p.x, 0, p.y);
+    animatePerson(playerMesh, p, performance.now() / 1000, true);
     playerMesh.rotation.y = -(p.angle || 0) - Math.PI / 2;
     playerShadow.position.set(p.x, 0.09, p.y);
 
     const vehicles = (state.vehicles || []).filter(v => v && v !== p.vehicle && (Math.abs(v.x-p.x) < 620 && Math.abs(v.y-p.y) < 620)).slice(0, 42);
     syncActors(vehicles, vehicleMeshes, (v) => makeCar(v.color || '#9da8a2', v.typeId === 'police'), true);
     const pedestrians = (state.pedestrians || []).filter(v => v && Math.abs(v.x-p.x) < 420 && Math.abs(v.y-p.y) < 420).slice(0, 55);
-    syncActors(pedestrians, pedestrianMeshes, (v) => makePerson(v.isPolice ? '#263d57' : '#b5b8a9'), false);
+    syncActors(pedestrians, pedestrianMeshes, (v) => makePerson(v.isPolice ? '#263d57' : ['#9b765d','#687b68','#9b9da3','#a67d56'][Math.abs(v.id || 0) % 4], { police: !!v.isPolice, variant: Math.abs(v.id || 0) } ), false);
+    pedestrianMeshes.forEach((m, i) => { if (m.visible) animatePerson(m, pedestrians[i], performance.now() / 1000); });
     const npcs = (state.npcs || []).filter(v => v && Math.abs(v.x-p.x) < 420 && Math.abs(v.y-p.y) < 420).slice(0, 18);
-    syncActors(npcs, npcMeshes, () => makePerson('#d3b77d'), false);
+    syncActors(npcs, npcMeshes, (v) => makePerson(['#526d83','#84634e','#687b68','#9a765d'][Math.abs(v.id || 0) % 4], { variant: Math.abs(v.id || 0) + 2, pants: '#343b48' }), false);
+    npcMeshes.forEach((m, i) => { if (m.visible) animatePerson(m, npcs[i], performance.now() / 1000); });
 
     // Third-person TPS camera: stay behind the direction of travel, slightly
     // above shoulder height. Drag horizontally to orbit; drag vertically to
