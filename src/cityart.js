@@ -1451,6 +1451,7 @@ CiudadCero.CityArt = (() => {
       case 'periferia':
         return farmhouse(c, b, i, R);
       case 'loston':
+        if (b.footprintRole === 'shop' || b.footprintRole === 'corner-shop') return shops(c, b, i, R);
         if (b.w > 55 && b.h > 55 && (i % 3 === 0)) return shops(c, b, i, R);
         break;
       default:

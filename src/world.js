@@ -39,6 +39,91 @@ CiudadCero.World = (() => {
     return list[0] || { id: 'centro', name: 'Centro Urbano', shortName: 'CENTRO', color: '#6cb2d1', avenueLabel: 'Av. Central' };
   }
 
+
+  // V0.8.8: parcel-based urban footprints. The road grid stays compatible with
+  // traffic/collision systems, while each block gains a distinct built form.
+  function addUrbanBlockFootprints(gx, gy, x, y, w, h, baseStyle, districtId) {
+    const seed = Math.abs((gx * 73856093) ^ (gy * 19349663));
+    const variant = seed % 4;
+    const gap = 7 + (seed % 4);
+    const add = (rx, ry, rw, rh, role, roof) => {
+      if (rw < 18 || rh < 18) return;
+      buildings.push(Object.assign({}, baseStyle, {
+        x: Math.round(rx), y: Math.round(ry), w: Math.round(rw), h: Math.round(rh),
+        footprintRole: role, roofType: roof === undefined ? baseStyle.roofType : roof,
+        footprintSeed: seed % 997
+      }));
+    };
+
+    if (districtId === 'centro') {
+      // Dense downtown: tower footprints with setbacks and service wings.
+      if (variant === 0) {
+        add(x + 5, y + 5, w * 0.56, h * 0.58, 'tower', 2);
+        add(x + w * 0.64, y + 8, w * 0.29, h * 0.40, 'annex', 1);
+        add(x + w * 0.62, y + h * 0.54, w * 0.31, h * 0.38, 'podium', 3);
+      } else if (variant === 1) {
+        add(x + 6, y + 6, w - 12, h * 0.42, 'tower', 2);
+        add(x + 8, y + h * 0.53, w * 0.40, h * 0.39, 'podium', 3);
+        add(x + w * 0.52, y + h * 0.53, w * 0.40, h * 0.39, 'annex', 1);
+      } else {
+        add(x + 7, y + 7, w * 0.42, h - 14, 'tower', 2);
+        add(x + w * 0.52, y + 7, w * 0.40, h * 0.48, 'annex', 1);
+        add(x + w * 0.52, y + h * 0.58, w * 0.40, h * 0.34, 'podium', 3);
+      }
+      return;
+    }
+
+    if (districtId === 'comercial' || districtId === 'loston') {
+      // Storefront strips and corner units leave readable pedestrian courts.
+      const count = variant === 0 ? 3 : 2;
+      const unitW = (w - gap * (count + 1)) / count;
+      for (let i = 0; i < count; i++) {
+        const hh = h * (i % 2 === 0 ? 0.78 : 0.68);
+        add(x + gap + i * (unitW + gap), y + (h - hh) * 0.5, unitW, hh,
+          i === 0 ? 'corner-shop' : 'shop', i % 2);
+      }
+      return;
+    }
+
+    if (districtId === 'industrial' || districtId === 'portuaria') {
+      // Long sheds, loading annexes and open service yards.
+      if (variant % 2 === 0) {
+        add(x + 5, y + h * 0.12, w * 0.68, h * 0.72, 'warehouse', 3);
+        add(x + w * 0.76, y + h * 0.18, w * 0.18, h * 0.28, 'service', 1);
+      } else {
+        add(x + w * 0.12, y + 5, w * 0.72, h * 0.62, 'warehouse', 3);
+        add(x + w * 0.18, y + h * 0.72, w * 0.34, h * 0.18, 'service', 1);
+      }
+      return;
+    }
+
+    if (districtId === 'periferia') {
+      // Low-density lots with detached homes and broad yards.
+      const houseW = w * (variant % 2 ? 0.46 : 0.58);
+      const houseH = h * (variant % 2 ? 0.48 : 0.40);
+      add(x + (w - houseW) * 0.5, y + (h - houseH) * 0.5, houseW, houseH, 'detached-home', 0);
+      if (variant === 3) add(x + w * 0.68, y + h * 0.12, w * 0.20, h * 0.22, 'garage', 1);
+      return;
+    }
+
+    // Residential: paired homes or a small apartment court.
+    if (variant === 0) {
+      const half = (w - gap * 3) / 2;
+      add(x + gap, y + gap, half, h - gap * 2, 'residence', 0);
+      add(x + gap * 2 + half, y + gap, half, h - gap * 2, 'residence', 1);
+    } else if (variant === 1) {
+      add(x + gap, y + gap, w - gap * 2, h * 0.42, 'apartment', 2);
+      add(x + gap, y + h * 0.56, w * 0.42, h * 0.34, 'residence', 0);
+      add(x + w * 0.55, y + h * 0.56, w * 0.34, h * 0.34, 'residence', 1);
+    } else {
+      const hw = (w - gap * 3) / 2;
+      const hh = (h - gap * 3) / 2;
+      add(x + gap, y + gap, hw, hh, 'residence', 0);
+      add(x + gap * 2 + hw, y + gap, hw, hh, 'residence', 1);
+      add(x + gap, y + gap * 2 + hh, w - gap * 2, hh, 'residence', 2);
+    }
+  }
+
   function init() {
     buildings.length = 0;
     parks.length = 0;
@@ -321,7 +406,7 @@ CiudadCero.World = (() => {
                 if (bottomHeight > 8) buildings.push(Object.assign({ x: bx, y: bottomY, w: bw, h: bottomHeight }, buildingStyle));
               }
             } else {
-              buildings.push(Object.assign({ x: bx, y: by, w: bw, h: bh }, buildingStyle));
+              addUrbanBlockFootprints(gx, gy, bx, by, bw, bh, buildingStyle, district.id);
             }
           }
 
@@ -455,7 +540,7 @@ CiudadCero.World = (() => {
               if (bottomH > 8) buildings.push(Object.assign({ x: bx, y: bottomY, w: bw, h: bottomH }, style));
             }
           } else {
-            buildings.push(Object.assign({ x: bx, y: by, w: bw, h: bh }, style));
+            addUrbanBlockFootprints(gx, gy, bx, by, bw, bh, style, 'loston');
           }
           // Coastal planting, street furniture and a few distinct storefronts.
           props.push({ type: 'tree', x: blockLeft + 10, y: blockTop + 10, species: 'palm', size: 8 });
