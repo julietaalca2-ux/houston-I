@@ -11,7 +11,7 @@ vm.createContext(context);
   'engine/ecs/System.js', 'engine/ecs/ECSWorld.js', 'engine/physics/PhysicsSystem.js',
   'engine/physics/PhysicsFactory.js', 'engine/characters/CharacterTransformSystem.js',
   'engine/characters/CharacterSystem.js', 'engine/characters/CharacterManager.js',
-  'engine/rendering/RenderingPipeline.js', 'engine/vehicles/VehicleAISystem.js',
+  'engine/rendering/RenderingPipeline.js', 'engine/rendering/CityDetailSystem.js', 'engine/vehicles/VehicleAISystem.js',
   'engine/vehicles/VehicleSystem.js', 'engine/vehicles/VehicleFactory.js',
   'engine/world/WorldBoundsSystem.js', 'engine/world/SceneSyncSystem.js',
   'engine/world/WorldBridge.js', 'engine/core/Engine.js'
