@@ -116,3 +116,42 @@ Incluye Vehicle AI opcional para rutas por waypoints, control de conducción y e
 
 ## CIUDAD ENGINE V0.14.0
 Mejora visual del mundo 3D: materiales procedurales de alta resolución para fachadas, asfalto, hormigón y césped; iluminación y sombras refinadas; marcas viales y perfiles de calidad adaptativos para móvil/escritorio. Ver `engine/rendering/README.md`.
+
+
+## CIUDAD ENGINE V0.15.0 — NEXT-GEN CITY ENVIRONMENT
+Nueva capa de materiales PBR 2K y ambiente dinámico: mapas normales, rugosidad, ventanas emisivas, ciclo día/noche y lluvia con asfalto progresivamente húmedo. Los recursos se encuentran en `assets/textures/`. La cantidad de partículas de lluvia se adapta a móviles y escritorio.
+
+
+### CIUDAD ENGINE V0.17.0
+Urban detail pass with instanced street furniture, rooftop equipment, park benches and bundled high-resolution surface materials.
+
+
+### Engine update V0.18.0
+Advanced Lighting & Shadows introduces lighting profiles with device-conscious shadow resolutions.
+
+
+### CIUDAD ENGINE V0.21.0 — Advanced Vehicle Models & Asset Expansion
+- Reworked the in-game vehicle meshes in the Three.js renderer: layered body panels, cabin glazing, bumpers, mirrors, door trim, headlights/tail lamps, detailed wheel assemblies and police livery.
+- Added three bundled 2K vehicle texture maps: tire tread, brushed metal and glass reflections, loaded asynchronously with safe material fallbacks.
+- Vehicle visuals remain part of the existing renderer and simulation entities; no vehicle physics or input behavior was replaced.
+
+
+
+## V0.21.0 — High Resolution Texture Expansion
+- Added 13 4K material textures (asphalt, concrete, masonry, facades, roofs, foliage and steel).
+- Connected expansion textures to the existing 3D renderer's shared material slots with fallback behavior.
+
+## CIUDAD ENGINE V0.22.0 — Vehicle Visual Overhaul
+- Replaced the former block-heavy vehicle silhouette with smoother sculpted body/cabin forms, separate sloped glazing, clearer vehicle proportions, bumper/grille assemblies and improved lamp clusters.
+- Added sedan, SUV/utility, van and pickup visual silhouettes selected from each vehicle's existing `typeId`; police vehicles retain a dedicated livery and roof lightbar.
+- Rebuilt wheel assemblies with tire sidewalls, alloy faces, spokes and wheel-rotation animation driven by the existing vehicle speed value.
+- No changes to VehicleSystem physics, steering, AI, input mapping or world coordinates.
+
+
+## CIUDAD ENGINE V0.23.0 — 4K World, Vehicles & Characters
+
+- Added a bundled 4K procedural material library for asphalt, sidewalks, concrete, brick, stucco, roof tiles, grass, foliage, steel, vehicle paint, tire rubber, clothing fabric and skin microdetail.
+- Desktop Ultra streams the 4K base-color maps into the existing world, vehicle and character material slots.
+- Mobile devices retain the existing 2K/PBR path and procedural fallbacks to avoid loading a full 4K texture set into limited GPU memory.
+- Character fabric/skin and vehicle paint/tire materials created before asynchronous loads are updated through material registries.
+- This is a texture/material upgrade, not a claim of scanned photogrammetry, new rigged character meshes, or a complete vehicle model replacement.

@@ -77,3 +77,58 @@ Adds the optional ECS Vehicle Engine (`vehicles/VehicleSystem.js` and `VehicleFa
 - Se agregan separadores de carril y detalles arquitectónicos de fachada.
 - Las texturas se generan localmente con CanvasTexture: no requieren servicios externos ni descargas en tiempo de juego.
 - Se mantiene el renderer 2D como fallback y se conservan los controles táctiles y la simulación de juego.
+
+
+## CIUDAD ENGINE V0.15.0 — NEXT-GEN CITY ENVIRONMENT
+- Se agregan mapas PBR 2K locales: normales y rugosidad para asfalto, hormigón y fachadas, más máscara emisiva de ventanas.
+- Se implementa ciclo día/noche con cielo, niebla, iluminación direccional y luz ambiental dinámicas.
+- Se incorpora lluvia ambiental por partículas y transición gradual a asfalto más húmedo.
+- La cantidad de partículas se adapta a móviles y escritorio; las texturas se cargan de forma asíncrona.
+- Se mantienen Three.js r160, los controles táctiles, el fallback 2D y los sistemas de simulación existentes.
+
+
+## CIUDAD ENGINE V0.17.0 — Next-Gen City Detail
+- Added modular instanced urban detail generation for street lighting, rooftop HVAC equipment and park benches.
+- Added high-resolution brick facade, roof gravel, foliage canopy and brushed metal texture assets.
+- Applied bundled brick/roof/foliage maps to building, roof and tree materials with procedural fallbacks.
+- Added smoke coverage for build, rebuild and disposal.
+
+## CIUDAD ENGINE V0.17.0 — Realistic City & World Expansion
+- Added optional CityWorldExpansionSystem with instanced tree trunks/canopies, shrubs, grass tufts, junction traffic signals, and urban signage.
+- Integrated with Engine diagnostics/update and renderer3d world-build flow. Traffic signal emissive cycling is animated at engine update time.
+- Added smoke test for construction, rebuild, and cleanup. No new external assets; uses shared procedural geometry/materials to avoid mobile texture-memory growth.
+
+
+## CIUDAD ENGINE V0.18.0 — Advanced Lighting & Shadows
+- Added configurable lighting profiles and Engine integration.
+- Added mobile/balanced/high/ultra shadow resolution presets.
+- Tuned main renderer shadow map and camera range.
+- Added automated smoke test.
+
+
+## CIUDAD ENGINE V0.21.0 — Advanced Vehicle Models & Asset Expansion
+- Expanded the shared car model with layered exterior parts, glazing, trim, bumpers, side mirrors, lamp geometry and detailed wheel/rim assemblies.
+- Added locally bundled 2K texture assets for tire tread, brushed metal and glass reflection, connected to renderer vehicle materials.
+- Kept the existing vehicle simulation, controls, AI and player-car transitions intact.
+- Automated checks cover source syntax and existing engine smoke tests; no visual device test is claimed.
+
+
+## V0.21.0 — High Resolution Texture Expansion
+- Added 13 4K material textures (asphalt, concrete, masonry, facades, roofs, foliage and steel).
+- Connected expansion textures to the existing 3D renderer's shared material slots with fallback behavior.
+
+## CIUDAD ENGINE V0.22.0 — Vehicle Visual Overhaul
+- Replaced the previous box-dominant vehicle appearance with smoother body and cabin silhouettes, sloped windshield/rear glass, split side windows, door seams, bumpers, grille, mirrors and more refined lamp clusters.
+- Added visual variants for sedan, SUV/utility, van and pickup using the existing vehicle `typeId`, plus police livery and roof lightbar.
+- Improved wheel assemblies with sidewalls, alloy rims, radial spokes and speed-driven wheel rotation.
+- Preserved the existing vehicle simulation, controls, AI, actor synchronization and mobile fallback renderer.
+- Added a source-level smoke test for the vehicle visual factory. Visual appearance still requires device/browser playtesting.
+
+
+## V0.23.0 — 4K World, Vehicles & Characters
+
+- Bundled 4K procedural base-color textures for eight environment material families and four character/vehicle material families.
+- Connected desktop Ultra texture streaming to environment, vehicle paint/tire and character fabric/skin materials.
+- Kept mobile on the existing 2K assets and PBR maps; 4K source files remain bundled but are not loaded on iPhone/Android.
+- Added HighResolutionAssetIntegration smoke coverage for required assets and platform gating.
+- No visual iPhone-device validation is claimed.
