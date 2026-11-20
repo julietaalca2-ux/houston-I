@@ -22,7 +22,10 @@ CiudadCero.Police = (() => {
     roadblocks: [],
     roadblockSpawnCooldown: 0,
     incidentHeat: 0,
-    starCooldown: 0
+    starCooldown: 0,
+    dispatchCooldown: 0,
+    coordinationPulse: 0,
+    footBustTimer: 0
   };
 
   function reset() {
@@ -40,6 +43,9 @@ CiudadCero.Police = (() => {
     state.roadblockSpawnCooldown = 0;
     state.incidentHeat = 0;
     state.starCooldown = 0;
+    state.dispatchCooldown = 0;
+    state.coordinationPulse = 0;
+    state.footBustTimer = 0;
   }
 
   function getLevelConfig(level) {
@@ -364,6 +370,14 @@ CiudadCero.Police = (() => {
 
     unit.sirenPhase = (unit.sirenPhase || 0) + dt * (state.wanted > 0 ? 11 : 4);
 
+    if (unit.policeState === 'support') {
+      unit.sirenActive = false;
+      unit.speed = 0;
+      unit.vx = 0;
+      unit.vy = 0;
+      return;
+    }
+
     if (unit.isRoadblock) {
       unit.sirenActive = true;
       unit.vx *= 0.85;
@@ -481,6 +495,107 @@ CiudadCero.Police = (() => {
     unit.y += unit.vy * dt;
   }
 
+  function updateFootUnits(dt, pedestrians, vehicles, player, callbacks) {
+    if (!Array.isArray(pedestrians)) return;
+    state.dispatchCooldown = Math.max(0, state.dispatchCooldown - dt);
+    state.coordinationPulse += dt;
+
+    const activeFoot = pedestrians.filter((ped) => ped.isPoliceFoot && !ped.isDead);
+    const responseLimit = state.wanted >= 3 ? 12 : state.wanted > 0 ? 9 : 0;
+
+    // A nearby patrol can deploy a small on-foot support team during an active alert.
+    if (state.wanted > 0 && state.dispatchCooldown <= 0 && activeFoot.length < responseLimit) {
+      const candidates = vehicles.filter((v) => v.isPolice && !v.isRoadblock && !v.isChaseTarget &&
+        Math.hypot(v.x - player.x, v.y - player.y) < 310 && !v.footTeamDeployed);
+      const carrier = candidates[0];
+      if (carrier && callbacks && typeof callbacks.createFootOfficer === 'function') {
+        carrier.footTeamDeployed = true;
+        carrier.policeState = 'support';
+        carrier.sirenActive = false;
+        carrier.speed = 0;
+        carrier.vx = 0;
+        carrier.vy = 0;
+        carrier.footTeam = [];
+        for (let i = 0; i < 2 && activeFoot.length + i < responseLimit; i++) {
+          const officer = callbacks.createFootOfficer(carrier, i);
+          if (officer) {
+            officer.dispatchVehicleId = carrier.id;
+            officer.dispatchState = 'deploy';
+            officer.dispatchTargetX = state.hasLastKnown ? state.lastKnownX : player.x;
+            officer.dispatchTargetY = state.hasLastKnown ? state.lastKnownY : player.y;
+            carrier.footTeam.push(officer.id);
+            pedestrians.push(officer);
+          }
+        }
+        state.dispatchCooldown = 16;
+        if (callbacks.onNotify) callbacks.onNotify('🚔 Unidad policial despliega apoyo a pie');
+      }
+    }
+
+    for (let i = pedestrians.length - 1; i >= 0; i--) {
+      const ped = pedestrians[i];
+      if (!ped.isPoliceFoot || ped.isDead) continue;
+      const carrier = vehicles.find((v) => v.id === ped.dispatchVehicleId);
+      if (!ped.dispatchState) ped.dispatchState = 'patrol';
+
+      if (state.wanted > 0) {
+        ped.dispatchState = 'respond';
+        ped.dispatchTargetX = state.hasLastKnown ? state.lastKnownX : player.x;
+        ped.dispatchTargetY = state.hasLastKnown ? state.lastKnownY : player.y;
+        const distanceToPlayer = Math.hypot(player.x - ped.x, player.y - ped.y);
+        if (distanceToPlayer < 175 && Physics.hasLineOfSight(ped.x, ped.y, player.x, player.y)) {
+          ped.dispatchState = 'contain';
+          ped.angle = Math.atan2(player.y - ped.y, player.x - ped.x);
+        }
+      } else if (ped.dispatchVehicleId && carrier) {
+        ped.dispatchState = 'return';
+        ped.dispatchTargetX = carrier.x;
+        ped.dispatchTargetY = carrier.y;
+      } else if (ped.dispatchVehicleId && !carrier) {
+        ped.dispatchState = 'patrol';
+        ped.dispatchVehicleId = null;
+      }
+
+      if (ped.dispatchState === 'contain') continue;
+      if (ped.dispatchState === 'patrol') continue;
+
+      const dx = ped.dispatchTargetX - ped.x;
+      const dy = ped.dispatchTargetY - ped.y;
+      const dist = Math.hypot(dx, dy);
+      if (ped.dispatchState === 'return' && dist < 28) {
+        ped.isDead = true; // pooled out of the active scene after returning to the vehicle
+        if (carrier) {
+          carrier.footTeam = (carrier.footTeam || []).filter((id) => id !== ped.id);
+          if (!carrier.footTeam.length) {
+            carrier.footTeamDeployed = false;
+            carrier.policeState = 'patrol';
+          }
+        }
+        continue;
+      }
+      if (dist > 12) {
+        const angle = Math.atan2(dy, dx);
+        ped.angle = angle;
+        const pace = ped.dispatchState === 'return' ? 42 : 56;
+        Physics.moveCircleEntity(ped, Math.cos(angle) * pace * dt, Math.sin(angle) * pace * dt, ped.radius);
+        ped.walkPhase = (ped.walkPhase || 0) + dt * 10;
+      }
+    }
+
+    if (state.wanted > 0) {
+      const closest = activeFoot.reduce((best, ped) => Math.min(best, Math.hypot(ped.x - player.x, ped.y - player.y)), Infinity);
+      const footCanSee = activeFoot.some((ped) => Math.hypot(ped.x - player.x, ped.y - player.y) < pCfg.sightRange && Physics.hasLineOfSight(ped.x, ped.y, player.x, player.y));
+      const playerSpeed = player.inCar && player.vehicle ? Math.abs(player.vehicle.speed) : player.speed;
+      if (closest < 34 && playerSpeed < 24 && footCanSee) {
+        state.footBustTimer += dt;
+        if (state.footBustTimer > 2.1) {
+          state.footBustTimer = 0;
+          if (callbacks && callbacks.onBusted) callbacks.onBusted();
+        }
+      } else state.footBustTimer = Math.max(0, state.footBustTimer - dt * 1.2);
+    } else state.footBustTimer = 0;
+  }
+
   function update(dt, vehicles, player, callbacks) {
     if (state.starCooldown > 0) state.starCooldown -= dt;
     if (state.incidentHeat > 0) {
@@ -494,6 +609,7 @@ CiudadCero.Police = (() => {
     updateRoadblocks(dt, vehicles, player, callbacks && callbacks.onNotify);
 
     state.playerInSight = false;
+    updateFootUnits(dt, callbacks && callbacks.pedestrians, vehicles, player, callbacks);
 
     for (let i = 0; i < vehicles.length; i++) {
       const v = vehicles[i];
@@ -603,6 +719,8 @@ CiudadCero.Police = (() => {
 
     return {
       wanted: state.wanted,
+      footBustTimer: state.footBustTimer,
+      dispatchCooldown: state.dispatchCooldown,
       escapeProgress: state.escapeProgress,
       playerInSight: state.playerInSight,
       playerInHideout: state.playerInHideout,

@@ -41,8 +41,12 @@ CiudadCero.Config = {
   PLAYER: {
     startX: 380,
     startY: 390,
-    walkSpeed: 152,
-    sprintSpeed: 230,
+    walkSpeed: 92,
+    sprintSpeed: 152,
+    staminaMax: 100,
+    staminaDrain: 12,
+    staminaRecovery: 18,
+    staminaRecoveryDelay: 0.75,
     radius: 9,
     enterRadius: 58,
     talkRadius: 72
@@ -584,13 +588,16 @@ CiudadCero.Config = {
   TRAFFIC: {
     targetVehicles: 26,
     parkedVehicles: 22,
-    targetPedestrians: 54,
+    targetPedestrians: 80,
     aiCruiseSpeed: 120,
     lookAheadDist: 82
   },
 
   POLICE: {
-    ambientPatrols: 4,
+    // Unidades ambientales que circulan sin activar persecución cuando wanted === 0.
+    ambientPatrols: 7,
+    patrolCruiseMin: 0.78,
+    patrolCruiseMax: 1.12,
     sightRange: 390,
     hideoutSightRange: 125,
     searchRadiusBase: 360,

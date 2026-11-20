@@ -24,6 +24,9 @@ CiudadCero.Entities = (() => {
       radius: Config.PLAYER.radius,
       health: 100,
       maxHealth: 100,
+      stamina: Config.PLAYER.staminaMax || 100,
+      maxStamina: Config.PLAYER.staminaMax || 100,
+      staminaRecoveryTimer: 0,
       hitCooldown: 0,
       stunTimer: 0,
       inCar: false,
@@ -75,6 +78,9 @@ CiudadCero.Entities = (() => {
       isPolice: Boolean(spec.isPolice || opts.isPolice),
       policeRole: spec.policeRole || opts.policeRole || null,
       policeState: opts.policeState || 'patrol',
+      // Variación visual/de movimiento para que las patrullas no circulen en bloque.
+      patrolSpeedFactor: opts.patrolSpeedFactor || 1,
+      patrolStyle: opts.patrolStyle || 'ambient',
       sirenActive: Boolean(opts.sirenActive),
       sirenPhase: Math.random() * Math.PI * 2,
       isMissionTarget: Boolean(opts.isMissionTarget),
@@ -184,6 +190,8 @@ CiudadCero.Entities = (() => {
         isParked: false,
         sirenActive: nearPlayer,
         policeState: nearPlayer ? 'pursue' : 'patrol',
+        patrolSpeedFactor: nearPlayer ? 1 : (Config.POLICE.patrolCruiseMin + Math.random() * (Config.POLICE.patrolCruiseMax - Config.POLICE.patrolCruiseMin)),
+        patrolStyle: nearPlayer ? 'response' : 'ambient',
         aiAxis: lane.axis,
         aiDir: lane.dir,
         aiLanePos: lane.pos

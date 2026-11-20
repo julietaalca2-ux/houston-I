@@ -34,6 +34,8 @@ CiudadCero.UI = (() => {
       districtAvenue: document.getElementById('district-avenue'),
       playerHealthValue: document.getElementById('player-health-value'),
       playerHealthFill: document.getElementById('player-health-fill'),
+      playerStaminaValue: document.getElementById('player-stamina-value'),
+      playerStaminaFill: document.getElementById('player-stamina-fill'),
       btnTalkQuick: document.getElementById('btn-talk-quick'),
       btnGarageQuick: document.getElementById('btn-garage-quick'),
       btnStoreQuick: document.getElementById('btn-store-quick'),
@@ -232,6 +234,14 @@ CiudadCero.UI = (() => {
       dom.playerHealthFill.style.width = `${pct}%`;
       dom.playerHealthFill.style.background = pct > 55 ? '#d6f36a' : pct > 25 ? '#f5d94b' : '#e25845';
       dom.playerHealthValue.textContent = `${hp} / ${maxHp}`;
+    }
+    if (dom.playerStaminaFill && dom.playerStaminaValue) {
+      const stamina = Math.max(0, Math.min(100, Math.round(data.playerStamina || 0)));
+      const maxStamina = Math.max(1, Math.round(data.playerMaxStamina || 100));
+      const pct = Math.max(0, Math.min(100, Math.round((stamina / maxStamina) * 100)));
+      dom.playerStaminaFill.style.width = `${pct}%`;
+      dom.playerStaminaFill.style.background = pct > 30 ? '#67c9e8' : '#e6a34b';
+      dom.playerStaminaValue.textContent = `${pct}%`;
     }
 
     if (dom.districtPill) {

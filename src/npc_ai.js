@@ -59,6 +59,17 @@ CiudadCero.NPCAI = (() => {
     ped.aiThinkTimer = Math.max(0, (ped.aiThinkTimer || 0) - dt);
     ped.alertIconTimer = Math.max(0, (ped.alertIconTimer || 0) - dt);
 
+    // Dispatch movement is owned by Police so it cannot be overwritten by the civilian sidewalk loop.
+    if (ped.isPoliceFoot && ped.dispatchState && ped.dispatchState !== 'patrol') {
+      if (ped.dispatchState === 'contain') {
+        ped.aiState = 'contain';
+        ped.angle = Math.atan2(player.y - ped.y, player.x - ped.x);
+      } else {
+        ped.aiState = ped.dispatchState;
+      }
+      return;
+    }
+
     const threat = findVehicleThreat(ped, vehicles);
     if (threat) {
       ped.panicTimer = Math.max(ped.panicTimer || 0, 1.7);

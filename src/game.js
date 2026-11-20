@@ -71,7 +71,7 @@ CiudadCero.Game = (() => {
       money: state.money,
       missionsCompleted: state.missionsCompleted,
       playerPos: state.player
-        ? { x: Math.round(state.player.x), y: Math.round(state.player.y), angle: state.player.angle, health: state.player.health }
+        ? { x: Math.round(state.player.x), y: Math.round(state.player.y), angle: state.player.angle, health: state.player.health, stamina: state.player.stamina }
         : null,
       story: Story.exportState(),
       garage: Garage.exportState(),
@@ -192,6 +192,9 @@ CiudadCero.Game = (() => {
         state.player.y = Physics.clamp(saved.playerPos.y, 24, Config.WORLD.height - 24);
         state.player.angle = saved.playerPos.angle || 0;
         state.player.health = Physics.clamp(Number(saved.playerPos.health) || 100, 1, state.player.maxHealth);
+        if (Number.isFinite(saved.playerPos.stamina)) {
+          state.player.stamina = Physics.clamp(saved.playerPos.stamina, 0, state.player.maxStamina);
+        }
       }
     }
 
@@ -905,9 +908,21 @@ CiudadCero.Game = (() => {
     }
     const move = Input.getFootInput();
     const mag = Math.hypot(move.dx, move.dy);
+    const staminaMax = p.maxStamina || Config.PLAYER.staminaMax || 100;
+    p.stamina = Physics.clamp(Number.isFinite(p.stamina) ? p.stamina : staminaMax, 0, staminaMax);
+    p.staminaRecoveryTimer = Math.max(0, (p.staminaRecoveryTimer || 0) - dt);
+
+    const wantsSprint = Boolean(move.sprint && mag > 0.01);
+    const canSprint = wantsSprint && p.stamina > 0.5;
+    if (canSprint) {
+      p.stamina = Math.max(0, p.stamina - (Config.PLAYER.staminaDrain || 12) * dt);
+      p.staminaRecoveryTimer = Config.PLAYER.staminaRecoveryDelay || 0.75;
+    } else if (p.staminaRecoveryTimer <= 0) {
+      p.stamina = Math.min(staminaMax, p.stamina + (Config.PLAYER.staminaRecovery || 18) * dt);
+    }
 
     if (mag > 0.01) {
-      const speed = move.sprint ? Config.PLAYER.sprintSpeed : Config.PLAYER.walkSpeed;
+      const speed = canSprint ? Config.PLAYER.sprintSpeed : Config.PLAYER.walkSpeed;
       p.speed = speed * Math.min(1, mag);
       p.angle = Math.atan2(move.dy, move.dx);
       Physics.moveCircleEntity(
@@ -916,7 +931,7 @@ CiudadCero.Game = (() => {
         Math.sin(p.angle) * p.speed * dt,
         p.radius
       );
-      p.walkPhase += dt * (move.sprint ? 15 : 10);
+      p.walkPhase += dt * (canSprint ? 12 : 7);
     } else {
       p.speed = 0;
     }
@@ -1194,7 +1209,8 @@ CiudadCero.Game = (() => {
       }
     }
 
-    const baseCruise = emergencyNearby ? Config.TRAFFIC.aiCruiseSpeed * 0.55 : Config.TRAFFIC.aiCruiseSpeed;
+    const policeCruiseFactor = v.isPolice && !v.sirenActive ? (v.patrolSpeedFactor || 1) : 1;
+    const baseCruise = (emergencyNearby ? Config.TRAFFIC.aiCruiseSpeed * 0.55 : Config.TRAFFIC.aiCruiseSpeed) * policeCruiseFactor;
     const desiredSpeed = obstacleAhead ? 0 : baseCruise;
     v.brakeLights = (obstacleAhead || emergencyNearby) && v.speed > 12;
 
@@ -1457,6 +1473,18 @@ CiudadCero.Game = (() => {
 
     Police.update(dt, state.vehicles, state.player, {
       updateCivilTraffic: updateTrafficVehicle,
+      pedestrians: state.pedestrians,
+      createFootOfficer: (carrier, index) => {
+        const officer = Entities.createPedestrian(null, true);
+        const side = index === 0 ? -1 : 1;
+        officer.x = carrier.x + Math.cos(carrier.angle + Math.PI / 2) * 24 * side;
+        officer.y = carrier.y + Math.sin(carrier.angle + Math.PI / 2) * 24 * side;
+        officer.dispatchVehicleId = carrier.id;
+        officer.dispatchState = 'deploy';
+        officer.speed = 54;
+        officer.panicTimer = 0;
+        return officer;
+      },
       onNotify: (msg) => UI.showToast(msg, 2800),
       onStarReduced: (rem) => UI.showToast(`Rastro enfriándose · Quedan ${rem}★`),
       onEscaped: () => UI.showToast('¡Has escapado de la policía! (0★)', 3000),
@@ -1582,7 +1610,9 @@ CiudadCero.Game = (() => {
       speedKmh,
       vehicleHpPct,
       playerHealth: p.health,
-      playerMaxHealth: p.maxHealth
+      playerMaxHealth: p.maxHealth,
+      playerStamina: p.stamina,
+      playerMaxStamina: p.maxStamina
     });
   }
 
