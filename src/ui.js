@@ -960,6 +960,27 @@ CiudadCero.UI = (() => {
         });
         dom.mapDistrictsStrip.appendChild(chip);
       });
+      (CiudadCero.Config.DISTRICTS || []).forEach((d) => {
+        (d.neighborhoods || []).forEach((n) => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'district-chip neighborhood-chip';
+          chip.innerHTML = `
+            <div>
+              <strong style="color:${d.color}">${n.name.toUpperCase()}</strong>
+              <small>LOSTON · BARRIO</small>
+            </div>
+            <span style="font-size:10px;color:#38bdf8">GPS ▸</span>
+          `;
+          chip.addEventListener('click', () => {
+            if (handlers && handlers.onSetWaypoint) {
+              handlers.onSetWaypoint({ x: n.center.x, y: n.center.y, label: n.shortName });
+            }
+            redrawFullMap();
+          });
+          dom.mapDistrictsStrip.appendChild(chip);
+        });
+      });
     }
 
     if (dom.mapLandmarksStrip) {

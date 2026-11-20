@@ -7,7 +7,7 @@ CiudadCero.Renderer = (() => {
   const CityArt = CiudadCero.CityArt;
   const wCfg = Config.WORLD;
 
-  // 4-quadrant offscreen cache (2400x1800 each) for maximum mobile Safari/Android GPU safety
+  // Tile cache de 2400x1800: permite ampliar el mundo sin crear canvases gigantes en móviles.
   let mapTiles = null;
   let asphaltPattern = null;
   let sidewalkPattern = null;
@@ -379,6 +379,34 @@ CiudadCero.Renderer = (() => {
       c.fillText('DÁRSENA PORTUARIA', w.x + w.w * 0.5, w.y + w.h * 0.5 + 3);
     }
 
+    // 6b. Puente de Loston: tablero, veredas, barandas y juntas de expansión.
+    for (const bridge of World.bridges || []) {
+      c.fillStyle = '#34413f';
+      c.fillRect(bridge.x, bridge.y, bridge.w, bridge.h);
+      c.fillStyle = '#9aa7a0';
+      c.fillRect(bridge.x, bridge.y + 2, bridge.w, 6);
+      c.fillRect(bridge.x, bridge.y + bridge.h - 8, bridge.w, 6);
+      c.fillStyle = '#202a28';
+      for (let px = bridge.x + 90; px < bridge.x + bridge.w - 20; px += 150) {
+        c.fillRect(px, bridge.y + 8, 12, bridge.h - 16);
+      }
+      c.strokeStyle = '#e7c95d';
+      c.lineWidth = 3;
+      c.setLineDash([28, 20]);
+      c.beginPath();
+      c.moveTo(bridge.x + 12, bridge.y + bridge.h * 0.5);
+      c.lineTo(bridge.x + bridge.w - 12, bridge.y + bridge.h * 0.5);
+      c.stroke();
+      c.setLineDash([]);
+      c.strokeStyle = 'rgba(225, 238, 231, 0.8)';
+      c.lineWidth = 2;
+      c.strokeRect(bridge.x + 1, bridge.y + 1, bridge.w - 2, bridge.h - 2);
+      c.fillStyle = '#e7eef0';
+      c.font = 'bold 16px monospace';
+      c.textAlign = 'center';
+      c.fillText('PUENTE DE LOSTON', bridge.x + bridge.w * 0.5, bridge.y + bridge.h * 0.5 - 13);
+    }
+
     // 7. Parking lots
     for (let i = 0; i < World.parkingLots.length; i++) {
       const pl = World.parkingLots[i];
@@ -476,16 +504,20 @@ CiudadCero.Renderer = (() => {
   }
 
   function buildStaticMapCache() {
-    const halfW = wCfg.width / 2;
-    const halfH = wCfg.height / 2;
-    const quadrants = [
-      { ox: 0, oy: 0, w: halfW, h: halfH },
-      { ox: halfW, oy: 0, w: halfW, h: halfH },
-      { ox: 0, oy: halfH, w: halfW, h: halfH },
-      { ox: halfW, oy: halfH, w: halfW, h: halfH }
-    ];
-
-    mapTiles = quadrants.map((q) => {
+    const tileW = Math.min(2400, wCfg.width);
+    const tileH = Math.min(1800, wCfg.height);
+    const tiles = [];
+    for (let oy = 0; oy < wCfg.height; oy += tileH) {
+      for (let ox = 0; ox < wCfg.width; ox += tileW) {
+        tiles.push({
+          ox,
+          oy,
+          w: Math.min(tileW, wCfg.width - ox),
+          h: Math.min(tileH, wCfg.height - oy)
+        });
+      }
+    }
+    mapTiles = tiles.map((q) => {
       const off = document.createElement('canvas');
       off.width = q.w;
       off.height = q.h;
@@ -1044,8 +1076,8 @@ CiudadCero.Renderer = (() => {
 
   function drawMinimap(ctx, viewW, state, policeHUD) {
     if (!showMinimap) return;
-    const mapW = viewW < 640 ? 154 : 190;
-    const mapH = viewW < 640 ? 116 : 143;
+    const mapW = viewW < 640 ? 190 : 248;
+    const mapH = Math.round(mapW * (wCfg.height / wCfg.width));
     const mx = viewW - mapW - 12;
     const my = 12;
     const simTime = state.simTime || performance.now() / 1000;
@@ -1061,6 +1093,8 @@ CiudadCero.Renderer = (() => {
     const sy = mapH / wCfg.height;
 
     // v0.7.9: capa base (barrios, calles, manzanas, edificios, parques y agua) en caché
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(CityArt.getMinimapBase(mapW, mapH), mx, my, mapW, mapH);
     ctx.fillStyle = 'rgba(8, 13, 10, 0.78)'; ctx.fillRect(mx + 3, my + 3, Math.min(88, mapW - 6), 11);
     ctx.fillStyle = '#dce9d6'; ctx.font = 'bold 7px monospace'; ctx.textAlign = 'left'; ctx.fillText('CIUDAD CERO · GPS', mx + 7, my + 11);
@@ -1262,6 +1296,17 @@ CiudadCero.Renderer = (() => {
       ctx.fillRect(d.center.x - labelW * 0.5, d.center.y - labelH * 0.5, labelW, labelH);
       ctx.fillStyle = d.color || '#fff';
       ctx.fillText(d.shortName, d.center.x, d.center.y + fontSize * 0.35);
+      if (Array.isArray(d.neighborhoods)) {
+        for (const n of d.neighborhoods) {
+          ctx.font = `bold ${Math.max(10, Math.round(11 / scale))}px sans-serif`;
+          ctx.fillStyle = 'rgba(8, 15, 17, 0.78)';
+          const nw = ctx.measureText(n.name).width + 18 / scale;
+          ctx.fillRect(n.center.x - nw * 0.5, n.center.y - 11 / scale, nw, 22 / scale);
+          ctx.fillStyle = '#d7f7fa';
+          ctx.textAlign = 'center';
+          ctx.fillText(n.name.toUpperCase(), n.center.x, n.center.y + 4 / scale);
+        }
+      }
     }
 
     // Major Avenue & Highway Labels along roads

@@ -12,6 +12,9 @@ CiudadCero.World = (() => {
   const garages = [];
   const hideouts = [];
   const stores = (Config.STORES || []).map((store) => Object.assign({}, store));
+  const bridges = [
+    { id: 'puente_loston', name: 'Puente de Loston', x: 4800, y: 1500, w: 600, h: 150, districtId: 'loston' }
+  ];
   const parkedSpots = [];
   const sidewalkNodes = [];
   const trafficLights = [];
@@ -34,6 +37,20 @@ CiudadCero.World = (() => {
       }
     }
     return list[0] || { id: 'centro', name: 'Centro Urbano', shortName: 'CENTRO', color: '#6cb2d1', avenueLabel: 'Av. Central' };
+  }
+
+  function getNeighborhoodAt(x, y) {
+    const district = getDistrictAt(x, y);
+    const neighborhoods = district.neighborhoods || [];
+    return neighborhoods.find((n) =>
+      x >= n.bounds.x1 && x < n.bounds.x2 && y >= n.bounds.y1 && y < n.bounds.y2
+    ) || null;
+  }
+
+  function isWaterAt(x, y) {
+    return waterZones.some((zone) =>
+      x >= zone.x && x < zone.x + zone.w && y >= zone.y && y < zone.y + zone.h
+    );
   }
 
   function init() {
@@ -74,6 +91,20 @@ CiudadCero.World = (() => {
       '0,6', '0,7', '0,8',
       '1,9', '2,9', '3,9'
     ]);
+
+    // Canal profundo entre Ciudad Cero y Loston; mar que rodea la isla.
+    // Las celdas de agua no generan edificios, vegetación ni estacionamientos.
+    for (let gy = 0; gy < rows; gy++) {
+      waterSet.add(`16,${gy}`);
+      waterSet.add(`17,${gy}`);
+    }
+    for (let gx = 18; gx < 24; gx++) {
+      waterSet.add(`${gx},0`);
+      waterSet.add(`${gx},1`);
+      waterSet.add(`${gx},10`);
+      waterSet.add(`${gx},11`);
+    }
+    for (let gy = 2; gy < 10; gy++) waterSet.add(`23,${gy}`);
 
     const parkingSet = new Set([
       '0,3',   // Estacionamiento Residencial
@@ -311,6 +342,16 @@ CiudadCero.World = (() => {
         }
       }
     }
+
+    // Agua continua que cubre también las franjas de calzada del canal.
+    // Se deja libre únicamente la franja del puente (y: 1500..1650).
+    waterZones.push(
+      { x: 4800, y: 0, w: 600, h: 1500, districtId: 'sea' },
+      { x: 4800, y: 1650, w: 600, h: 1950, districtId: 'sea' },
+      { x: 5400, y: 0, w: 1800, h: 600, districtId: 'sea' },
+      { x: 5400, y: 3000, w: 1800, h: 600, districtId: 'sea' },
+      { x: 6900, y: 600, w: 300, h: 2400, districtId: 'sea' }
+    );
   }
 
   // v0.7.5: vegetación y mobiliario con personalidad propia por barrio (solo decorativo)
@@ -349,6 +390,16 @@ CiudadCero.World = (() => {
       props.push({ type: 'barrel', x: bl + 12, y: bt + bs * 0.55 + 8, color: '#b4472f' });
       props.push({ type: 'crates', x: bl + bs - 13, y: bt + bs * 0.6 });
       if (h === 2) T(bl + bs * 0.5, bt + 8, 'poplar', 6.5);
+    } else if (id === 'loston') {
+      if (gy < 5) {
+        T(bl + bs * 0.25, bt + 10, 'palm', 8);
+        T(bl + bs * 0.75, bt + bs - 10, 'blossom', 7);
+        props.push({ type: 'planter', x: bl + bs * 0.5, y: bt + bs * 0.5, w: 28, h: 9 });
+      } else {
+        T(bl + 12, bt + 12, 'palm', 9);
+        T(bl + bs - 12, bt + bs - 12, 'oak', 8);
+        props.push({ type: 'bench', x: bl + bs * 0.5, y: bt + bs - 12 });
+      }
     } else if (id === 'periferia') {
       const sp = ['oak', 'pine', 'olive'][(gx + gy) % 3];
       T(bl + 12, bt + 10, sp, 9);
@@ -416,6 +467,9 @@ CiudadCero.World = (() => {
       const neighbors = [[current.x + 1, current.y], [current.x - 1, current.y], [current.x, current.y + 1], [current.x, current.y - 1]];
       for (const [nx, ny] of neighbors) {
         if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+        const roadNodeX = nx * bs + cfg.roadWidth * 0.5;
+        const roadNodeY = ny * bs + cfg.roadWidth * 0.5;
+        if (isWaterAt(roadNodeX, roadNodeY)) continue;
         const nk = key(nx, ny);
         if (closed.has(nk)) continue;
         const tentative = current.g + 1;
@@ -538,6 +592,7 @@ CiudadCero.World = (() => {
     buildings,
     parks,
     waterZones,
+    bridges,
     parkingLots,
     garages,
     hideouts,
@@ -548,6 +603,8 @@ CiudadCero.World = (() => {
     streetLights,
     props,
     getDistrictAt,
+    getNeighborhoodAt,
+    isWaterAt,
     isOnRoad,
     getGarageAt,
     getHideoutAt,

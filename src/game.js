@@ -1544,8 +1544,9 @@ CiudadCero.Game = (() => {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const mapW = rect.width < 640 ? 154 : 190;
-      const mapH = rect.width < 640 ? 116 : 143;
+      const mapW = rect.width < 640 ? 190 : 248;
+      const worldSize = CiudadCero.Config.WORLD;
+      const mapH = Math.round(mapW * (worldSize.height / worldSize.width));
       if (x >= rect.width - mapW - 18 && y <= mapH + 18) {
         e.preventDefault();
         handleMapAction(false);

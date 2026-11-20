@@ -113,6 +113,11 @@ CiudadCero.CityArt = (() => {
       walls: ['#d6c6a2', '#c4b79a', '#b7c4a8', '#d3b79c'],
       roofs: ['#9a5f45', '#7e6a55', '#6d7d68', '#8c6a4e'],
       grass: ['#4d7a3d', '#5f8f48']
+    },
+    loston: {
+      walls: ['#d1d8d3', '#b8c9c9', '#d7c8a9', '#a9c1c4'],
+      roofs: ['#536f78', '#526a61', '#7d6a58'],
+      grass: ['#477d59', '#5a966b']
     }
   };
 
@@ -1799,7 +1804,8 @@ CiudadCero.CityArt = (() => {
       comercial: '#d6a94c',
       portuaria: '#6f8c92',
       industrial: '#a28265',
-      periferia: '#97a97c'
+      periferia: '#97a97c',
+      loston: '#78b7bd'
     },
     block: {
       residencial: '#5c6a54',
@@ -1807,7 +1813,8 @@ CiudadCero.CityArt = (() => {
       comercial: '#6a6652',
       portuaria: '#4c5f62',
       industrial: '#5d5750',
-      periferia: '#56684a'
+      periferia: '#56684a',
+      loston: '#46666a'
     }
   };
 
@@ -1815,7 +1822,7 @@ CiudadCero.CityArt = (() => {
     const key = `${mapW}x${mapH}`;
     if (miniCache[key]) return miniCache[key];
     const World = CiudadCero.World;
-    const dpr = 2;
+    const dpr = 4;
     const cv = document.createElement('canvas');
     cv.width = Math.round(mapW * dpr);
     cv.height = Math.round(mapH * dpr);
@@ -1865,7 +1872,35 @@ CiudadCero.CityArt = (() => {
     m.fillStyle = MINI.parking;
     World.parkingLots.forEach((p) => m.fillRect(p.x * sx, p.y * sy, Math.max(2, p.w * sx), Math.max(2, p.h * sy)));
     m.fillStyle = MINI.water;
-    World.waterZones.forEach((w) => m.fillRect(w.x * sx, w.y * sy, Math.max(2, w.w * sx), Math.max(2, w.h * sy)));
+    World.waterZones.forEach((w) => {
+      m.fillRect(w.x * sx, w.y * sy, Math.max(2, w.w * sx), Math.max(2, w.h * sy));
+      if (w.w > 250 || w.h > 250) {
+        m.strokeStyle = 'rgba(137, 221, 235, 0.22)';
+        m.lineWidth = 0.65;
+        for (let wave = 8; wave < Math.min(w.w, w.h); wave += 34) {
+          m.beginPath();
+          if (w.w >= w.h) {
+            m.moveTo(w.x * sx, (w.y + wave) * sy);
+            m.lineTo((w.x + w.w) * sx, (w.y + wave) * sy);
+          } else {
+            m.moveTo((w.x + wave) * sx, w.y * sy);
+            m.lineTo((w.x + wave) * sx, (w.y + w.h) * sy);
+          }
+          m.stroke();
+        }
+      }
+    });
+
+    // Puente de Loston, resaltado sobre el canal.
+    (World.bridges || []).forEach((b) => {
+      m.fillStyle = '#899994';
+      m.fillRect(b.x * sx, b.y * sy, b.w * sx, b.h * sy);
+      m.fillStyle = '#e7c95d';
+      m.fillRect(b.x * sx, (b.y + b.h * 0.5) * sy - 0.55, b.w * sx, 1.1);
+      m.strokeStyle = '#e6f0ec';
+      m.lineWidth = 0.7;
+      m.strokeRect(b.x * sx, b.y * sy, b.w * sx, b.h * sy);
+    });
 
     // edificios por barrio
     World.buildings.forEach((b) => {
@@ -1908,7 +1943,28 @@ CiudadCero.CityArt = (() => {
       const lw = m.measureText(label).width + 3;
       m.fillRect(d.center.x * sx - lw / 2, d.center.y * sy - 4, lw, 6);
       m.fillStyle = d.color;
-      m.fillText(label, d.center.x * sx, d.center.y * sy + 0.6);
+      if (!d.neighborhoods || !d.neighborhoods.length) {
+        m.fillText(label, d.center.x * sx, d.center.y * sy + 0.6);
+      }
+      if (Array.isArray(d.neighborhoods)) {
+        d.neighborhoods.forEach((n) => {
+          m.strokeStyle = 'rgba(215, 247, 250, 0.42)';
+          m.lineWidth = 0.55;
+          m.setLineDash([2, 2]);
+          m.strokeRect(n.bounds.x1 * sx + 0.5, n.bounds.y1 * sy + 0.5,
+            (n.bounds.x2 - n.bounds.x1) * sx - 1, (n.bounds.y2 - n.bounds.y1) * sy - 1);
+          m.setLineDash([]);
+          if (mapW >= 220) {
+            const short = n.id === 'loston_centro' ? 'CENTRO' : n.id === 'barrio_faro' ? 'FARO' : 'PALMERAS';
+            m.font = 'bold 4.4px sans-serif';
+            m.textAlign = 'center';
+            m.fillStyle = 'rgba(5, 18, 22, 0.72)';
+            m.fillRect(n.center.x * sx - 12, n.center.y * sy - 3, 24, 6);
+            m.fillStyle = '#d7f7fa';
+            m.fillText(short, n.center.x * sx, n.center.y * sy + 1.4);
+          }
+        });
+      }
     });
 
     miniCache[key] = cv;
