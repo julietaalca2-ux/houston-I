@@ -62,3 +62,53 @@ Se verificó la sintaxis de los archivos JavaScript y la integridad del archivo 
 ## CIUDAD ENGINE 0.2.0 — Asset Pipeline
 
 Se incorpora `engine/assets/AssetManager.js` para cargar modelos GLB/GLTF bajo demanda, cachear recursos, emitir eventos de progreso y crear instancias en escenas. Ver `engine/assets/README.md`.
+
+
+### CIUDAD ENGINE V0.3.0
+Incluye el núcleo ECS para organizar entidades, componentes y sistemas. Los sistemas actuales del juego continúan funcionando y se migrarán gradualmente. Ver `engine/ecs/README.md`.
+
+
+## CIUDAD ENGINE V0.4.0
+
+Se incorpora Character System: gestión de instancias GLB con clonación de esqueletos, animaciones por clips y sincronización de transformaciones mediante ECS. Ver `engine/characters/README.md`.
+
+
+## CIUDAD ENGINE V0.5.0 — Physics System
+
+Adds an ECS-based physics layer with rigid bodies, AABB colliders, gravity, ground contact, static box collisions, and runtime diagnostics. It is separate from the existing game physics and does not silently replace it. See `engine/physics/README.md`.
+
+
+## CIUDAD ENGINE V0.6.0
+
+Rendering Pipeline: configurable quality profiles, renderer color/tone mapping, shadow configuration, PBR material factory, and cached texture loading. See `engine/rendering/README.md`.
+
+
+## CIUDAD ENGINE V0.10.0 — VEHICLE ENGINE
+- Se incorpora un sistema vehicular ECS opcional con aceleración, velocidad máxima, frenado, reversa, dirección y resistencia arcade.
+- `VehicleFactory` crea, configura, consulta y elimina vehículos ECS.
+- Sincronización opcional de `Transform` con objetos 3D de Three.js.
+- Integración con `Engine.js` y diagnósticos del motor.
+- Los vehículos del juego principal (`src/`) y su garaje no se reemplazan ni migran en esta etapa.
+- Prueba automatizada: `node engine/vehicles/VehicleSystem.smoke.test.js`.
+
+
+## CIUDAD ENGINE V0.11.0 — ADVANCED VEHICLE PHYSICS
+- Se agrega física vehicular avanzada opcional (`physicsMode: 'advanced'`) con velocidad longitudinal/lateral, tracción, agarre lateral y respuesta de dirección suavizada.
+- Se incorpora freno de mano con reducción de agarre, derrape controlado y recuperación de estabilidad.
+- El modo `arcade` permanece como predeterminado para conservar compatibilidad.
+- Diagnósticos ampliados con cantidad de vehículos derrapando.
+- Pruebas: `node engine/vehicles/VehicleSystem.smoke.test.js` y `node engine/vehicles/EngineVehicleIntegration.smoke.test.js`.
+
+
+### CIUDAD ENGINE V0.12.0
+
+Incluye Vehicle AI opcional para rutas por waypoints, control de conducción y evasión local básica. Ver `engine/vehicles/README.md`.
+
+
+## CIUDAD ENGINE V0.13.0 — WORLD & ENGINE INTEGRATION
+- Puente ECS ↔ Three.js para asociar entidades a objetos visuales.
+- Sincronización de posición, rotación y escala.
+- Límites espaciales con eventos y clamp opcional.
+- Integración automática al adjuntar la escena al motor.
+- Sistemas legacy del videojuego conservados y sin migración forzada.
+- Documentación: `engine/world/README.md`.
