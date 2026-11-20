@@ -22,6 +22,10 @@ CiudadCero.Entities = (() => {
       visualAngle: 0,
       speed: 0,
       radius: Config.PLAYER.radius,
+      health: 100,
+      maxHealth: 100,
+      hitCooldown: 0,
+      stunTimer: 0,
       inCar: false,
       vehicle: null,
       walkPhase: 0,
@@ -330,6 +334,8 @@ CiudadCero.Entities = (() => {
       pausedTimer: 0,
       waitingAtCrosswalk: false,
       knockTimer: 0,
+      health: 60,
+      isDead: false,
       vx: 0,
       vy: 0
     };

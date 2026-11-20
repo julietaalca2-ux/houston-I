@@ -32,6 +32,8 @@ CiudadCero.UI = (() => {
       districtDot: document.getElementById('district-dot'),
       districtName: document.getElementById('district-name'),
       districtAvenue: document.getElementById('district-avenue'),
+      playerHealthValue: document.getElementById('player-health-value'),
+      playerHealthFill: document.getElementById('player-health-fill'),
       btnTalkQuick: document.getElementById('btn-talk-quick'),
       btnGarageQuick: document.getElementById('btn-garage-quick'),
       btnStoreQuick: document.getElementById('btn-store-quick'),
@@ -221,6 +223,15 @@ CiudadCero.UI = (() => {
     if (dom.wanted) {
       dom.wanted.textContent = formatStars(data.wanted);
       dom.wanted.classList.toggle('active-alert', data.wanted > 0);
+    }
+
+    if (dom.playerHealthFill && dom.playerHealthValue) {
+      const hp = Math.max(0, Math.min(100, Math.round(data.playerHealth || 0)));
+      const maxHp = Math.max(1, Math.round(data.playerMaxHealth || 100));
+      const pct = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
+      dom.playerHealthFill.style.width = `${pct}%`;
+      dom.playerHealthFill.style.background = pct > 55 ? '#d6f36a' : pct > 25 ? '#f5d94b' : '#e25845';
+      dom.playerHealthValue.textContent = `${hp} / ${maxHp}`;
     }
 
     if (dom.districtPill) {

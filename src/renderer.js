@@ -734,6 +734,24 @@ CiudadCero.Renderer = (() => {
     });
   }
 
+  // Small stylized ground stain used by the non-graphic pedestrian knockout/death feedback.
+  function addBloodPuddle(x, y) {
+    const puddles = particles.filter((p) => p.type === 'bloodPuddle');
+    if (puddles.length >= 18) {
+      const oldest = particles.findIndex((p) => p.type === 'bloodPuddle');
+      if (oldest >= 0) particles.splice(oldest, 1);
+    }
+    particles.push({
+      type: 'bloodPuddle',
+      x, y,
+      radiusX: 8 + Math.random() * 4,
+      radiusY: 4 + Math.random() * 2.5,
+      alpha: 0.38,
+      life: 42,
+      maxLife: 42
+    });
+  }
+
   function updateEffects(dt, vehicles) {
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
@@ -756,6 +774,8 @@ CiudadCero.Renderer = (() => {
         p.y += p.vy * dt;
         p.radius += dt * 5.5;
         p.alpha = p.life * 0.85;
+      } else if (p.type === 'bloodPuddle') {
+        p.alpha = 0.38 * Math.min(1, p.life / 8);
       } else {
         p.alpha = p.life * 0.45;
       }
@@ -1666,7 +1686,19 @@ CiudadCero.Renderer = (() => {
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
-      if (p.type === 'skid') {
+      if (p.type === 'bloodPuddle') {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = '#681b24';
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.radiusX, p.radiusY, -0.18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#9d2632';
+        ctx.beginPath();
+        ctx.ellipse(p.x - 1.5, p.y - 0.4, p.radiusX * 0.62, p.radiusY * 0.58, 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (p.type === 'skid') {
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.angle);
@@ -1772,6 +1804,7 @@ CiudadCero.Renderer = (() => {
     addSkidParticle,
     addSparkParticles,
     addFootstepDust,
+    addBloodPuddle,
     updateEffects,
     render,
     renderFullMap

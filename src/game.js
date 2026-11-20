@@ -70,7 +70,7 @@ CiudadCero.Game = (() => {
       money: state.money,
       missionsCompleted: state.missionsCompleted,
       playerPos: state.player
-        ? { x: Math.round(state.player.x), y: Math.round(state.player.y), angle: state.player.angle }
+        ? { x: Math.round(state.player.x), y: Math.round(state.player.y), angle: state.player.angle, health: state.player.health }
         : null,
       story: Story.exportState(),
       garage: Garage.exportState(),
@@ -190,6 +190,7 @@ CiudadCero.Game = (() => {
         state.player.x = Physics.clamp(saved.playerPos.x, 24, Config.WORLD.width - 24);
         state.player.y = Physics.clamp(saved.playerPos.y, 24, Config.WORLD.height - 24);
         state.player.angle = saved.playerPos.angle || 0;
+        state.player.health = Physics.clamp(Number(saved.playerPos.health) || 100, 1, state.player.maxHealth);
       }
     }
 
@@ -895,6 +896,12 @@ CiudadCero.Game = (() => {
      ============================================================================ */
   function updatePlayerOnFoot(dt) {
     const p = state.player;
+    p.hitCooldown = Math.max(0, (p.hitCooldown || 0) - dt);
+    p.stunTimer = Math.max(0, (p.stunTimer || 0) - dt);
+    if (p.stunTimer > 0) {
+      p.speed = 0;
+      return;
+    }
     const move = Input.getFootInput();
     const mag = Math.hypot(move.dx, move.dy);
 
@@ -1225,6 +1232,7 @@ CiudadCero.Game = (() => {
     const p = state.player;
     for (let i = 0; i < state.pedestrians.length; i++) {
       const ped = state.pedestrians[i];
+      if (ped.isDead) continue;
 
       if (ped.knockTimer > 0) {
         ped.knockTimer -= dt;
@@ -1245,10 +1253,19 @@ CiudadCero.Game = (() => {
         const dist = Math.hypot(dx, dy);
 
         if (dist < v.length * 0.5 + ped.radius + 3 && vSpd > 65) {
-          ped.knockTimer = 2.6;
           const pushAngle = Math.atan2(dy, dx);
-          ped.vx = Math.cos(pushAngle) * 120;
-          ped.vy = Math.sin(pushAngle) * 120;
+          if (vSpd > 132) {
+            ped.isDead = true;
+            ped.health = 0;
+            ped.knockTimer = 9999;
+            ped.vx = 0;
+            ped.vy = 0;
+            if (Renderer.addBloodPuddle) Renderer.addBloodPuddle(ped.x, ped.y);
+          } else {
+            ped.knockTimer = 2.6;
+            ped.vx = Math.cos(pushAngle) * 120;
+            ped.vy = Math.sin(pushAngle) * 120;
+          }
           if (v === p.vehicle) {
             Police.addWanted(
               1,
@@ -1315,6 +1332,80 @@ CiudadCero.Game = (() => {
         }
       }
     }
+  }
+
+  function resolvePlayerVehicleImpacts() {
+    const p = state.player;
+    if (!p || p.inCar || p.hitCooldown > 0) return;
+    for (let i = 0; i < state.vehicles.length; i++) {
+      const v = state.vehicles[i];
+      const speed = Math.hypot(v.vx || 0, v.vy || 0);
+      if (speed < 38) continue;
+
+      const dx = p.x - v.x;
+      const dy = p.y - v.y;
+      const cos = Math.cos(v.angle);
+      const sin = Math.sin(v.angle);
+      const localX = dx * cos + dy * sin;
+      const localY = -dx * sin + dy * cos;
+      const halfL = v.length * 0.5;
+      const halfW = v.width * 0.5;
+      const nearX = Physics.clamp(localX, -halfL, halfL);
+      const nearY = Physics.clamp(localY, -halfW, halfW);
+      let nxLocal = localX - nearX;
+      let nyLocal = localY - nearY;
+      let dist = Math.hypot(nxLocal, nyLocal);
+      if (dist >= p.radius + 2) continue;
+
+      let normalLength = dist;
+      if (dist < 0.001) {
+        nxLocal = -v.vx * cos - v.vy * sin;
+        nyLocal = v.vx * sin - v.vy * cos;
+        normalLength = Math.hypot(nxLocal, nyLocal) || 1;
+        dist = 0;
+      }
+      nxLocal /= normalLength;
+      nyLocal /= normalLength;
+      const nx = nxLocal * cos - nyLocal * sin;
+      const ny = nxLocal * sin + nyLocal * cos;
+      const overlap = p.radius + 2 - dist;
+      p.x += nx * (overlap + 2);
+      p.y += ny * (overlap + 2);
+      p.x = Physics.clamp(p.x, p.radius, Config.WORLD.width - p.radius);
+      p.y = Physics.clamp(p.y, p.radius, Config.WORLD.height - p.radius);
+
+      const damage = Physics.clamp((speed - 28) * 0.12, 5, 24);
+      p.health = Math.max(0, p.health - damage);
+      p.hitCooldown = 0.9;
+      p.stunTimer = 0.28;
+      p.speed = 0;
+      Renderer.addSparkParticles(p.x, p.y, 3);
+      Audio.playCrash(Physics.clamp(speed / 190, 0.2, 0.7));
+      if (v.isPolice) {
+        Police.addWanted(1, p.x, p.y, 'Colisión con patrulla', (msg) => UI.showToast(msg));
+      }
+      break;
+    }
+  }
+
+  function handlePlayerKnockout() {
+    const p = state.player;
+    if (!p || p.health > 0) return;
+    const fine = Math.min(state.money, 100);
+    state.money -= fine;
+    if (p.inCar && p.vehicle) {
+      p.inCar = false;
+      p.vehicle = null;
+      Input.setMode(false);
+    }
+    p.x = Config.PLAYER.startX;
+    p.y = Config.PLAYER.startY;
+    p.angle = 0;
+    p.health = Math.round(p.maxHealth * 0.65);
+    p.hitCooldown = 1.4;
+    p.stunTimer = 0;
+    UI.showToast(`Te recuperaste en el hospital · -$ ${fine}`, 3200);
+    saveCurrentProgress();
   }
 
   function updateCamera(dt) {
@@ -1434,6 +1525,9 @@ CiudadCero.Game = (() => {
       }
     });
 
+    resolvePlayerVehicleImpacts();
+    handlePlayerKnockout();
+
     if (state.player.inCar && state.player.vehicle) {
       state.player.x = state.player.vehicle.x;
       state.player.y = state.player.vehicle.y;
@@ -1493,7 +1587,9 @@ CiudadCero.Game = (() => {
       missionInfo,
       missionDist: dist,
       speedKmh,
-      vehicleHpPct
+      vehicleHpPct,
+      playerHealth: p.health,
+      playerMaxHealth: p.maxHealth
     });
   }
 

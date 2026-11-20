@@ -77,6 +77,42 @@ canvas#game {
   max-width: min(305px, 44vw);
 }
 
+.player-health-hud {
+  width: min(190px, 100%);
+  padding: 6px 9px;
+  border: 1px solid rgba(129, 144, 93, 0.68);
+  border-radius: 5px;
+  background: rgba(14, 21, 16, 0.88);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.player-health-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: #edf4e8;
+  font: 700 9px 'DM Mono', monospace;
+  letter-spacing: .04em;
+}
+.player-health-head span { color: #cbd5c2; font-size: 9px; }
+.player-health-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: rgba(255,255,255,.15);
+}
+.player-health-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #d6f36a;
+  transition: width .16s ease, background .16s ease;
+}
+
 .mission {
   background: rgba(14, 21, 16, 0.88);
   backdrop-filter: blur(5px);
