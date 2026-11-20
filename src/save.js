@@ -62,7 +62,7 @@ CiudadCero.Save = (() => {
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (!data || typeof data !== 'object') return null;
-      if (!['0.7.5', '0.7', '0.6', '0.5', '0.4'].includes(data.version)) {
+      if (!['0.7.9', '0.7.5', '0.7', '0.6', '0.5', '0.4'].includes(data.version)) {
         return null;
       }
       return data;
@@ -75,7 +75,7 @@ CiudadCero.Save = (() => {
     try {
       const record = Object.assign(
         {
-          version: '0.7.5',
+          version: '0.7.9',
           savedAt: Date.now()
         },
         payload
