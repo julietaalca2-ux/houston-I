@@ -1,485 +1,453 @@
-window.CiudadCero = window.CiudadCero || {};
+/**
+ * Ciudad Cero V0.7.9 - Módulo del Mundo (src/world.js)
+ * Gestiona los 6 barrios, grilla vial, cordones, sendas peatonales,
+ * semáforos funcionales de 4 vías, parques variados, árboles volumétricos y garajes.
+ */
 
-CiudadCero.World = (() => {
-  const Config = CiudadCero.Config;
-  const cfg = Config.WORLD;
-  const sigCfg = Config.TRAFFIC_SIGNAL || { cycleDuration: 15.0, greenDuration: 6.0, yellowDuration: 1.5 };
+export const WORLD_WIDTH = 4800;
+export const WORLD_HEIGHT = 4800;
+export const BLOCK_SIZE = 480;
+export const ROAD_WIDTH = 112;
+export const SIDEWALK_WIDTH = 18;
 
+export const NEIGHBORHOODS = [
+  {
+    id: 'centro',
+    name: 'Centro Urbano',
+    bounds: { x1: 1440, y1: 1440, x2: 3360, y2: 3360 },
+    groundColor: '#2c313a',
+    sidewalkColor: '#8d95a0',
+    buildingStyle: 'skyscraper',
+    trafficDensity: 1.0,
+    pedestrianDensity: 1.0
+  },
+  {
+    id: 'comercial',
+    name: 'Distrito Comercial',
+    bounds: { x1: 1440, y1: 0, x2: 3360, y2: 1440 },
+    groundColor: '#323741',
+    sidewalkColor: '#989fa9',
+    buildingStyle: 'commercial',
+    trafficDensity: 0.9,
+    pedestrianDensity: 0.95
+  },
+  {
+    id: 'residencial',
+    name: 'Barrio Residencial',
+    bounds: { x1: 0, y1: 0, x2: 1440, y2: 2400 },
+    groundColor: '#364938',
+    sidewalkColor: '#9ca39d',
+    buildingStyle: 'residential',
+    trafficDensity: 0.55,
+    pedestrianDensity: 0.65
+  },
+  {
+    id: 'industrial',
+    name: 'Zona Industrial',
+    bounds: { x1: 0, y1: 2400, x2: 1440, y2: 4800 },
+    groundColor: '#383634',
+    sidewalkColor: '#7f7c78',
+    buildingStyle: 'industrial',
+    trafficDensity: 0.65,
+    pedestrianDensity: 0.4
+  },
+  {
+    id: 'puerto',
+    name: 'Puerto',
+    bounds: { x1: 3360, y1: 1440, x2: 4800, y2: 4800 },
+    groundColor: '#2f3842',
+    sidewalkColor: '#848d96',
+    buildingStyle: 'port',
+    trafficDensity: 0.6,
+    pedestrianDensity: 0.5
+  },
+  {
+    id: 'periferia',
+    name: 'Periferia',
+    bounds: { x1: 1440, y1: 3360, x2: 3360, y2: 4800 },
+    groundColor: '#464136',
+    sidewalkColor: '#8c867a',
+    buildingStyle: 'periphery',
+    trafficDensity: 0.5,
+    pedestrianDensity: 0.45
+  }
+];
+
+function seededRandom(seed) {
+  let s = seed % 2147483647;
+  if (s <= 0) s += 2147483646;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+export function getNeighborhoodAt(x, y) {
+  for (const n of NEIGHBORHOODS) {
+    if (x >= n.bounds.x1 && x < n.bounds.x2 && y >= n.bounds.y1 && y < n.bounds.y2) {
+      return n;
+    }
+  }
+  return NEIGHBORHOODS[0];
+}
+
+export function createWorld() {
+  const rand = seededRandom(792026);
+  const cols = Math.floor(WORLD_WIDTH / BLOCK_SIZE);
+  const rows = Math.floor(WORLD_HEIGHT / BLOCK_SIZE);
+
+  const roadsV = [];
+  const roadsH = [];
+  for (let c = 1; c < cols; c++) roadsV.push(c * BLOCK_SIZE);
+  for (let r = 1; r < rows; r++) roadsH.push(r * BLOCK_SIZE);
+
+  // Intersecciones con semáforos funcionales de 4 vías
+  const intersections = [];
+  const crosswalks = [];
+  const halfRoad = ROAD_WIDTH / 2;
+
+  for (let r = 0; r < roadsH.length; r++) {
+    for (let c = 0; c < roadsV.length; c++) {
+      const ix = roadsV[c];
+      const iy = roadsH[r];
+      const startNSGreen = (r + c) % 2 === 0;
+      const cycleDuration = 14;
+      intersections.push({
+        id: `int_${c}_${r}`,
+        x: ix,
+        y: iy,
+        timer: (r * 1.7 + c * 2.3) % cycleDuration,
+        cycleDuration,
+        nsState: startNSGreen ? 'green' : 'red',
+        ewState: startNSGreen ? 'red' : 'green'
+      });
+
+      // 4 sendas peatonales alrededor de cada cruce
+      const cwWidth = 16;
+      const cwOffset = halfRoad + 6;
+      crosswalks.push(
+        { x: ix - halfRoad + 8, y: iy - cwOffset - cwWidth, w: ROAD_WIDTH - 16, h: cwWidth, dir: 'h' },
+        { x: ix - halfRoad + 8, y: iy + cwOffset, w: ROAD_WIDTH - 16, h: cwWidth, dir: 'h' },
+        { x: ix - cwOffset - cwWidth, y: iy - halfRoad + 8, w: cwWidth, h: ROAD_WIDTH - 16, dir: 'v' },
+        { x: ix + cwOffset, y: iy - halfRoad + 8, w: cwWidth, h: ROAD_WIDTH - 16, dir: 'v' }
+      );
+    }
+  }
+
+  // Garajes clandestinos para repintar y bajar nivel de búsqueda
+  const garages = [
+    { id: 'garage_centro', name: 'Taller Clandestino Centro', x: 1740, y: 1720, w: 96, h: 72, cost: 100 },
+    { id: 'garage_industrial', name: 'Galpón de Chapa Industrial', x: 760, y: 3140, w: 104, h: 76, cost: 100 },
+    { id: 'garage_puerto', name: 'Dique de Pintura Puerto', x: 3640, y: 2660, w: 96, h: 72, cost: 100 },
+    { id: 'garage_periferia', name: 'Taller Ruta Sur', x: 2680, y: 4100, w: 96, h: 72, cost: 100 }
+  ];
+
+  // Zona portuaria de agua en el borde este del Puerto
+  const waterZones = [
+    { x: 4440, y: 1440, w: 360, h: 3360 }
+  ];
+
+  const blocks = [];
   const buildings = [];
   const parks = [];
-  const waterZones = [];
-  const parkingLots = [];
-  const garages = [];
-  const hideouts = [];
-  const parkedSpots = [];
-  const sidewalkNodes = [];
-  const trafficLights = [];
-  const streetLights = [];
-  const props = [];
+  const trees = [];
 
-  function getDistrictAt(x, y) {
-    const list = Config.DISTRICTS || [];
-    for (let i = 0; i < list.length; i++) {
-      const d = list[i];
-      const b = d.bounds;
-      if (x >= b.x1 && x < b.x2 && y >= b.y1 && y < b.y2) {
-        return d;
-      }
-      if (d.extraBounds) {
-        const eb = d.extraBounds;
-        if (x >= eb.x1 && x < eb.x2 && y >= eb.y1 && y < eb.y2) {
-          return d;
-        }
-      }
-    }
-    return list[0] || { id: 'centro', name: 'Centro Urbano', shortName: 'CENTRO', color: '#6cb2d1', avenueLabel: 'Av. Central' };
-  }
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const bx = col * BLOCK_SIZE;
+      const by = row * BLOCK_SIZE;
+      const centerX = bx + BLOCK_SIZE / 2;
+      const centerY = by + BLOCK_SIZE / 2;
+      const neighborhood = getNeighborhoodAt(centerX, centerY);
 
-  function init() {
-    buildings.length = 0;
-    parks.length = 0;
-    waterZones.length = 0;
-    parkingLots.length = 0;
-    garages.length = 0;
-    hideouts.length = 0;
-    parkedSpots.length = 0;
-    sidewalkNodes.length = 0;
-    trafficLights.length = 0;
-    streetLights.length = 0;
-    props.length = 0;
+      const leftInset = col === 0 ? 24 : halfRoad + SIDEWALK_WIDTH;
+      const rightInset = col === cols - 1 ? 24 : halfRoad + SIDEWALK_WIDTH;
+      const topInset = row === 0 ? 24 : halfRoad + SIDEWALK_WIDTH;
+      const bottomInset = row === rows - 1 ? 24 : halfRoad + SIDEWALK_WIDTH;
 
-    Config.GARAGES.forEach((g) => garages.push(Object.assign({}, g)));
-    Config.HIDEOUTS.forEach((h) => hideouts.push(Object.assign({}, h)));
+      const innerX = bx + leftInset;
+      const innerY = by + topInset;
+      const innerW = BLOCK_SIZE - leftInset - rightInset;
+      const innerH = BLOCK_SIZE - topInset - bottomInset;
 
-    const cols = Math.floor(cfg.width / cfg.blockSize);
-    const rows = Math.floor(cfg.height / cfg.blockSize);
+      // Evitar construir sobre el agua del puerto
+      if (innerX >= 4420) continue;
 
-    // Special block definitions (gx, gy)
-    const parkSet = new Set([
-      '2,2',   // Parque Central (Residencial)
-      '3,1',   // Plaza Residencial Norte
-      '5,3',   // Parque Urbano Este
-      '7,2',   // Plaza Torre Cero (Centro)
-      '12,2',  // Plaza Galerías (Comercial)
-      '13,9',  // Mirador de las Colinas (Periferia)
-      '4,10',  // Parque Periferia Oeste
-      '10,10'  // Área Verde Periferia Sur
-    ]);
-
-    // v0.7.5: clasificación visual de parques (grande / mediano / pequeño)
-    const largeParks = new Set(['2,2', '5,3', '13,9']);
-
-    const waterSet = new Set([
-      '0,6', '0,7', '0,8',
-      '1,9', '2,9', '3,9'
-    ]);
-
-    const parkingSet = new Set([
-      '0,3',   // Estacionamiento Residencial
-      '6,3',   // Estacionamiento Torre Cero
-      '11,2',  // Estacionamiento Comercial Este
-      '4,6',   // Estacionamiento Muelle 4
-      '8,5',   // Estacionamiento Industrial
-      '11,10', // Estacionamiento Periferia Sur
-      '7,10'   // Parador Ruta 0
-    ]);
-
-    for (let gx = 0; gx < cols; gx++) {
-      for (let gy = 0; gy < rows; gy++) {
-        const x = gx * cfg.blockSize;
-        const y = gy * cfg.blockSize;
-        const key = `${gx},${gy}`;
-
-        const blockLeft = x + cfg.roadWidth;
-        const blockTop = y + cfg.roadWidth;
-        const blockSize = cfg.blockSize - cfg.roadWidth;
-        const centerX = blockLeft + blockSize * 0.5;
-        const centerY = blockTop + blockSize * 0.5;
-        const district = getDistrictAt(centerX, centerY);
-
-        // Streetlights on intersection corners
-        if (gx > 0 && gy > 0 && (gx + gy) % 2 === 0) {
-          streetLights.push({
-            x: x + cfg.roadWidth - 7,
-            y: y + cfg.roadWidth - 7,
-            districtId: district.id
-          });
-          streetLights.push({
-            x: x + 7,
-            y: y + 7,
-            districtId: district.id
-          });
-        }
-
-        // Synchronized 4-way traffic light systems at avenue intersections
-        if (gx > 0 && gy > 0 && (gx % 2 === 0 || gy % 2 === 0)) {
-          const isMajor = gx % 2 === 0 && gy % 2 === 0;
-          // Staggered green-wave timing along avenues
-          const waveOffset = ((gx * 1.65 + gy * 1.65) % sigCfg.cycleDuration);
-          trafficLights.push({
-            id: `tl_${gx}_${gy}`,
-            gx,
-            gy,
-            isMajor,
-            x: x + cfg.roadWidth * 0.5,
-            y: y + cfg.roadWidth * 0.5,
-            ix: x,
-            iy: y,
-            phaseOffset: waveOffset,
-            districtId: district.id
-          });
-        }
-
-        const garageHere = garages.find((g) => g.gx === gx && g.gy === gy);
-        const hideoutHere = hideouts.find((h) => h.gx === gx && h.gy === gy);
-        const isPark = parkSet.has(key);
-        const isWater = waterSet.has(key);
-        const isParking = parkingSet.has(key);
-
-        if (garageHere) {
-          const bx = blockLeft + cfg.sidewalkWidth;
-          const bw = blockSize - cfg.sidewalkWidth * 2;
-          buildings.push({
-            x: bx,
-            y: blockTop + blockSize - 38,
-            w: bw,
-            h: 26,
-            shade: 1,
-            roofType: 1,
-            isGarageRoof: true,
-            districtId: district.id
-          });
-        } else if (hideoutHere) {
-          const pad = 16;
-          const wall = 26;
-          const innerL = blockLeft + pad;
-          const innerT = blockTop + pad;
-          const innerW = blockSize - pad * 2;
-          const innerH = blockSize - pad * 2;
-
-          if (hideoutHere.openSide !== 'north') {
-            buildings.push({ x: innerL, y: innerT, w: innerW, h: wall, shade: 2, roofType: 1, isHideoutWall: true, districtId: district.id });
-          }
-          if (hideoutHere.openSide !== 'south') {
-            buildings.push({ x: innerL, y: innerT + innerH - wall, w: innerW, h: wall, shade: 0, roofType: 1, isHideoutWall: true, districtId: district.id });
-          }
-          if (hideoutHere.openSide !== 'west') {
-            buildings.push({
-              x: innerL,
-              y: innerT + (hideoutHere.openSide !== 'north' ? wall : 0),
-              w: wall,
-              h: innerH - (hideoutHere.openSide !== 'north' ? wall : 0) - (hideoutHere.openSide !== 'south' ? wall : 0),
-              shade: 3,
-              roofType: 1,
-              isHideoutWall: true,
-              districtId: district.id
-            });
-          }
-          if (hideoutHere.openSide !== 'east') {
-            buildings.push({
-              x: innerL + innerW - wall,
-              y: innerT + (hideoutHere.openSide !== 'north' ? wall : 0),
-              w: wall,
-              h: innerH - (hideoutHere.openSide !== 'north' ? wall : 0) - (hideoutHere.openSide !== 'south' ? wall : 0),
-              shade: 1,
-              roofType: 1,
-              isHideoutWall: true,
-              districtId: district.id
-            });
-          }
-        } else if (isWater) {
-          waterZones.push({
-            x: blockLeft + 8,
-            y: blockTop + 8,
-            w: blockSize - 16,
-            h: blockSize - 16,
-            districtId: district.id
-          });
-        } else if (isPark) {
-          parks.push({
-            x: blockLeft + cfg.sidewalkWidth,
-            y: blockTop + cfg.sidewalkWidth,
-            w: blockSize - cfg.sidewalkWidth * 2,
-            h: blockSize - cfg.sidewalkWidth * 2,
-            districtId: district.id,
-            isPlaza: district.id === 'centro' || district.id === 'comercial',
-            sizeClass: largeParks.has(key) ? 'large' : 'medium'
-          });
-        } else if (isParking) {
-          const px = blockLeft + 14;
-          const py = blockTop + 14;
-          const pw = blockSize - 28;
-          const ph = blockSize - 28;
-          parkingLots.push({
-            x: px,
-            y: py,
-            w: pw,
-            h: ph,
-            districtId: district.id
-          });
-          parkedSpots.push({ x: px + pw * 0.3, y: py + ph * 0.35, angle: 0 });
-          parkedSpots.push({ x: px + pw * 0.7, y: py + ph * 0.65, angle: Math.PI });
-        } else {
-          const bx = blockLeft + cfg.sidewalkWidth;
-          const by = blockTop + cfg.sidewalkWidth;
-          const bw = blockSize - cfg.sidewalkWidth * 2;
-          const bh = blockSize - cfg.sidewalkWidth * 2;
-
-          if (district.id === 'portuaria' && (gx + gy) % 3 === 0) {
-            props.push({
-              type: 'container_yard',
-              x: bx,
-              y: by,
-              w: bw,
-              h: bh,
-              seed: gx * 7 + gy * 13
-            });
-            buildings.push({
-              x: bx + 18,
-              y: by + 22,
-              w: bw - 36,
-              h: bh - 44,
-              shade: 2,
-              roofType: 4,
-              districtId: district.id,
-              isContainerBlock: true
-            });
-          } else if (district.id === 'periferia' && (gx + gy) % 3 === 1) {
-            parks.push({
-              x: bx,
-              y: by,
-              w: bw,
-              h: bh,
-              districtId: district.id,
-              isMeadow: true,
-              sizeClass: 'small'
-            });
-            buildings.push({
-              x: bx + 14,
-              y: by + 14,
-              w: 44,
-              h: 34,
-              shade: 2,
-              roofType: 0,
-              districtId: district.id
-            });
-          } else {
-            buildings.push({
-              x: bx,
-              y: by,
-              w: bw,
-              h: bh,
-              shade: (gx * 3 + gy * 5) % 4,
-              roofType: (gx + gy) % 4,
-              districtId: district.id
-            });
-          }
-
-          addDistrictProps(gx, gy, district, blockLeft, blockTop, blockSize);
-
-          // Urban street furniture on sidewalks (hydrants, bus stops, benches, trees, billboards)
-          if ((gx + gy) % 2 === 0) {
-            props.push({ type: 'hydrant', x: blockLeft + 9, y: blockTop + blockSize * 0.35 });
-          }
-          if (district.id === 'centro' && (gx + gy) % 2 === 1) {
-            props.push({ type: 'bus_stop', x: blockLeft + blockSize * 0.5, y: blockTop + 8, horizontal: true });
-          } else if (district.id === 'comercial' && (gx + gy) % 2 === 0) {
-            props.push({ type: 'billboard', x: blockLeft + 10, y: blockTop + 10, color: '#f5d94b' });
-            props.push({ type: 'bench', x: blockLeft + blockSize * 0.5, y: blockTop + blockSize - 9 });
-          } else if (district.id === 'residencial' && (gx + gy) % 2 === 1) {
-            props.push({ type: 'tree', x: blockLeft + 11, y: blockTop + 11 });
-            props.push({ type: 'tree', x: blockLeft + blockSize - 11, y: blockTop + blockSize - 11 });
-          }
-        }
-
-        if (!garageHere && !hideoutHere && !isWater) {
-          const swPad = cfg.sidewalkWidth * 0.5;
-          const n0 = { x: blockLeft + swPad, y: blockTop + swPad, districtId: district.id };
-          const n1 = { x: blockLeft + blockSize - swPad, y: blockTop + swPad, districtId: district.id };
-          const n2 = { x: blockLeft + blockSize - swPad, y: blockTop + blockSize - swPad, districtId: district.id };
-          const n3 = { x: blockLeft + swPad, y: blockTop + blockSize - swPad, districtId: district.id };
-          sidewalkNodes.push([n0, n1, n2, n3]);
-        }
-
-        if ((gx + gy) % 3 === 0 && !garageHere && !hideoutHere && !isWater && !isParking) {
-          parkedSpots.push({
-            x: blockLeft + blockSize * 0.5,
-            y: blockTop - 18,
-            angle: 0
-          });
-        }
-      }
-    }
-  }
-
-  // v0.7.5: vegetación y mobiliario con personalidad propia por barrio (solo decorativo)
-  function addDistrictProps(gx, gy, district, bl, bt, bs) {
-    const id = district.id;
-    const h = (gx * 7 + gy * 13) % 5;
-    const T = (x, y, species, size) => props.push({ type: 'tree', x, y, species, size });
-    if (id === 'residencial') {
-      const sp = ['oak', 'maple', 'blossom'][(gx + gy) % 3];
-      for (let k = 1; k <= 3; k++) {
-        T(bl + (bs * k) / 4, bt + 8, sp, 7 + (k % 2));
-        T(bl + (bs * k) / 4, bt + bs - 8, sp, 7 + ((k + 1) % 2));
-      }
-      if (h === 0 || h === 3) props.push({ type: 'pocket_park', x: bl + 11, y: bt + bs * 0.64, species: 'blossom' });
-      props.push({ type: 'planter', x: bl + bs - 30, y: bt + 9, w: 24, h: 8 });
-    } else if (id === 'centro') {
-      for (let k = 1; k <= 3; k++) {
-        T(bl + (bs * k) / 4, bt + 9, 'poplar', 7);
-      }
-      props.push({ type: 'planter', x: bl + 26, y: bt + bs - 9, w: 28, h: 8 });
-      props.push({ type: 'planter', x: bl + bs - 26, y: bt + bs - 9, w: 28, h: 8 });
-      if (h === 1) props.push({ type: 'pocket_park', x: bl + 11, y: bt + bs * 0.64, species: 'oak' });
-    } else if (id === 'comercial') {
-      T(bl + bs * 0.25, bt + bs - 9, 'palm', 7);
-      T(bl + bs * 0.75, bt + bs - 9, 'palm', 7);
-      T(bl + bs * 0.25, bt + 9, 'blossom', 6.5);
-      props.push({ type: 'planter', x: bl + bs * 0.5, y: bt + 9, w: 26, h: 8 });
-      if (h === 2) props.push({ type: 'pocket_park', x: bl + bs - 11, y: bt + bs * 0.64, species: 'blossom' });
-    } else if (id === 'portuaria') {
-      for (let k = 0; k < 4; k++) props.push({ type: 'bollard', x: bl + 20 + k * ((bs - 40) / 3), y: bt + bs - 8 });
-      props.push({ type: 'crates', x: bl + 14, y: bt + bs * 0.55 });
-      props.push({ type: 'barrel', x: bl + bs - 12, y: bt + bs * 0.45, color: '#b4472f' });
-      if (h === 0) T(bl + bs - 12, bt + 10, 'palm', 6.5);
-    } else if (id === 'industrial') {
-      props.push({ type: 'barrel', x: bl + 12, y: bt + bs * 0.55, color: '#3a6ea5' });
-      props.push({ type: 'barrel', x: bl + 12, y: bt + bs * 0.55 + 8, color: '#b4472f' });
-      props.push({ type: 'crates', x: bl + bs - 13, y: bt + bs * 0.6 });
-      if (h === 2) T(bl + bs * 0.5, bt + 8, 'poplar', 6.5);
-    } else if (id === 'periferia') {
-      const sp = ['oak', 'pine', 'olive'][(gx + gy) % 3];
-      T(bl + 12, bt + 10, sp, 9);
-      T(bl + bs - 12, bt + bs - 10, sp, 10);
-      T(bl + bs * 0.5, bt + bs - 8, 'pine', 8);
-      if (h === 4 || h === 1) props.push({ type: 'pocket_park', x: bl + bs - 11, y: bt + bs * 0.64, species: 'oak' });
-    }
-  }
-
-  function isOnRoad(x, y) {
-    const rx = ((x % cfg.blockSize) + cfg.blockSize) % cfg.blockSize;
-    const ry = ((y % cfg.blockSize) + cfg.blockSize) % cfg.blockSize;
-    return rx < cfg.roadWidth || ry < cfg.roadWidth;
-  }
-
-  function getGarageAt(x, y, margin = 22) {
-    for (let i = 0; i < garages.length; i++) {
-      const g = garages[i];
-      if (
-        Math.abs(x - g.x) <= g.w * 0.5 + margin &&
-        Math.abs(y - g.y) <= g.h * 0.5 + margin
-      ) {
-        return g;
-      }
-    }
-    return null;
-  }
-
-  function getHideoutAt(x, y) {
-    for (let i = 0; i < hideouts.length; i++) {
-      const h = hideouts[i];
-      if (
-        Math.abs(x - h.x) <= h.w * 0.5 + 8 &&
-        Math.abs(y - h.y) <= h.h * 0.5 + 8
-      ) {
-        return h;
-      }
-    }
-    return null;
-  }
-
-  function getTrafficLightState(light, simTime) {
-    const cycle = sigCfg.cycleDuration || 15.0;
-    const gDur = sigCfg.greenDuration || 6.0;
-    const yDur = sigCfg.yellowDuration || 1.5;
-    const halfCycle = gDur + yDur; // 7.5s per axis
-
-    const t = ((simTime + (light.phaseOffset || 0)) % cycle + cycle) % cycle;
-    if (t < gDur) {
-      return {
-        h: 'green',
-        v: 'red',
-        pedH: 'walk',
-        pedV: 'dont_walk',
-        remaining: gDur - t
+      const blockInfo = {
+        col,
+        row,
+        x: innerX,
+        y: innerY,
+        w: innerW,
+        h: innerH,
+        neighborhood: neighborhood.id,
+        buildings: [],
+        trees: [],
+        park: null
       };
-    }
-    if (t < halfCycle) {
-      return {
-        h: 'yellow',
-        v: 'red',
-        pedH: 'dont_walk',
-        pedV: 'dont_walk',
-        remaining: halfCycle - t
-      };
-    }
-    if (t < halfCycle + gDur) {
-      return {
-        h: 'red',
-        v: 'green',
-        pedH: 'dont_walk',
-        pedV: 'walk',
-        remaining: halfCycle + gDur - t
-      };
-    }
-    return {
-      h: 'red',
-      v: 'yellow',
-      pedH: 'dont_walk',
-      pedV: 'dont_walk',
-      remaining: cycle - t
-    };
-  }
 
-  function getNearestTrafficLight(x, y, maxDist = 140) {
-    let best = null;
-    let bestDist = maxDist;
-    for (let i = 0; i < trafficLights.length; i++) {
-      const tl = trafficLights[i];
-      const d = Math.hypot(tl.x - x, tl.y - y);
-      if (d < bestDist) {
-        bestDist = d;
-        best = tl;
+      // Verificar si la manzana contiene un garaje
+      const hasGarage = garages.some(
+        (g) => g.x >= innerX - 20 && g.x <= innerX + innerW + 20 && g.y >= innerY - 20 && g.y <= innerY + innerH + 20
+      );
+
+      // Parques variados según barrio
+      const isParkBlock =
+        !hasGarage &&
+        ((col === 4 && row === 4) ||
+          (col === 1 && row === 2) ||
+          (col === 5 && row === 1) ||
+          (col === 2 && row === 7) ||
+          (col === 5 && row === 8));
+
+      if (isParkBlock) {
+        const parkTypes = ['fountain', 'botanical', 'plaza'];
+        const parkType = parkTypes[(col + row) % parkTypes.length];
+        const park = {
+          x: innerX,
+          y: innerY,
+          w: innerW,
+          h: innerH,
+          type: parkType,
+          neighborhood: neighborhood.id
+        };
+        parks.push(park);
+        blockInfo.park = park;
+
+        // Árboles volumétricos perimetrales en el parque
+        const treeCount = 10;
+        for (let t = 0; t < treeCount; t++) {
+          const angle = (t / treeCount) * Math.PI * 2;
+          const rx = innerW * 0.36;
+          const ry = innerH * 0.36;
+          const tree = {
+            x: innerX + innerW / 2 + Math.cos(angle) * rx + (rand() - 0.5) * 18,
+            y: innerY + innerH / 2 + Math.sin(angle) * ry + (rand() - 0.5) * 18,
+            radius: 18 + rand() * 8,
+            hue: 105 + Math.floor(rand() * 28),
+            phase: rand() * Math.PI * 2
+          };
+          trees.push(tree);
+          blockInfo.trees.push(tree);
+        }
+      } else {
+        // Poblar manzana con edificios detallados y árboles entre lotes
+        populateBlockBuildings(rand, blockInfo, neighborhood, garages, buildings, trees);
       }
-    }
-    return best;
-  }
 
-  function getLaneCoords() {
-    const lanes = [];
-    for (let x = 0; x < cfg.width; x += cfg.blockSize) {
-      lanes.push({ axis: 'v', dir: -1, pos: x + 42 });
-      lanes.push({ axis: 'v', dir: 1, pos: x + 108 });
+      blocks.push(blockInfo);
     }
-    for (let y = 0; y < cfg.height; y += cfg.blockSize) {
-      lanes.push({ axis: 'h', dir: -1, pos: y + 42 });
-      lanes.push({ axis: 'h', dir: 1, pos: y + 108 });
-    }
-    return lanes;
   }
-
-  init();
 
   return {
-    config: cfg,
+    width: WORLD_WIDTH,
+    height: WORLD_HEIGHT,
+    blockSize: BLOCK_SIZE,
+    roadWidth: ROAD_WIDTH,
+    sidewalkWidth: SIDEWALK_WIDTH,
+    cols,
+    rows,
+    roadsV,
+    roadsH,
+    intersections,
+    crosswalks,
+    garages,
+    waterZones,
+    blocks,
     buildings,
     parks,
-    waterZones,
-    parkingLots,
-    garages,
-    hideouts,
-    parkedSpots,
-    sidewalkNodes,
-    trafficLights,
-    streetLights,
-    props,
-    getDistrictAt,
-    isOnRoad,
-    getGarageAt,
-    getHideoutAt,
-    getTrafficLightState,
-    getNearestTrafficLight,
-    getLaneCoords
+    trees
   };
-})();
+}
+
+function populateBlockBuildings(rand, block, neighborhood, garages, buildings, trees) {
+  const { x, y, w, h } = block;
+  const subCols = neighborhood.buildingStyle === 'industrial' || neighborhood.buildingStyle === 'port' ? 2 : 2;
+  const subRows = neighborhood.buildingStyle === 'residential' ? 3 : 2;
+  const gap = 14;
+  const cellW = (w - gap * (subCols - 1)) / subCols;
+  const cellH = (h - gap * (subRows - 1)) / subRows;
+
+  const palettes = {
+    skyscraper: [
+      { base: '#495867', roof: '#647687', accent: '#93c5fd', height: 28 },
+      { base: '#3d4c5c', roof: '#576b7e', accent: '#7dd3fc', height: 34 },
+      { base: '#525b66', roof: '#717d8c', accent: '#bae6fd', height: 24 }
+    ],
+    commercial: [
+      { base: '#7c5c46', roof: '#9a785e', accent: '#f59e0b', height: 15 },
+      { base: '#5f6c7b', roof: '#7c8b9c', accent: '#ef4444', height: 17 },
+      { base: '#6e655f', roof: '#8c817a', accent: '#10b981', height: 14 }
+    ],
+    residential: [
+      { base: '#b08968', roof: '#9c4221', accent: '#fef3c7', height: 10 },
+      { base: '#a39171', roof: '#7f5539', accent: '#fde68a', height: 9 },
+      { base: '#8d99ae', roof: '#4a5568', accent: '#e2e8f0', height: 11 }
+    ],
+    industrial: [
+      { base: '#57534e', roof: '#78716c', accent: '#ea580c', height: 16 },
+      { base: '#44403c', roof: '#68625d', accent: '#eab308', height: 18 }
+    ],
+    port: [
+      { base: '#3b5266', roof: '#526f87', accent: '#38bdf8', height: 14 },
+      { base: '#6b4c3b', roof: '#87634f', accent: '#fb923c', height: 13 }
+    ],
+    periphery: [
+      { base: '#786b59', roof: '#948570', accent: '#d97706', height: 9 },
+      { base: '#68645e', roof: '#858079', accent: '#a3e635', height: 8 }
+    ]
+  };
+
+  const stylePalette = palettes[neighborhood.buildingStyle] || palettes.commercial;
+
+  for (let sr = 0; sr < subRows; sr++) {
+    for (let sc = 0; sc < subCols; sc++) {
+      const lx = x + sc * (cellW + gap);
+      const ly = y + sr * (cellH + gap);
+
+      // Dejar espacio libre frente a garajes
+      const overlapsGarage = garages.some(
+        (g) =>
+          lx < g.x + g.w + 26 &&
+          lx + cellW > g.x - 26 &&
+          ly < g.y + g.h + 26 &&
+          ly + cellH > g.y - 26
+      );
+      if (overlapsGarage) continue;
+
+      // En periferia o residencial algunos lotes son jardines con árboles
+      if ((neighborhood.buildingStyle === 'periphery' || neighborhood.buildingStyle === 'residential') && rand() < 0.22) {
+        const tree = {
+          x: lx + cellW * 0.5,
+          y: ly + cellH * 0.5,
+          radius: 17 + rand() * 7,
+          hue: 98 + Math.floor(rand() * 30),
+          phase: rand() * Math.PI * 2
+        };
+        trees.push(tree);
+        block.trees.push(tree);
+        continue;
+      }
+
+      const margin = 4 + rand() * 6;
+      const bw = Math.max(44, cellW - margin * 2);
+      const bh = Math.max(44, cellH - margin * 2);
+      const bx = lx + (cellW - bw) / 2;
+      const by = ly + (cellH - bh) / 2;
+      const pal = stylePalette[Math.floor(rand() * stylePalette.length)];
+
+      const building = {
+        x: bx,
+        y: by,
+        w: bw,
+        h: bh,
+        height: pal.height + Math.floor(rand() * 6),
+        baseColor: pal.base,
+        roofColor: pal.roof,
+        accentColor: pal.accent,
+        style: neighborhood.buildingStyle,
+        hasSkylight: neighborhood.buildingStyle === 'industrial' || rand() < 0.35,
+        hasAcUnits: neighborhood.buildingStyle !== 'residential' && rand() < 0.7,
+        hasAwning: neighborhood.buildingStyle === 'commercial' && rand() < 0.75,
+        awningSide: Math.floor(rand() * 4)
+      };
+
+      buildings.push(building);
+      block.buildings.push(building);
+
+      // Árbol ornamental en esquina de vereda en zonas residenciales/comerciales
+      if ((neighborhood.buildingStyle === 'residential' || neighborhood.buildingStyle === 'commercial') && rand() < 0.35) {
+        const tree = {
+          x: bx + bw + 6,
+          y: by + 8,
+          radius: 13 + rand() * 5,
+          hue: 108 + Math.floor(rand() * 22),
+          phase: rand() * Math.PI * 2
+        };
+        if (tree.x < x + w - 6) {
+          trees.push(tree);
+          block.trees.push(tree);
+        }
+      }
+    }
+  }
+}
+
+export function updateTrafficLights(world, dt) {
+  for (const inter of world.intersections) {
+    inter.timer = (inter.timer + dt) % inter.cycleDuration;
+    const t = inter.timer;
+    const half = inter.cycleDuration / 2;
+    const yellowWindow = 2.0;
+
+    if (t < half - yellowWindow) {
+      inter.nsState = 'green';
+      inter.ewState = 'red';
+    } else if (t < half) {
+      inter.nsState = 'yellow';
+      inter.ewState = 'red';
+    } else if (t < inter.cycleDuration - yellowWindow) {
+      inter.nsState = 'red';
+      inter.ewState = 'green';
+    } else {
+      inter.nsState = 'red';
+      inter.ewState = 'yellow';
+    }
+  }
+}
+
+export function isOnRoad(world, x, y) {
+  const half = world.roadWidth / 2;
+  for (const rx of world.roadsV) {
+    if (Math.abs(x - rx) <= half) return true;
+  }
+  for (const ry of world.roadsH) {
+    if (Math.abs(y - ry) <= half) return true;
+  }
+  return false;
+}
+
+export function checkWorldCollision(world, x, y, radius) {
+  let outX = Math.max(radius + 8, Math.min(world.width - radius - 8, x));
+  let outY = Math.max(radius + 8, Math.min(world.height - radius - 8, y));
+  let collided = outX !== x || outY !== y;
+
+  // Borde del agua en el Puerto
+  for (const wz of world.waterZones) {
+    if (outX + radius > wz.x && outX - radius < wz.x + wz.w && outY + radius > wz.y && outY - radius < wz.y + wz.h) {
+      outX = wz.x - radius;
+      collided = true;
+    }
+  }
+
+  // Consulta espacial rápida por manzana
+  const minCol = Math.max(0, Math.floor((outX - radius - 32) / world.blockSize));
+  const maxCol = Math.min(world.cols - 1, Math.floor((outX + radius + 32) / world.blockSize));
+  const minRow = Math.max(0, Math.floor((outY - radius - 32) / world.blockSize));
+  const maxRow = Math.min(world.rows - 1, Math.floor((outY + radius + 32) / world.blockSize));
+
+  for (const block of world.blocks) {
+    if (block.col < minCol || block.col > maxCol || block.row < minRow || block.row > maxRow) continue;
+    for (const b of block.buildings) {
+      const closestX = Math.max(b.x, Math.min(outX, b.x + b.w));
+      const closestY = Math.max(b.y, Math.min(outY, b.y + b.h));
+      const dx = outX - closestX;
+      const dy = outY - closestY;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq < radius * radius) {
+        collided = true;
+        const dist = Math.sqrt(distSq);
+        if (dist > 0.0001) {
+          const overlap = radius - dist;
+          outX += (dx / dist) * overlap;
+          outY += (dy / dist) * overlap;
+        } else {
+          outY = b.y - radius;
+        }
+      }
+    }
+  }
+
+  return { collided, x: outX, y: outY };
+}
