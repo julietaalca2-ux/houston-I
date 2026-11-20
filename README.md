@@ -15,3 +15,12 @@ Los modelos son geometría 3D suavizada y articulada, no modelos humanos escanea
 
 ## Validación
 Se revisó la sintaxis de JavaScript y la integridad del ZIP. La apariencia y rendimiento deben probarse dentro del navegador, especialmente en dispositivos móviles.
+
+
+## V0.8.9 — TOUCH CONTROL & MOVEMENT FIX
+- El joystick táctil controla únicamente el desplazamiento del personaje.
+- La cámara 3D solo gira al arrastrar directamente sobre el área del mundo.
+- Los eventos táctiles del joystick ya no se propagan al control de cámara.
+- Movimiento relativo a la orientación absoluta de la cámara, sin realimentación con el ángulo del personaje.
+- Sensibilidad de cámara reducida y eje vertical suavizado.
+- Aceleración y frenado a pie suavizados; velocidades de caminata/carrera y peatones reajustadas.
