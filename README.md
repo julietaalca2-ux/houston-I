@@ -1,10 +1,10 @@
-# CIUDAD CERO — Versión 0.8.3: Loston y Puente Costero
+# CIUDAD CERO — Versión 0.8.4: Colisiones y salud
 
 ## Base y conservación
 
 Esta versión es una evolución directa del proyecto V0.8.2 adjuntado como base. Conserva los 18 archivos del proyecto, la estructura de carga por scripts, los sistemas de juego, la clave de guardado existente y la compatibilidad de lectura con partidas anteriores. No se agregan dependencias ni recursos externos.
 
-## Novedades de la V0.8.3
+## Novedades de la V0.8.4
 
 - Nueva isla urbana Loston, al este de la ciudad original, rodeada por agua.
 - Tres barrios: Loston Norte, Loston Centro y Loston Costero.
@@ -32,7 +32,7 @@ Esta versión es una evolución directa del proyecto V0.8.2 adjuntado como base.
 - Compatibilidad de lectura con partidas anteriores de Ciudad Cero.
 - La compra/equipamiento y la munición quedan implementados como inventario; esta versión no incorpora todavía mecánicas de disparo.
 
-## Archivos modificados en V0.8.3
+## Archivos modificados en V0.8.4
 
 - `index.html` y `README.md`: identificación y documentación de versión.
 - `src/config.js`: dimensión ampliada del mundo, distrito Loston, tres barrios, hitos y rótulos viales.
@@ -112,3 +112,15 @@ Todo el arte se dibuja una sola vez en la caché estática del mapa: sin costo e
 - Se detallan las rampas de vereda con relieve táctil, cordones y bordes de calzada.
 - Los callejones se representan también en el minimapa.
 - Se conservan los sistemas de comercios, GPS vial, Loston, puente, guardado y misiones de la base V0.8.0.
+
+
+## V0.8.4 — Colisiones, salud y peatones
+
+- Los vehículos en movimiento colisionan físicamente con el protagonista cuando está a pie y le causan daño con enfriamiento para evitar impactos repetidos por fotograma.
+- HUD permanente de salud del protagonista, con barra y color según el estado.
+- Al llegar a cero de salud, el protagonista reaparece en el punto inicial con salud parcial y una pequeña penalización económica.
+- Los peatones ambientales reciben impactos; los impactos de alta velocidad pueden dejarlos fuera de combate y crear una mancha roja estilizada y temporal en el suelo.
+- La salud del protagonista se guarda dentro de `playerPos` y las partidas anteriores siguen cargando con 100 puntos de salud por defecto.
+- Los personajes principales de historia se mantienen protegidos para no romper misiones ni progresión narrativa.
+
+La prueba realizada es estática (sintaxis y estructura); no se declara una prueba integral en navegador.
