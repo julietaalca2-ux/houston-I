@@ -451,12 +451,12 @@ CiudadCero.Renderer3D = (() => {
     const isVan = /van|ambulance/.test(kind);
     const isPickup = /pickup|truck/.test(kind);
     const paintColor = police ? '#e7ecee' : color;
-    const paint = new THREE.MeshStandardMaterial({ color: paintColor, map: vehiclePaintTexture, roughness: 0.24, metalness: 0.62, envMapIntensity: 1.0 });
+    const paint = new THREE.MeshPhysicalMaterial({ color: paintColor, map: vehiclePaintTexture, roughness: 0.3, metalness: 0.55, clearcoat: 1.0, clearcoatRoughness: 0.06, envMapIntensity: 1.15 });
     const paintMaterial2 = new THREE.MeshStandardMaterial({ color: police ? '#182d43' : paintColor, map: vehiclePaintTexture, roughness: 0.3, metalness: 0.52 });
     vehiclePaintMaterials.push(paint, paintMaterial2);
     const paintDark = paintMaterial2;
     const trim = new THREE.MeshStandardMaterial({ color: '#171c20', roughness: 0.68, metalness: 0.22, map: vehicleMetalTexture || null });
-    const glass = new THREE.MeshPhysicalMaterial({ color: '#172d3b', roughness: 0.12, metalness: 0.28, clearcoat: 0.9, clearcoatRoughness: 0.08, transparent: false, side: THREE.DoubleSide, map: vehicleGlass4KTexture || vehicleGlassTexture || null });
+    const glass = new THREE.MeshPhysicalMaterial({ color: '#0d1c27', roughness: 0.12, metalness: 0.28, clearcoat: 0.9, clearcoatRoughness: 0.08, transparent: false, side: THREE.DoubleSide, map: vehicleGlass4KTexture || vehicleGlassTexture || null });
     vehicleGlassMaterials.push(glass);
     const tire = new THREE.MeshStandardMaterial({ color: '#111315', roughness: 0.96, map: vehicleTreadTexture || null });
     vehicleTireMaterials.push(tire);
@@ -575,7 +575,8 @@ CiudadCero.Renderer3D = (() => {
       const sidewall = add(new THREE.TorusGeometry(1.02,0.18,8,28), rubber, side*0.39,0,0); sidewall.rotation.y = Math.PI/2;
       const rim = add(new THREE.CylinderGeometry(0.88,0.88,0.76,24), alloy, 0,0,0); rim.rotation.z = Math.PI/2;
       const hub = add(new THREE.CylinderGeometry(0.24,0.24,0.82,16), trim, 0,0,0); hub.rotation.z = Math.PI/2;
-      wheel.add(tread, sidewall, rim, hub);
+      const disc = add(new THREE.CylinderGeometry(0.72,0.72,0.1,24), new THREE.MeshStandardMaterial({color:'#6b7378',roughness:0.4,metalness:0.8}), side*-0.12,0,0, false); disc.rotation.z = Math.PI/2;
+      wheel.add(tread, sidewall, rim, hub, disc);
       for (let i=0;i<10;i++) {
         const a = i*Math.PI/5;
         const spoke = box(alloy, side*0.43, Math.sin(a)*0.55, Math.cos(a)*0.55, 0.11, 0.68, 0.13, false);
@@ -583,7 +584,7 @@ CiudadCero.Renderer3D = (() => {
       }
       // Fender arch is suggested by a dark upper wheel-well lip.
       const arch = add(new THREE.TorusGeometry(1.42,0.09,7,28,Math.PI), trim, side*4.02,1.28,axle*wheelZ);
-      arch.rotation.x = Math.PI/2; arch.rotation.z = axle < 0 ? Math.PI : 0;
+      arch.rotation.y = Math.PI/2; arch.userData.isArch = true;
     }));
     // Modern headlamp clusters, amber indicators and rear light bars.
     [-1,1].forEach(side => {
@@ -607,6 +608,39 @@ CiudadCero.Renderer3D = (() => {
       box(red,-0.72,3.94,cabinZ,0.92,0.22,0.42,false);
       box(blue,0.72,3.94,cabinZ,0.92,0.22,0.42,false);
     }
+    // V0.8.12 aesthetic pass: chrome, plates, light bars, exhaust, spoiler, antenna, fog lamps.
+    {
+      const chrome2 = new THREE.MeshStandardMaterial({ color: '#cfd6d9', roughness: 0.16, metalness: 0.95 });
+      const plateMat = new THREE.MeshStandardMaterial({ color: '#f2f3ec', roughness: 0.5 });
+      const plateBand = new THREE.MeshStandardMaterial({ color: '#244b8a', roughness: 0.6 });
+      // Number plates
+      box(plateMat, 0, 0.95, -8.97, 1.9, 0.5, 0.06, false);
+      box(plateBand, 0, 1.15, -9.0, 1.9, 0.08, 0.04, false);
+      box(plateMat, 0, 1.2, 8.82, 1.9, 0.5, 0.06, false);
+      box(plateBand, 0, 1.4, 8.85, 1.9, 0.08, 0.04, false);
+      // Chrome grille bars and beltline window trim
+      [1.12, 1.27, 1.42].forEach(y => box(chrome2, 0, y, -9.06, 2.3, 0.04, 0.04, false));
+      [-1, 1].forEach(side => {
+        box(chrome2, side * 3.14, yBase - 0.02, cabinZ, 0.06, 0.07, cabinLength * 1.25, false);
+        // Fog lamps in the lower bumper
+        ellipsoid(headlight, side * 3.0, 0.98, -8.92, 0.34, 0.2, 0.1, 10);
+      });
+      // Continuous rear light bar
+      box(tailLight, 0, 1.93, 8.47, 4.8, 0.1, 0.1, false);
+      // Exhaust tips
+      (isSport ? [-2.2, 2.2] : [2.3]).forEach(x => {
+        const ex = add(new THREE.CylinderGeometry(0.24, 0.24, 0.6, 14), chrome2, x, 0.88, 8.85, false);
+        ex.rotation.x = Math.PI / 2;
+      });
+      // Roof antenna
+      add(new THREE.CylinderGeometry(0.035, 0.035, 1.6, 6), trim, 2.2, 4.35, cabinZ + 1.8, false);
+      // Rear wing on sporty cars
+      if (isSport) {
+        const wing = box(paintDark, 0, 3.0, 7.95, 6.8, 0.14, 1.3);
+        wing.rotation.x = 0.08;
+        [-1, 1].forEach(sd => box(trim, sd * 2.4, 2.55, 7.9, 0.2, 0.9, 0.2, false));
+      }
+    }
     // V0.8.10: scale the model to the physics footprint and give it a proper height
     // (the raw mesh was ~17.8 long x 8.6 wide x 3.9 tall, i.e. flat next to 40x20 physics).
     {
@@ -619,11 +653,21 @@ CiudadCero.Renderer3D = (() => {
         if (wheelGroups.includes(c)) {
           c.position.set(c.position.x * sx, c.position.y * sz, c.position.z * sz);
           c.scale.set(sz, sz, sz);
+        } else if (c.userData.isArch) {
+          c.position.set(Math.sign(c.position.x) * 4.3 * sx, 1.28 * sz, c.position.z * sz);
+          c.scale.set(sz, sz, sz);
         } else {
           c.position.set(c.position.x * sx, c.position.y * sy, c.position.z * sz);
           c.scale.set(c.scale.x * sx, c.scale.y * sy, c.scale.z * sz);
         }
       });
+    }
+    {
+      const cfg2 = (window.CiudadCero && CiudadCero.Config && CiudadCero.Config.VEHICLE_TYPES) || {};
+      const vt2 = cfg2[typeId] || cfg2[kind] || { length: 42, width: 20 };
+      const blob = new THREE.Mesh(new THREE.PlaneGeometry((vt2.width || 20) * 1.25, (vt2.length || 42) * 1.18),
+        new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.32, depthWrite: false }));
+      blob.rotation.x = -Math.PI / 2; blob.position.y = 0.08; blob.renderOrder = 1; group.add(blob);
     }
     group.userData.wheelGroups = wheelGroups;
     group.userData.vehicleKind = kind;
