@@ -1,4 +1,4 @@
-# CIUDAD CERO v0.8.8 — WORLD REBUILD
+# CIUDAD CERO v0.8.8 — WORLD REBUILD + URBAN DETAIL
 
 Versión construida directamente sobre `CIUDAD_CERO_V0.8.7_FIX`, conservando los sistemas de juego y la integración POLICE INTELLIGENCE.
 
@@ -16,8 +16,8 @@ Versión construida directamente sobre `CIUDAD_CERO_V0.8.7_FIX`, conservando los
 ## Archivos modificados
 
 - `src/world.js`: generación de huellas urbanas por parcela y distribución de edificios.
-- `src/cityart.js`: selección visual de locales de Loston según su tipo de parcela.
-- `index.html`: identificación de versión.
+- `src/cityart.js`: selección visual de locales de Loston, nueva capa de infraestructura de azoteas por distrito, paneles solares, climatización, lucarnas, ventiladores, tanques y respiraderos; microdetalles de veredas y pavimentos.
+- `index.html`: identificación de versión y actualización de la etiqueta del menú.
 - `README.md`: documentación de la versión.
 
 ## Validación técnica
@@ -26,4 +26,4 @@ Versión construida directamente sobre `CIUDAD_CERO_V0.8.7_FIX`, conservando los
 - Referencias locales de scripts y estilos verificadas.
 - Integridad del ZIP verificada.
 
-La validación de sintaxis no reemplaza una prueba de juego en navegador. Se recomienda probar el arranque, conducción, tráfico, peatones, colisiones y mapa completo en el dispositivo objetivo.
+La validación de sintaxis no reemplaza una prueba completa en navegador ni una revisión visual en el dispositivo objetivo. Se recomienda probar el arranque, conducción, tráfico, peatones, colisiones y mapa completo en el dispositivo objetivo. La nueva decoración se dibuja en las cachés estáticas del mapa para evitar trabajo adicional en cada fotograma.
