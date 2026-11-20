@@ -3,6 +3,7 @@ window.CiudadCero = window.CiudadCero || {};
 CiudadCero.World = (() => {
   const Config = CiudadCero.Config;
   const cfg = Config.WORLD;
+  const sigCfg = Config.TRAFFIC_SIGNAL || { cycleDuration: 15.0, greenDuration: 6.0, yellowDuration: 1.5 };
 
   const buildings = [];
   const parks = [];
@@ -94,22 +95,34 @@ CiudadCero.World = (() => {
         const district = getDistrictAt(centerX, centerY);
 
         // Streetlights on intersection corners
-        if ((gx + gy) % 2 === 0 && gx > 0 && gy > 0) {
+        if (gx > 0 && gy > 0 && (gx + gy) % 2 === 0) {
           streetLights.push({
-            x: x + cfg.roadWidth - 8,
-            y: y + cfg.roadWidth - 8,
+            x: x + cfg.roadWidth - 7,
+            y: y + cfg.roadWidth - 7,
+            districtId: district.id
+          });
+          streetLights.push({
+            x: x + 7,
+            y: y + 7,
             districtId: district.id
           });
         }
 
-        // Traffic lights at major avenue intersections
-        if (gx > 0 && gy > 0 && gx % 2 === 0 && gy % 2 === 0) {
+        // Synchronized 4-way traffic light systems at avenue intersections
+        if (gx > 0 && gy > 0 && (gx % 2 === 0 || gy % 2 === 0)) {
+          const isMajor = gx % 2 === 0 && gy % 2 === 0;
+          // Staggered green-wave timing along avenues
+          const waveOffset = ((gx * 1.65 + gy * 1.65) % sigCfg.cycleDuration);
           trafficLights.push({
+            id: `tl_${gx}_${gy}`,
+            gx,
+            gy,
+            isMajor,
             x: x + cfg.roadWidth * 0.5,
             y: y + cfg.roadWidth * 0.5,
             ix: x,
             iy: y,
-            phaseOffset: ((gx + gy) % 4) * 3.5,
+            phaseOffset: waveOffset,
             districtId: district.id
           });
         }
@@ -198,7 +211,6 @@ CiudadCero.World = (() => {
             h: ph,
             districtId: district.id
           });
-          // Add 2 parked car spots inside each dedicated parking lot
           parkedSpots.push({ x: px + pw * 0.3, y: py + ph * 0.35, angle: 0 });
           parkedSpots.push({ x: px + pw * 0.7, y: py + ph * 0.65, angle: Math.PI });
         } else {
@@ -207,7 +219,6 @@ CiudadCero.World = (() => {
           const bw = blockSize - cfg.sidewalkWidth * 2;
           const bh = blockSize - cfg.sidewalkWidth * 2;
 
-          // Port container yards & industrial open yards add variety
           if (district.id === 'portuaria' && (gx + gy) % 3 === 0) {
             props.push({
               type: 'container_yard',
@@ -217,7 +228,6 @@ CiudadCero.World = (() => {
               h: bh,
               seed: gx * 7 + gy * 13
             });
-            // Keep center collision small for container stack so player can drive around yard
             buildings.push({
               x: bx + 18,
               y: by + 22,
@@ -229,7 +239,6 @@ CiudadCero.World = (() => {
               isContainerBlock: true
             });
           } else if (district.id === 'periferia' && (gx + gy) % 3 === 1) {
-            // Open green periphery field with small rural shed
             parks.push({
               x: bx,
               y: by,
@@ -259,13 +268,18 @@ CiudadCero.World = (() => {
             });
           }
 
-          // District decorative props on sidewalks
-          if (district.id === 'comercial' && (gx + gy) % 2 === 0) {
+          // Urban street furniture on sidewalks (hydrants, bus stops, benches, trees, billboards)
+          if ((gx + gy) % 2 === 0) {
+            props.push({ type: 'hydrant', x: blockLeft + 9, y: blockTop + blockSize * 0.35 });
+          }
+          if (district.id === 'centro' && (gx + gy) % 2 === 1) {
+            props.push({ type: 'bus_stop', x: blockLeft + blockSize * 0.5, y: blockTop + 8, horizontal: true });
+          } else if (district.id === 'comercial' && (gx + gy) % 2 === 0) {
             props.push({ type: 'billboard', x: blockLeft + 10, y: blockTop + 10, color: '#f5d94b' });
-          } else if (district.id === 'centro' && (gx + gy) % 3 === 1) {
-            props.push({ type: 'sign', x: blockLeft + 10, y: blockTop + blockSize - 10, label: 'AV. CENTRAL' });
+            props.push({ type: 'bench', x: blockLeft + blockSize * 0.5, y: blockTop + blockSize - 9 });
           } else if (district.id === 'residencial' && (gx + gy) % 2 === 1) {
             props.push({ type: 'tree', x: blockLeft + 11, y: blockTop + 11 });
+            props.push({ type: 'tree', x: blockLeft + blockSize - 11, y: blockTop + blockSize - 11 });
           }
         }
 
@@ -322,12 +336,60 @@ CiudadCero.World = (() => {
   }
 
   function getTrafficLightState(light, simTime) {
-    // 14-second full cycle: 0..5.5s H-green, 5.5..7s H-yellow, 7..12.5s V-green, 12.5..14s V-yellow
-    const t = ((simTime + (light.phaseOffset || 0)) % 14 + 14) % 14;
-    if (t < 5.5) return { h: 'green', v: 'red' };
-    if (t < 7.0) return { h: 'yellow', v: 'red' };
-    if (t < 12.5) return { h: 'red', v: 'green' };
-    return { h: 'red', v: 'yellow' };
+    const cycle = sigCfg.cycleDuration || 15.0;
+    const gDur = sigCfg.greenDuration || 6.0;
+    const yDur = sigCfg.yellowDuration || 1.5;
+    const halfCycle = gDur + yDur; // 7.5s per axis
+
+    const t = ((simTime + (light.phaseOffset || 0)) % cycle + cycle) % cycle;
+    if (t < gDur) {
+      return {
+        h: 'green',
+        v: 'red',
+        pedH: 'walk',
+        pedV: 'dont_walk',
+        remaining: gDur - t
+      };
+    }
+    if (t < halfCycle) {
+      return {
+        h: 'yellow',
+        v: 'red',
+        pedH: 'dont_walk',
+        pedV: 'dont_walk',
+        remaining: halfCycle - t
+      };
+    }
+    if (t < halfCycle + gDur) {
+      return {
+        h: 'red',
+        v: 'green',
+        pedH: 'dont_walk',
+        pedV: 'walk',
+        remaining: halfCycle + gDur - t
+      };
+    }
+    return {
+      h: 'red',
+      v: 'yellow',
+      pedH: 'dont_walk',
+      pedV: 'dont_walk',
+      remaining: cycle - t
+    };
+  }
+
+  function getNearestTrafficLight(x, y, maxDist = 140) {
+    let best = null;
+    let bestDist = maxDist;
+    for (let i = 0; i < trafficLights.length; i++) {
+      const tl = trafficLights[i];
+      const d = Math.hypot(tl.x - x, tl.y - y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = tl;
+      }
+    }
+    return best;
   }
 
   function getLaneCoords() {
@@ -363,6 +425,7 @@ CiudadCero.World = (() => {
     getGarageAt,
     getHideoutAt,
     getTrafficLightState,
+    getNearestTrafficLight,
     getLaneCoords
   };
 })();

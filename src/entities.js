@@ -84,7 +84,11 @@ CiudadCero.Entities = (() => {
       aiLanePos: opts.aiLanePos || 408,
       turnCooldown: 1.5,
       stunTimer: 0,
-      doorAnim: null
+      doorAnim: null,
+      stoppedAtSignal: false,
+      signalLaunchTimer: 0,
+      yieldingToEmergency: false,
+      laneShiftOffset: 0
     };
   }
 
@@ -317,6 +321,7 @@ CiudadCero.Entities = (() => {
       panicTimer: 0,
       alertIconTimer: 0,
       pausedTimer: 0,
+      waitingAtCrosswalk: false,
       knockTimer: 0,
       vx: 0,
       vy: 0

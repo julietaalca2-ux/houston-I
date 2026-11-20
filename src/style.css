@@ -1719,3 +1719,39 @@ canvas#full-map-canvas:active {
     bottom: calc(114px + var(--safe-bottom));
   }
 }
+
+
+.dot-traffic { background: #4ade80; box-shadow: 0 0 4px #4ade80; }
+
+.map-gps-status {
+  font-size: 10px;
+  color: #b8c9bc;
+  background: #141c16;
+  border: 1px solid #2e3d31;
+  border-radius: 4px;
+  padding: 5px 9px;
+}
+
+.map-landmarks-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.landmark-chip {
+  background: #162127;
+  border: 1px solid #2f4856;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font: 600 10px 'DM Mono', monospace;
+  color: #cbe8f7;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.landmark-chip:hover {
+  border-color: var(--sky);
+  color: #fff;
+}

@@ -4,9 +4,28 @@ CiudadCero.Config = {
   GAME_INFO: {
     title: 'Ciudad Cero',
     installment: 1,
-    version: '0.6',
-    subtitle: 'Rediseño Visual de Personajes y NPC'
+    version: '0.7',
+    subtitle: 'Infraestructura Urbana, Semáforos y Mapas'
   },
+
+  TRAFFIC_SIGNAL: {
+    cycleDuration: 15.0,
+    greenDuration: 6.0,
+    yellowDuration: 1.5
+  },
+
+  AVENUE_LABELS: [
+    { text: 'AV. CERO', x: 675, y: 675, axis: 'h' },
+    { text: 'AV. CENTRAL', x: 2475, y: 675, axis: 'h' },
+    { text: 'BULEVAR ESTE', x: 3975, y: 675, axis: 'h' },
+    { text: 'AV. DE LOS MUELLES', x: 975, y: 1875, axis: 'h' },
+    { text: 'RUTA INDUSTRIAL', x: 2775, y: 1875, axis: 'h' },
+    { text: 'AUTOPISTA PERIFÉRICA', x: 2475, y: 3075, axis: 'h' },
+    { text: 'AV. DEL PARQUE', x: 675, y: 1125, axis: 'v' },
+    { text: 'AV. TORRE CERO', x: 2475, y: 1125, axis: 'v' },
+    { text: 'AV. GALERÍAS', x: 3675, y: 1125, axis: 'v' },
+    { text: 'AV. PUERTO SUR', x: 1275, y: 2475, axis: 'v' }
+  ],
 
   WORLD: {
     width: 4800,

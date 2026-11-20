@@ -41,6 +41,9 @@ CiudadCero.Game = (() => {
     Input.applySettings(appSettings.touch);
     Renderer.setQuality(appSettings.general.quality);
     Renderer.setShowMinimap(appSettings.general.showMinimap);
+    if (Renderer.setShowTrafficLightsOnMap) {
+      Renderer.setShowTrafficLightsOnMap(appSettings.general.showTrafficLightsOnMap !== false);
+    }
     resizeCanvas();
   }
 
@@ -147,7 +150,7 @@ CiudadCero.Game = (() => {
     Input.setMode(false);
     updateCamera(1);
     UI.renderDialogue(Story.getCurrentDialogueLine());
-    UI.showToast('Ciudad Cero v0.6 · Rediseño Visual de Personajes y NPC');
+    UI.showToast('Ciudad Cero v0.7 · Infraestructura Urbana, Semáforos y Mapas');
   }
 
   function loadOrInitGame(isManualLoad = false) {
@@ -522,6 +525,7 @@ CiudadCero.Game = (() => {
 
   function getMapData() {
     return {
+      simTime,
       player: state.player,
       npcs: state.npcs,
       mission: Story.state.activeMission,
@@ -851,19 +855,52 @@ CiudadCero.Game = (() => {
     Input.setNearbyNPC(false);
   }
 
-  function isStoppedByRedLight(v) {
+  function evaluateTrafficSignalStop(v) {
     if (v.isPolice && v.sirenActive) return false;
     const rw = Config.WORLD.roadWidth;
+    const halfLen = v.length * 0.5;
+
     for (let i = 0; i < World.trafficLights.length; i++) {
       const tl = World.trafficLights[i];
-      if (Math.abs(tl.x - v.x) > 130 || Math.abs(tl.y - v.y) > 130) continue;
+      if (Math.abs(tl.x - v.x) > 155 || Math.abs(tl.y - v.y) > 155) continue;
+
       const st = World.getTrafficLightState(tl, simTime);
-      if (v.aiAxis === 'h' && st.h === 'red') {
-        if (v.aiDir > 0 && v.x < tl.ix && tl.ix - v.x < 46) return true;
-        if (v.aiDir < 0 && v.x > tl.ix + rw && v.x - (tl.ix + rw) < 46) return true;
-      } else if (v.aiAxis === 'v' && st.v === 'red') {
-        if (v.aiDir > 0 && v.y < tl.iy && tl.iy - v.y < 46) return true;
-        if (v.aiDir < 0 && v.y > tl.iy + rw && v.y - (tl.iy + rw) < 46) return true;
+      if (v.aiAxis === 'h') {
+        if (Math.abs(v.y - tl.y) > rw * 0.55) continue;
+        const aspect = st.h;
+        if (aspect === 'green') continue;
+
+        if (v.aiDir > 0) {
+          const stopBarX = tl.ix - 6;
+          const frontX = v.x + halfLen;
+          const distToStop = stopBarX - frontX;
+          if (aspect === 'red' && distToStop >= -6 && distToStop < 78) return true;
+          if (aspect === 'yellow' && distToStop > 26 && distToStop < 80) return true;
+        } else {
+          const stopBarX = tl.ix + rw + 6;
+          const frontX = v.x - halfLen;
+          const distToStop = frontX - stopBarX;
+          if (aspect === 'red' && distToStop >= -6 && distToStop < 78) return true;
+          if (aspect === 'yellow' && distToStop > 26 && distToStop < 80) return true;
+        }
+      } else {
+        if (Math.abs(v.x - tl.x) > rw * 0.55) continue;
+        const aspect = st.v;
+        if (aspect === 'green') continue;
+
+        if (v.aiDir > 0) {
+          const stopBarY = tl.iy - 6;
+          const frontY = v.y + halfLen;
+          const distToStop = stopBarY - frontY;
+          if (aspect === 'red' && distToStop >= -6 && distToStop < 78) return true;
+          if (aspect === 'yellow' && distToStop > 26 && distToStop < 80) return true;
+        } else {
+          const stopBarY = tl.iy + rw + 6;
+          const frontY = v.y - halfLen;
+          const distToStop = frontY - stopBarY;
+          if (aspect === 'red' && distToStop >= -6 && distToStop < 78) return true;
+          if (aspect === 'yellow' && distToStop > 26 && distToStop < 80) return true;
+        }
       }
     }
     return false;
@@ -891,7 +928,7 @@ CiudadCero.Game = (() => {
     const bs = Config.WORLD.blockSize;
     const rw = Config.WORLD.roadWidth;
 
-    if (v.turnCooldown <= 0) {
+    if (v.turnCooldown <= 0 && !v.stoppedAtSignal) {
       const rx = ((v.x % bs) + bs) % bs;
       const ry = ((v.y % bs) + bs) % bs;
       if (rx > 34 && rx < rw - 34 && ry > 34 && ry < rw - 34 && Math.random() < 0.025) {
@@ -919,13 +956,30 @@ CiudadCero.Game = (() => {
       if (v.y < 55) v.aiDir = 1;
     }
 
+    // Check emergency sirens nearby so civil cars politely yield right
+    let emergencyNearby = false;
+    if (!v.isPolice) {
+      for (let i = 0; i < state.vehicles.length; i++) {
+        const other = state.vehicles[i];
+        if (other !== v && other.isPolice && other.sirenActive) {
+          if (Math.hypot(other.x - v.x, other.y - v.y) < 175) {
+            emergencyNearby = true;
+            break;
+          }
+        }
+      }
+    }
+    v.yieldingToEmergency = emergencyNearby;
+    const desiredShift = emergencyNearby ? v.aiDir * 9 : 0;
+    v.laneShiftOffset = (v.laneShiftOffset || 0) + (desiredShift - (v.laneShiftOffset || 0)) * Math.min(1, dt * 5);
+
     let targetAngle;
     if (v.aiAxis === 'h') {
       const aimX = v.x + v.aiDir * 90;
-      targetAngle = Math.atan2(v.aiLanePos - v.y, aimX - v.x);
+      targetAngle = Math.atan2((v.aiLanePos + v.laneShiftOffset) - v.y, aimX - v.x);
     } else {
       const aimY = v.y + v.aiDir * 90;
-      targetAngle = Math.atan2(aimY - v.y, v.aiLanePos - v.x);
+      targetAngle = Math.atan2(aimY - v.y, (v.aiLanePos - v.laneShiftOffset) - v.x);
     }
 
     const angleDiff = Physics.normalizeAngle(targetAngle - v.angle);
@@ -935,8 +989,23 @@ CiudadCero.Game = (() => {
 
     const forwardX = Math.cos(v.angle);
     const forwardY = Math.sin(v.angle);
-    let obstacleAhead = isStoppedByRedLight(v);
 
+    // 1. Traffic signal check (Red & Yellow stop bars)
+    const stoppedBySignal = evaluateTrafficSignalStop(v);
+    if (stoppedBySignal) {
+      v.stoppedAtSignal = true;
+      v.signalLaunchTimer = 0.14 + (v.id % 5) * 0.05;
+    } else if (v.stoppedAtSignal) {
+      if (v.signalLaunchTimer > 0) {
+        v.signalLaunchTimer -= dt;
+      } else {
+        v.stoppedAtSignal = false;
+      }
+    }
+
+    let obstacleAhead = stoppedBySignal || (v.stoppedAtSignal && v.signalLaunchTimer > 0);
+
+    // 2. Vehicle queue spacing ahead
     if (!obstacleAhead) {
       for (let i = 0; i < state.vehicles.length; i++) {
         const other = state.vehicles[i];
@@ -946,7 +1015,7 @@ CiudadCero.Game = (() => {
         const dist = Math.hypot(dx, dy);
         if (dist < Config.TRAFFIC.lookAheadDist) {
           const dot = (dx * forwardX + dy * forwardY) / (dist || 1);
-          if (dot > 0.72) {
+          if (dot > 0.74) {
             obstacleAhead = true;
             break;
           }
@@ -954,22 +1023,40 @@ CiudadCero.Game = (() => {
       }
     }
 
+    // 3. Yield to player on foot & pedestrians crossing crosswalks
     if (!obstacleAhead && !state.player.inCar) {
       const pdx = state.player.x - v.x;
       const pdy = state.player.y - v.y;
       const pdist = Math.hypot(pdx, pdy);
-      if (pdist < 64 && (pdx * forwardX + pdy * forwardY) / (pdist || 1) > 0.72) {
+      if (pdist < 68 && (pdx * forwardX + pdy * forwardY) / (pdist || 1) > 0.74) {
         obstacleAhead = true;
       }
     }
 
-    const desiredSpeed = obstacleAhead ? 0 : Config.TRAFFIC.aiCruiseSpeed;
-    v.brakeLights = obstacleAhead && v.speed > 15;
+    if (!obstacleAhead) {
+      for (let i = 0; i < state.pedestrians.length; i++) {
+        const ped = state.pedestrians[i];
+        if (ped.knockTimer > 0) continue;
+        const dx = ped.x - v.x;
+        const dy = ped.y - v.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 66 && (dx * forwardX + dy * forwardY) / (dist || 1) > 0.76) {
+          if (World.isOnRoad(ped.x, ped.y)) {
+            obstacleAhead = true;
+            break;
+          }
+        }
+      }
+    }
+
+    const baseCruise = emergencyNearby ? Config.TRAFFIC.aiCruiseSpeed * 0.55 : Config.TRAFFIC.aiCruiseSpeed;
+    const desiredSpeed = obstacleAhead ? 0 : baseCruise;
+    v.brakeLights = (obstacleAhead || emergencyNearby) && v.speed > 12;
 
     if (v.speed < desiredSpeed) {
       v.speed = Math.min(desiredSpeed, v.speed + v.accel * 0.65 * dt);
     } else {
-      v.speed = Math.max(desiredSpeed, v.speed - v.brake * 0.9 * dt);
+      v.speed = Math.max(desiredSpeed, v.speed - v.brake * 0.95 * dt);
     }
 
     v.vx = forwardX * v.speed;

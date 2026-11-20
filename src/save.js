@@ -1,10 +1,12 @@
 window.CiudadCero = window.CiudadCero || {};
 
 CiudadCero.Save = (() => {
-  const STORAGE_KEY = 'ciudad_cero_v06_save';
+  const STORAGE_KEY = 'ciudad_cero_v07_save';
+  const LEGACY_KEY_V06 = 'ciudad_cero_v06_save';
   const LEGACY_KEY_V05 = 'ciudad_cero_v05_save';
   const LEGACY_KEY_V04 = 'ciudad_cero_v04_save';
-  const SETTINGS_KEY = 'ciudad_cero_settings_v06';
+  const SETTINGS_KEY = 'ciudad_cero_settings_v07';
+  const LEGACY_SETTINGS_V06 = 'ciudad_cero_settings_v06';
   const LEGACY_SETTINGS_V05 = 'ciudad_cero_settings_v05';
 
   const DEFAULT_SETTINGS = {
@@ -26,6 +28,7 @@ CiudadCero.Save = (() => {
     general: {
       showMinimap: true,
       showDistrictBadge: true,
+      showTrafficLightsOnMap: true,
       quality: 'high',
       autoSave: true
     }
@@ -37,12 +40,12 @@ CiudadCero.Save = (() => {
 
   function hasSave() {
     try {
-      const raw6 = window.localStorage.getItem(STORAGE_KEY);
-      if (raw6 && raw6.length > 2) return true;
-      const raw5 = window.localStorage.getItem(LEGACY_KEY_V05);
-      if (raw5 && raw5.length > 2) return true;
-      const raw4 = window.localStorage.getItem(LEGACY_KEY_V04);
-      return Boolean(raw4 && raw4.length > 2);
+      const keys = [STORAGE_KEY, LEGACY_KEY_V06, LEGACY_KEY_V05, LEGACY_KEY_V04];
+      for (let i = 0; i < keys.length; i++) {
+        const raw = window.localStorage.getItem(keys[i]);
+        if (raw && raw.length > 2) return true;
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -50,17 +53,16 @@ CiudadCero.Save = (() => {
 
   function load() {
     try {
-      let raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        raw = window.localStorage.getItem(LEGACY_KEY_V05);
-      }
-      if (!raw) {
-        raw = window.localStorage.getItem(LEGACY_KEY_V04);
+      const keys = [STORAGE_KEY, LEGACY_KEY_V06, LEGACY_KEY_V05, LEGACY_KEY_V04];
+      let raw = null;
+      for (let i = 0; i < keys.length; i++) {
+        raw = window.localStorage.getItem(keys[i]);
+        if (raw) break;
       }
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (!data || typeof data !== 'object') return null;
-      if (data.version !== '0.6' && data.version !== '0.5' && data.version !== '0.4') {
+      if (!['0.7', '0.6', '0.5', '0.4'].includes(data.version)) {
         return null;
       }
       return data;
@@ -73,16 +75,22 @@ CiudadCero.Save = (() => {
     try {
       const record = Object.assign(
         {
-          version: '0.6',
+          version: '0.7',
           savedAt: Date.now()
         },
         payload
       );
       const serialized = JSON.stringify(record);
       window.localStorage.setItem(STORAGE_KEY, serialized);
-      // Maintain compatibility keys for v0.5 & v0.4 continuity
-      const compatV05 = Object.assign({}, record, { version: '0.5' });
-      window.localStorage.setItem(LEGACY_KEY_V05, JSON.stringify(compatV05));
+      // Maintain compatibility keys for v0.6 & v0.5 continuity
+      window.localStorage.setItem(
+        LEGACY_KEY_V06,
+        JSON.stringify(Object.assign({}, record, { version: '0.6' }))
+      );
+      window.localStorage.setItem(
+        LEGACY_KEY_V05,
+        JSON.stringify(Object.assign({}, record, { version: '0.5' }))
+      );
       return true;
     } catch (_) {
       return false;
@@ -92,6 +100,7 @@ CiudadCero.Save = (() => {
   function clear() {
     try {
       window.localStorage.removeItem(STORAGE_KEY);
+      window.localStorage.removeItem(LEGACY_KEY_V06);
       window.localStorage.removeItem(LEGACY_KEY_V05);
       window.localStorage.removeItem(LEGACY_KEY_V04);
       return true;
@@ -103,9 +112,11 @@ CiudadCero.Save = (() => {
   function loadSettings() {
     const base = cloneDefaults();
     try {
-      let raw = window.localStorage.getItem(SETTINGS_KEY);
-      if (!raw) {
-        raw = window.localStorage.getItem(LEGACY_SETTINGS_V05);
+      const keys = [SETTINGS_KEY, LEGACY_SETTINGS_V06, LEGACY_SETTINGS_V05];
+      let raw = null;
+      for (let i = 0; i < keys.length; i++) {
+        raw = window.localStorage.getItem(keys[i]);
+        if (raw) break;
       }
       if (!raw) return base;
       const parsed = JSON.parse(raw);
@@ -136,6 +147,7 @@ CiudadCero.Save = (() => {
 
   return {
     STORAGE_KEY,
+    LEGACY_KEY_V06,
     LEGACY_KEY_V05,
     LEGACY_KEY_V04,
     SETTINGS_KEY,

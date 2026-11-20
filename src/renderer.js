@@ -8,9 +8,12 @@ CiudadCero.Renderer = (() => {
 
   // 4-quadrant offscreen cache (2400x1800 each) for maximum mobile Safari/Android GPU safety
   let mapTiles = null;
+  let asphaltPattern = null;
+  let sidewalkPattern = null;
   const particles = [];
   let highQuality = true;
   let showMinimap = true;
+  let showTrafficLightsOnMap = true;
 
   function setQuality(quality) {
     highQuality = quality !== 'performance';
@@ -20,69 +23,314 @@ CiudadCero.Renderer = (() => {
     showMinimap = Boolean(visible);
   }
 
+  function setShowTrafficLightsOnMap(visible) {
+    showTrafficLightsOnMap = Boolean(visible);
+  }
+
+  function createAsphaltPattern(targetCtx) {
+    if (asphaltPattern) return asphaltPattern;
+    const pCanvas = document.createElement('canvas');
+    pCanvas.width = 128;
+    pCanvas.height = 128;
+    const pCtx = pCanvas.getContext('2d');
+
+    pCtx.fillStyle = '#2c332e';
+    pCtx.fillRect(0, 0, 128, 128);
+
+    // Deterministic mineral aggregate speckles & micro-pores
+    let seed = 1337;
+    const rand = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+
+    for (let i = 0; i < 680; i++) {
+      const rx = Math.floor(rand() * 128);
+      const ry = Math.floor(rand() * 128);
+      const tone = rand();
+      if (tone < 0.38) {
+        pCtx.fillStyle = 'rgba(255, 255, 255, 0.045)';
+      } else if (tone < 0.75) {
+        pCtx.fillStyle = 'rgba(12, 16, 13, 0.14)';
+      } else {
+        pCtx.fillStyle = 'rgba(165, 180, 168, 0.035)';
+      }
+      pCtx.fillRect(rx, ry, tone > 0.85 ? 2 : 1, 1);
+    }
+
+    // Subtle bituminous tar seam lines
+    pCtx.strokeStyle = 'rgba(14, 18, 15, 0.22)';
+    pCtx.lineWidth = 1;
+    pCtx.beginPath();
+    pCtx.moveTo(0, 64);
+    pCtx.lineTo(128, 64);
+    pCtx.moveTo(64, 0);
+    pCtx.lineTo(64, 128);
+    pCtx.stroke();
+
+    asphaltPattern = targetCtx.createPattern(pCanvas, 'repeat');
+    return asphaltPattern;
+  }
+
+  function createSidewalkPattern(targetCtx) {
+    if (sidewalkPattern) return sidewalkPattern;
+    const sCanvas = document.createElement('canvas');
+    sCanvas.width = 48;
+    sCanvas.height = 48;
+    const sCtx = sCanvas.getContext('2d');
+
+    sCtx.fillStyle = '#757f72';
+    sCtx.fillRect(0, 0, 48, 48);
+
+    // Concrete slab joint lines (24x24 paving tiles)
+    sCtx.strokeStyle = 'rgba(22, 28, 24, 0.24)';
+    sCtx.lineWidth = 1;
+    sCtx.strokeRect(0.5, 0.5, 23, 23);
+    sCtx.strokeRect(24.5, 0.5, 23, 23);
+    sCtx.strokeRect(0.5, 24.5, 23, 23);
+    sCtx.strokeRect(24.5, 24.5, 23, 23);
+
+    // Subtle top highlight inside each concrete paver
+    sCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    sCtx.beginPath();
+    sCtx.moveTo(1, 1.5);
+    sCtx.lineTo(23, 1.5);
+    sCtx.moveTo(25, 1.5);
+    sCtx.lineTo(47, 1.5);
+    sCtx.moveTo(1, 25.5);
+    sCtx.lineTo(23, 25.5);
+    sCtx.moveTo(25, 25.5);
+    sCtx.lineTo(47, 25.5);
+    sCtx.stroke();
+
+    sidewalkPattern = targetCtx.createPattern(sCanvas, 'repeat');
+    return sidewalkPattern;
+  }
+
   function renderWorldToContext(c, ox, oy, tw, th) {
     c.save();
     c.translate(-ox, -oy);
 
-    // Base road asphalt
-    c.fillStyle = '#313933';
+    const aPat = createAsphaltPattern(c);
+    const swPat = createSidewalkPattern(c);
+
+    // 1. Textured asphalt base across entire road grid
+    c.fillStyle = aPat || '#2c332e';
     c.fillRect(ox, oy, tw, th);
 
-    // District subtle road tint + sidewalk blocks
     const startX = Math.floor(ox / wCfg.blockSize) * wCfg.blockSize;
     const startY = Math.floor(oy / wCfg.blockSize) * wCfg.blockSize;
+
+    // 2. Subtle district atmospheric road tint + lane tire wear tracks
     for (let x = startX; x < ox + tw + wCfg.blockSize; x += wCfg.blockSize) {
       for (let y = startY; y < oy + th + wCfg.blockSize; y += wCfg.blockSize) {
         const dist = World.getDistrictAt(x + wCfg.blockSize * 0.5, y + wCfg.blockSize * 0.5);
+        c.save();
+        c.globalAlpha = 0.26;
         c.fillStyle = dist.groundTint || '#313933';
         c.fillRect(x, y, wCfg.blockSize, wCfg.blockSize);
-
-        c.fillStyle = dist.blockTint || '#6f796c';
-        c.fillRect(
-          x + wCfg.roadWidth,
-          y + wCfg.roadWidth,
-          wCfg.blockSize - wCfg.roadWidth,
-          wCfg.blockSize - wCfg.roadWidth
-        );
+        c.restore();
       }
     }
 
-    // Center dashed yellow lines & double avenue lines
-    c.lineWidth = 2;
+    // Tire wear tracks along primary lanes (+42 and +108)
+    c.fillStyle = 'rgba(14, 18, 15, 0.22)';
+    for (let x = startX; x <= ox + tw + wCfg.blockSize; x += wCfg.blockSize) {
+      c.fillRect(x + 31, oy, 22, th);
+      c.fillRect(x + 97, oy, 22, th);
+    }
+    for (let y = startY; y <= oy + th + wCfg.blockSize; y += wCfg.blockSize) {
+      c.fillRect(ox, y + 31, tw, 22);
+      c.fillRect(ox, y + 97, tw, 22);
+    }
+
+    // 3. Road edge shoulder lines, double avenue centerlines & local dashed lines
     for (let x = startX; x <= ox + tw + wCfg.blockSize; x += wCfg.blockSize) {
       const gx = Math.round(x / wCfg.blockSize);
       const isAvenue = gx % 2 === 0;
-      c.strokeStyle = isAvenue ? 'rgba(245, 217, 75, 0.72)' : 'rgba(227, 198, 92, 0.48)';
-      c.setLineDash(isAvenue ? [] : [16, 16]);
+
+      // White curb-side shoulder lines
+      c.strokeStyle = 'rgba(232, 240, 230, 0.30)';
+      c.lineWidth = 1.5;
+      c.setLineDash([]);
       c.beginPath();
-      c.moveTo(x + wCfg.roadWidth * 0.5, oy);
-      c.lineTo(x + wCfg.roadWidth * 0.5, oy + th);
+      c.moveTo(x + 9, oy);
+      c.lineTo(x + 9, oy + th);
+      c.moveTo(x + wCfg.roadWidth - 9, oy);
+      c.lineTo(x + wCfg.roadWidth - 9, oy + th);
       c.stroke();
+
+      // Center divider
+      if (isAvenue) {
+        c.strokeStyle = 'rgba(245, 217, 75, 0.78)';
+        c.lineWidth = 1.8;
+        c.beginPath();
+        c.moveTo(x + wCfg.roadWidth * 0.5 - 2.2, oy);
+        c.lineTo(x + wCfg.roadWidth * 0.5 - 2.2, oy + th);
+        c.moveTo(x + wCfg.roadWidth * 0.5 + 2.2, oy);
+        c.lineTo(x + wCfg.roadWidth * 0.5 + 2.2, oy + th);
+        c.stroke();
+      } else {
+        c.strokeStyle = 'rgba(227, 198, 92, 0.52)';
+        c.lineWidth = 2;
+        c.setLineDash([16, 16]);
+        c.beginPath();
+        c.moveTo(x + wCfg.roadWidth * 0.5, oy);
+        c.lineTo(x + wCfg.roadWidth * 0.5, oy + th);
+        c.stroke();
+        c.setLineDash([]);
+      }
     }
+
     for (let y = startY; y <= oy + th + wCfg.blockSize; y += wCfg.blockSize) {
       const gy = Math.round(y / wCfg.blockSize);
       const isAvenue = gy % 2 === 0;
-      c.strokeStyle = isAvenue ? 'rgba(245, 217, 75, 0.72)' : 'rgba(227, 198, 92, 0.48)';
-      c.setLineDash(isAvenue ? [] : [16, 16]);
-      c.beginPath();
-      c.moveTo(ox, y + wCfg.roadWidth * 0.5);
-      c.lineTo(ox + tw, y + wCfg.roadWidth * 0.5);
-      c.stroke();
-    }
-    c.setLineDash([]);
 
-    // Zebra crosswalks at intersections
-    c.fillStyle = 'rgba(235, 240, 232, 0.24)';
+      // White curb-side shoulder lines
+      c.strokeStyle = 'rgba(232, 240, 230, 0.30)';
+      c.lineWidth = 1.5;
+      c.setLineDash([]);
+      c.beginPath();
+      c.moveTo(ox, y + 9);
+      c.lineTo(ox + tw, y + 9);
+      c.moveTo(ox, y + wCfg.roadWidth - 9);
+      c.lineTo(ox + tw, y + wCfg.roadWidth - 9);
+      c.stroke();
+
+      if (isAvenue) {
+        c.strokeStyle = 'rgba(245, 217, 75, 0.78)';
+        c.lineWidth = 1.8;
+        c.beginPath();
+        c.moveTo(ox, y + wCfg.roadWidth * 0.5 - 2.2);
+        c.lineTo(ox + tw, y + wCfg.roadWidth * 0.5 - 2.2);
+        c.moveTo(ox, y + wCfg.roadWidth * 0.5 + 2.2);
+        c.lineTo(ox + tw, y + wCfg.roadWidth * 0.5 + 2.2);
+        c.stroke();
+      } else {
+        c.strokeStyle = 'rgba(227, 198, 92, 0.52)';
+        c.lineWidth = 2;
+        c.setLineDash([16, 16]);
+        c.beginPath();
+        c.moveTo(ox, y + wCfg.roadWidth * 0.5);
+        c.lineTo(ox + tw, y + wCfg.roadWidth * 0.5);
+        c.stroke();
+        c.setLineDash([]);
+      }
+    }
+
+    // 4. Intersections: Clear box, Zebra Crosswalks, White Stop Bars, Manholes & Drains
+    const rw = wCfg.roadWidth;
     for (let x = startX; x < ox + tw + wCfg.blockSize; x += wCfg.blockSize) {
       for (let y = startY; y < oy + th + wCfg.blockSize; y += wCfg.blockSize) {
-        for (let s = 14; s < wCfg.roadWidth - 14; s += 16) {
-          c.fillRect(x + s, y + wCfg.roadWidth - 12, 8, 10);
-          c.fillRect(x + wCfg.roadWidth - 12, y + s, 10, 8);
+        // Clean intersection asphalt deck
+        c.fillStyle = aPat || '#2c332e';
+        c.fillRect(x + 9, y + 9, rw - 18, rw - 18);
+
+        // Zebra crosswalks on all 4 approaches of the intersection
+        c.fillStyle = 'rgba(238, 244, 236, 0.36)';
+        for (let s = 14; s < rw - 14; s += 14) {
+          // Top & bottom crosswalks
+          c.fillRect(x + s, y + 3, 7, 13);
+          c.fillRect(x + s, y + rw - 16, 7, 13);
+          // Left & right crosswalks
+          c.fillRect(x + 3, y + s, 13, 7);
+          c.fillRect(x + rw - 16, y + s, 13, 7);
+        }
+
+        // Crisp white stop bars (líneas de detención) before crosswalks
+        c.fillStyle = 'rgba(244, 248, 242, 0.68)';
+        // North approach (v, dir +1, x+75..x+142)
+        c.fillRect(x + rw * 0.5 + 3, y - 6, rw * 0.5 - 12, 4);
+        // South approach (v, dir -1, x+9..x+72)
+        c.fillRect(x + 9, y + rw + 2, rw * 0.5 - 12, 4);
+        // West approach (h, dir +1, y+75..y+142)
+        c.fillRect(x - 6, y + rw * 0.5 + 3, 4, rw * 0.5 - 12);
+        // East approach (h, dir -1, y+9..y+72)
+        c.fillRect(x + rw + 2, y + 9, 4, rw * 0.5 - 12);
+
+        // Manhole cover in intersection center
+        c.fillStyle = '#202622';
+        c.beginPath();
+        c.arc(x + rw * 0.5, y + rw * 0.5, 6.5, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = '#47524a';
+        c.lineWidth = 1.2;
+        c.stroke();
+
+        // Storm drain grates near curb corners
+        c.fillStyle = '#181d1a';
+        c.fillRect(x + rw + 14, y + 3, 12, 5);
+        c.fillRect(x + rw + 14, y + rw - 8, 12, 5);
+      }
+    }
+
+    // 5. Raised Sidewalks & 3D-Beveled Curbs (cordones de vereda) for every city block
+    for (let x = startX; x < ox + tw + wCfg.blockSize; x += wCfg.blockSize) {
+      for (let y = startY; y < oy + th + wCfg.blockSize; y += wCfg.blockSize) {
+        const blockLeft = x + wCfg.roadWidth;
+        const blockTop = y + wCfg.roadWidth;
+        const blockSize = wCfg.blockSize - wCfg.roadWidth;
+        const dist = World.getDistrictAt(blockLeft + blockSize * 0.5, blockTop + blockSize * 0.5);
+
+        // Gutter drop-shadow around block curb
+        c.fillStyle = 'rgba(10, 14, 11, 0.52)';
+        c.fillRect(blockLeft - 3, blockTop - 3, blockSize + 6, blockSize + 6);
+
+        // Textured concrete paving slab base
+        c.fillStyle = swPat || dist.blockTint || '#757f72';
+        c.fillRect(blockLeft, blockTop, blockSize, blockSize);
+
+        // District subtle sidewalk tint overlay
+        c.save();
+        c.globalAlpha = 0.22;
+        c.fillStyle = dist.blockTint || '#757f72';
+        c.fillRect(blockLeft, blockTop, blockSize, blockSize);
+        c.restore();
+
+        // 3D Curb Bevel Frame (cordón perimetral)
+        c.strokeStyle = 'rgba(238, 245, 236, 0.44)';
+        c.lineWidth = 2.2;
+        c.beginPath();
+        c.moveTo(blockLeft + 1, blockTop + blockSize - 1);
+        c.lineTo(blockLeft + 1, blockTop + 1);
+        c.lineTo(blockLeft + blockSize - 1, blockTop + 1);
+        c.stroke();
+
+        c.strokeStyle = 'rgba(24, 30, 26, 0.62)';
+        c.lineWidth = 2.2;
+        c.beginPath();
+        c.moveTo(blockLeft + blockSize - 1, blockTop + 1);
+        c.lineTo(blockLeft + blockSize - 1, blockTop + blockSize - 1);
+        c.lineTo(blockLeft + 1, blockTop + blockSize - 1);
+        c.stroke();
+
+        // Inner sidewalk joint line separating curb strip from inner block pad
+        const sw = wCfg.sidewalkWidth;
+        c.strokeStyle = 'rgba(24, 30, 26, 0.28)';
+        c.lineWidth = 1;
+        c.strokeRect(blockLeft + sw, blockTop + sw, blockSize - sw * 2, blockSize - sw * 2);
+
+        // Corner tactile pedestrian curb-cut ramps (rampas peatonales)
+        c.fillStyle = dist.id === 'centro' || dist.id === 'comercial'
+          ? 'rgba(245, 217, 75, 0.45)'
+          : 'rgba(205, 214, 200, 0.35)';
+        c.fillRect(blockLeft + 2, blockTop + 2, 11, 11);
+        c.fillRect(blockLeft + blockSize - 13, blockTop + 2, 11, 11);
+        c.fillRect(blockLeft + 2, blockTop + blockSize - 13, 11, 11);
+        c.fillRect(blockLeft + blockSize - 13, blockTop + blockSize - 13, 11, 11);
+
+        // Industrial & Port hazard yellow/black curb stripes
+        if (dist.id === 'portuaria' || dist.id === 'industrial') {
+          c.fillStyle = '#e3b42b';
+          for (let cs = 22; cs < blockSize - 24; cs += 24) {
+            c.fillRect(blockLeft + cs, blockTop, 10, 3);
+            c.fillRect(blockLeft + cs, blockTop + blockSize - 3, 10, 3);
+          }
         }
       }
     }
 
-    // Port harbor water zones
+    // 6. Port harbor water zones
     for (let i = 0; i < World.waterZones.length; i++) {
       const w = World.waterZones[i];
       if (w.x + w.w < ox || w.x > ox + tw || w.y + w.h < oy || w.y > oy + th) continue;
@@ -106,17 +354,16 @@ CiudadCero.Renderer = (() => {
       c.fillText('DÁRSENA PORTUARIA', w.x + w.w * 0.5, w.y + w.h * 0.5 + 3);
     }
 
-    // Parking lots
+    // 7. Parking lots
     for (let i = 0; i < World.parkingLots.length; i++) {
       const pl = World.parkingLots[i];
       if (pl.x + pl.w < ox || pl.x > ox + tw || pl.y + pl.h < oy || pl.y > oy + th) continue;
-      c.fillStyle = '#29302c';
+      c.fillStyle = aPat || '#29302c';
       c.fillRect(pl.x, pl.y, pl.w, pl.h);
-      c.strokeStyle = 'rgba(255, 255, 255, 0.42)';
+      c.strokeStyle = 'rgba(255, 255, 255, 0.46)';
       c.lineWidth = 1.5;
       c.strokeRect(pl.x + 2, pl.y + 2, pl.w - 4, pl.h - 4);
 
-      // Parking stall lines
       for (let sx = pl.x + 22; sx < pl.x + pl.w - 16; sx += 26) {
         c.beginPath();
         c.moveTo(sx, pl.y + 4);
@@ -125,13 +372,13 @@ CiudadCero.Renderer = (() => {
         c.lineTo(sx, pl.y + pl.h - 28);
         c.stroke();
       }
-      c.fillStyle = 'rgba(108, 178, 209, 0.72)';
+      c.fillStyle = 'rgba(108, 178, 209, 0.78)';
       c.font = 'bold 11px monospace';
       c.textAlign = 'center';
       c.fillText('P · ESTACIONAMIENTO', pl.x + pl.w * 0.5, pl.y + pl.h * 0.5 + 4);
     }
 
-    // Parks, plazas & periphery meadows
+    // 8. Parks, plazas & periphery meadows
     for (let i = 0; i < World.parks.length; i++) {
       const p = World.parks[i];
       if (p.x + p.w < ox || p.x > ox + tw || p.y + p.h < oy || p.y > oy + th) continue;
@@ -186,7 +433,7 @@ CiudadCero.Renderer = (() => {
       }
     }
 
-    // Garages
+    // 9. Garages
     for (let i = 0; i < World.garages.length; i++) {
       const g = World.garages[i];
       const gx = g.x - g.w * 0.5;
@@ -212,7 +459,7 @@ CiudadCero.Renderer = (() => {
       c.fillText('GARAJE', g.x, g.y + 4);
     }
 
-    // Hideouts
+    // 10. Hideouts
     for (let i = 0; i < World.hideouts.length; i++) {
       const h = World.hideouts[i];
       const hx = h.x - h.w * 0.5;
@@ -234,7 +481,7 @@ CiudadCero.Renderer = (() => {
       c.fillText('ESCONDITE', h.x, h.y + 3);
     }
 
-    // District-styled Buildings
+    // 11. District-styled Buildings
     const districtPalettes = {
       residencial: [
         { base: '#5e4942', top: '#735950' },
@@ -300,7 +547,6 @@ CiudadCero.Renderer = (() => {
         c.textAlign = 'center';
         c.fillText('TALLER MECÁNICO', b.x + b.w * 0.5, b.y + 16);
       } else if (b.isContainerBlock) {
-        // Stacked shipping containers
         const cColors = ['#c83e2b', '#2b7de9', '#e3b42b', '#22a37a'];
         const cw = Math.floor((b.w - 14) / 2);
         for (let row = 0; row < 2; row++) {
@@ -310,7 +556,6 @@ CiudadCero.Renderer = (() => {
           }
         }
       } else if (b.districtId === 'centro' && b.w > 50 && b.h > 50) {
-        // Skyscraper helipad or glass skylight
         if (b.roofType === 0) {
           c.strokeStyle = 'rgba(214, 243, 106, 0.5)';
           c.lineWidth = 1.5;
@@ -326,13 +571,11 @@ CiudadCero.Renderer = (() => {
           c.fillRect(b.x + 14, b.y + 14, b.w - 28, b.h - 28);
         }
       } else if (b.districtId === 'comercial' && b.w > 45 && b.h > 45) {
-        // Colorful storefront awnings
         const awningColors = ['#f5d94b', '#4de0b5', '#ff6b6b', '#6cb2d1'];
         c.fillStyle = awningColors[i % awningColors.length];
         c.fillRect(b.x + 8, b.y + b.h - 5, b.w - 16, 6);
         c.fillRect(b.x + 8, b.y - 1, b.w - 16, 5);
       } else if (b.districtId === 'industrial' && b.w > 50 && b.h > 50) {
-        // Industrial cylindrical silos
         c.fillStyle = '#757d80';
         c.beginPath();
         c.arc(b.x + 28, b.y + 28, 14, 0, Math.PI * 2);
@@ -354,11 +597,15 @@ CiudadCero.Renderer = (() => {
       }
     }
 
-    // Sidewalk decorative props
+    // 12. Sidewalk urban furniture & decorative props
     for (let i = 0; i < World.props.length; i++) {
       const pr = World.props[i];
       if (pr.x < ox - 40 || pr.x > ox + tw + 40 || pr.y < oy - 40 || pr.y > oy + th + 40) continue;
       if (pr.type === 'tree') {
+        c.fillStyle = 'rgba(0,0,0,0.22)';
+        c.beginPath();
+        c.arc(pr.x + 2, pr.y + 2.5, 9, 0, Math.PI * 2);
+        c.fill();
         c.fillStyle = '#2b4c2d';
         c.beginPath();
         c.arc(pr.x, pr.y, 9, 0, Math.PI * 2);
@@ -367,6 +614,26 @@ CiudadCero.Renderer = (() => {
         c.beginPath();
         c.arc(pr.x - 2, pr.y - 2, 5.5, 0, Math.PI * 2);
         c.fill();
+      } else if (pr.type === 'hydrant') {
+        c.fillStyle = '#dc2626';
+        c.beginPath();
+        c.arc(pr.x, pr.y, 3.2, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = '#181c19';
+        c.lineWidth = 0.9;
+        c.stroke();
+      } else if (pr.type === 'bus_stop') {
+        c.fillStyle = 'rgba(56, 189, 248, 0.32)';
+        c.fillRect(pr.x - 16, pr.y - 4, 32, 8);
+        c.strokeStyle = '#38bdf8';
+        c.lineWidth = 1.2;
+        c.strokeRect(pr.x - 16, pr.y - 4, 32, 8);
+      } else if (pr.type === 'bench') {
+        c.fillStyle = '#784c2a';
+        c.fillRect(pr.x - 9, pr.y - 2.5, 18, 5);
+        c.strokeStyle = '#1a1612';
+        c.lineWidth = 0.8;
+        c.strokeRect(pr.x - 9, pr.y - 2.5, 18, 5);
       } else if (pr.type === 'billboard') {
         c.fillStyle = '#181e1b';
         c.fillRect(pr.x - 10, pr.y - 4, 20, 8);
@@ -506,13 +773,49 @@ CiudadCero.Renderer = (() => {
     }
   }
 
+  function drawSignalHead(ctx, headX, headY, angle, activeAspect, pedWalk, highQ) {
+    ctx.save();
+    ctx.translate(headX, headY);
+    ctx.rotate(angle);
+
+    // 3-aspect housing box (Red / Yellow / Green)
+    ctx.fillStyle = '#121619';
+    ctx.strokeStyle = '#3b444b';
+    ctx.lineWidth = 1;
+    ctx.fillRect(-9.5, -3.6, 19, 7.2);
+    ctx.strokeRect(-9.5, -3.6, 19, 7.2);
+
+    const aspects = [
+      { id: 'red', ox: -5.5, on: '#ff3b30', off: '#4a1816', glow: 'rgba(255, 59, 48, 0.32)' },
+      { id: 'yellow', ox: 0, on: '#facc15', off: '#4a3d12', glow: 'rgba(250, 204, 21, 0.28)' },
+      { id: 'green', ox: 5.5, on: '#4ade80', off: '#164226', glow: 'rgba(74, 222, 128, 0.28)' }
+    ];
+
+    for (let i = 0; i < aspects.length; i++) {
+      const a = aspects[i];
+      const isLit = activeAspect === a.id;
+      if (isLit && highQ) {
+        ctx.fillStyle = a.glow;
+        ctx.beginPath();
+        ctx.arc(a.ox, 0, 8.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = isLit ? a.on : a.off;
+      ctx.beginPath();
+      ctx.arc(a.ox, 0, 2.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Miniature pedestrian crossing indicator attached to post side
+    ctx.fillStyle = pedWalk ? '#e0f7ff' : '#ff594d';
+    ctx.fillRect(-11.8, -1.6, 1.8, 3.2);
+
+    ctx.restore();
+  }
+
   function drawTrafficLightsAndUrbanGlow(ctx, cam, viewW, viewH, simTime) {
-    const pad = 120;
-    const colorMap = {
-      green: '#4ade80',
-      yellow: '#facc15',
-      red: '#ff3b30'
-    };
+    const pad = 140;
+    const rw = wCfg.roadWidth;
 
     for (let i = 0; i < World.trafficLights.length; i++) {
       const tl = World.trafficLights[i];
@@ -524,27 +827,50 @@ CiudadCero.Renderer = (() => {
       }
 
       const st = World.getTrafficLightState(tl, simTime);
-      const rw = wCfg.roadWidth;
 
-      // Corner signal posts
+      // Subtle stop-line ground signal glow on asphalt when red/yellow
+      if (st.h !== 'green') {
+        ctx.fillStyle = st.h === 'red' ? 'rgba(255, 59, 48, 0.34)' : 'rgba(250, 204, 21, 0.30)';
+        ctx.fillRect(tl.ix - 6, tl.iy + rw * 0.5 + 3, 4, rw * 0.5 - 12);
+        ctx.fillRect(tl.ix + rw + 2, tl.iy + 9, 4, rw * 0.5 - 12);
+      }
+      if (st.v !== 'green') {
+        ctx.fillStyle = st.v === 'red' ? 'rgba(255, 59, 48, 0.34)' : 'rgba(250, 204, 21, 0.30)';
+        ctx.fillRect(tl.ix + rw * 0.5 + 3, tl.iy - 6, rw * 0.5 - 12, 4);
+        ctx.fillRect(tl.ix + 9, tl.iy + rw + 2, rw * 0.5 - 12, 4);
+      }
+
+      // 4 corner cantilever mast assemblies
       const corners = [
-        { x: tl.ix + 10, y: tl.iy + 10, color: colorMap[st.h] },
-        { x: tl.ix + rw - 10, y: tl.iy + rw - 10, color: colorMap[st.h] },
-        { x: tl.ix + rw - 10, y: tl.iy + 10, color: colorMap[st.v] },
-        { x: tl.ix + 10, y: tl.iy + rw - 10, color: colorMap[st.v] }
+        // Top-Left corner controls Northbound-approaching vertical lane (v)
+        { px: tl.ix - 3, py: tl.iy - 3, mx: tl.ix + 34, my: tl.iy - 2, angle: 0, aspect: st.v, ped: st.pedH === 'walk' },
+        // Bottom-Right corner controls Southbound-approaching vertical lane (v)
+        { px: tl.ix + rw + 3, py: tl.iy + rw + 3, mx: tl.ix + rw - 34, my: tl.iy + rw + 2, angle: Math.PI, aspect: st.v, ped: st.pedH === 'walk' },
+        // Top-Right corner controls Westbound-approaching horizontal lane (h)
+        { px: tl.ix + rw + 3, py: tl.iy - 3, mx: tl.ix + rw + 2, my: tl.iy + 34, angle: Math.PI / 2, aspect: st.h, ped: st.pedV === 'walk' },
+        // Bottom-Left corner controls Eastbound-approaching horizontal lane (h)
+        { px: tl.ix - 3, py: tl.iy + rw + 3, mx: tl.ix - 2, my: tl.iy + rw - 34, angle: -Math.PI / 2, aspect: st.h, ped: st.pedV === 'walk' }
       ];
 
       for (let c = 0; c < corners.length; c++) {
         const pt = corners[c];
-        ctx.fillStyle = '#181d1a';
+
+        // Cantilever arm
+        ctx.strokeStyle = '#68737a';
+        ctx.lineWidth = 2.4;
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+        ctx.moveTo(pt.px, pt.py);
+        ctx.lineTo(pt.mx, pt.my);
+        ctx.stroke();
+
+        // Corner pole base
+        ctx.fillStyle = '#262d31';
+        ctx.beginPath();
+        ctx.arc(pt.px, pt.py, 3.6, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = pt.color;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 2.8, 0, Math.PI * 2);
-        ctx.fill();
+        // 3-aspect signal housing over lane
+        drawSignalHead(ctx, pt.mx, pt.my, pt.angle, pt.aspect, pt.ped, highQuality);
       }
     }
 
@@ -858,13 +1184,14 @@ CiudadCero.Renderer = (() => {
 
   function drawMinimap(ctx, viewW, state, policeHUD) {
     if (!showMinimap) return;
-    const mapW = viewW < 640 ? 128 : 164;
-    const mapH = viewW < 640 ? 96 : 122;
+    const mapW = viewW < 640 ? 132 : 170;
+    const mapH = viewW < 640 ? 99 : 126;
     const mx = viewW - mapW - 12;
     const my = 12;
+    const simTime = state.simTime || performance.now() / 1000;
 
     ctx.save();
-    ctx.fillStyle = 'rgba(13, 18, 14, 0.90)';
+    ctx.fillStyle = 'rgba(13, 18, 14, 0.92)';
     ctx.fillRect(mx - 3, my - 3, mapW + 6, mapH + 6);
     ctx.strokeStyle = '#738268';
     ctx.lineWidth = 1.5;
@@ -886,6 +1213,22 @@ CiudadCero.Renderer = (() => {
       }
     }
 
+    // Major avenue grid lines on minimap for crisp navigation
+    ctx.strokeStyle = 'rgba(215, 224, 212, 0.16)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < wCfg.width; x += wCfg.blockSize * 2) {
+      ctx.beginPath();
+      ctx.moveTo(mx + (x + wCfg.roadWidth * 0.5) * sx, my);
+      ctx.lineTo(mx + (x + wCfg.roadWidth * 0.5) * sx, my + mapH);
+      ctx.stroke();
+    }
+    for (let y = 0; y < wCfg.height; y += wCfg.blockSize * 2) {
+      ctx.beginPath();
+      ctx.moveTo(mx, my + (y + wCfg.roadWidth * 0.5) * sy);
+      ctx.lineTo(mx + mapW, my + (y + wCfg.roadWidth * 0.5) * sy);
+      ctx.stroke();
+    }
+
     // Water zones
     ctx.fillStyle = '#1d5466';
     for (let i = 0; i < World.waterZones.length; i++) {
@@ -905,6 +1248,31 @@ CiudadCero.Renderer = (() => {
     for (let i = 0; i < World.buildings.length; i++) {
       const b = World.buildings[i];
       ctx.fillRect(mx + b.x * sx, my + b.y * sy, Math.max(1.2, b.w * sx), Math.max(1.2, b.h * sy));
+    }
+
+    // Live Traffic Light indicators at major intersections
+    if (showTrafficLightsOnMap) {
+      for (let i = 0; i < World.trafficLights.length; i++) {
+        const tl = World.trafficLights[i];
+        if (!tl.isMajor) continue;
+        const st = World.getTrafficLightState(tl, simTime);
+        ctx.fillStyle = st.h === 'green' ? '#4ade80' : st.h === 'yellow' ? '#facc15' : '#ff3b30';
+        ctx.fillRect(mx + tl.x * sx - 1, my + tl.y * sy - 1, 2, 2);
+      }
+    }
+
+    // GPS Route Line on Minimap
+    const navTarget = state.customWaypoint || state.mission;
+    if (navTarget && state.player) {
+      ctx.save();
+      ctx.strokeStyle = state.customWaypoint ? 'rgba(56, 189, 248, 0.72)' : 'rgba(245, 217, 75, 0.65)';
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash([3, 2]);
+      ctx.beginPath();
+      ctx.moveTo(mx + state.player.x * sx, my + state.player.y * sy);
+      ctx.lineTo(mx + navTarget.x * sx, my + navTarget.y * sy);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Garages
@@ -998,12 +1366,12 @@ CiudadCero.Renderer = (() => {
     ctx.restore();
 
     // Compact badge at bottom-right of minimap indicating tap-to-expand
-    ctx.fillStyle = 'rgba(12, 18, 14, 0.84)';
-    ctx.fillRect(mx + mapW - 42, my + mapH - 13, 42, 13);
+    ctx.fillStyle = 'rgba(12, 18, 14, 0.86)';
+    ctx.fillRect(mx + mapW - 44, my + mapH - 13, 44, 13);
     ctx.fillStyle = '#d6f36a';
     ctx.font = 'bold 8px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('MAPA [M]', mx + mapW - 21, my + mapH - 3.5);
+    ctx.fillText('MAPA [M]', mx + mapW - 22, my + mapH - 3.5);
 
     ctx.restore();
   }
@@ -1015,6 +1383,7 @@ CiudadCero.Renderer = (() => {
     const cw = canvasEl.width;
     const ch = canvasEl.height;
     const ctx = canvasEl.getContext('2d');
+    const simTime = gameData.simTime || performance.now() / 1000;
     ctx.clearRect(0, 0, cw, ch);
 
     ctx.fillStyle = '#0e1410';
@@ -1059,12 +1428,47 @@ CiudadCero.Renderer = (() => {
       const fontSize = Math.max(11, Math.round(14 / scale));
       ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(10, 15, 12, 0.78)';
+      ctx.fillStyle = 'rgba(10, 15, 12, 0.80)';
       const labelW = ctx.measureText(d.shortName).width + 24 / scale;
       const labelH = fontSize * 1.45;
       ctx.fillRect(d.center.x - labelW * 0.5, d.center.y - labelH * 0.5, labelW, labelH);
       ctx.fillStyle = d.color || '#fff';
       ctx.fillText(d.shortName, d.center.x, d.center.y + fontSize * 0.35);
+    }
+
+    // Major Avenue & Highway Labels along roads
+    const aveLabels = Config.AVENUE_LABELS || [];
+    const aveFont = Math.max(9, Math.round(10 / scale));
+    ctx.font = `bold ${aveFont}px monospace`;
+    ctx.textAlign = 'center';
+    for (let i = 0; i < aveLabels.length; i++) {
+      const al = aveLabels[i];
+      ctx.save();
+      ctx.translate(al.x, al.y);
+      if (al.axis === 'v') ctx.rotate(-Math.PI / 2);
+      const tw = ctx.measureText(al.text).width + 14 / scale;
+      const th = aveFont * 1.35;
+      ctx.fillStyle = 'rgba(15, 22, 18, 0.78)';
+      ctx.fillRect(-tw * 0.5, -th * 0.5, tw, th);
+      ctx.fillStyle = '#e2ece0';
+      ctx.fillText(al.text, 0, aveFont * 0.34);
+      ctx.restore();
+    }
+
+    // Live Traffic Light Indicators on Full Map
+    if (showTrafficLightsOnMap) {
+      const tlRad = 10 / scale;
+      for (let i = 0; i < World.trafficLights.length; i++) {
+        const tl = World.trafficLights[i];
+        const st = World.getTrafficLightState(tl, simTime);
+        ctx.fillStyle = st.h === 'green' ? '#4ade80' : st.h === 'yellow' ? '#facc15' : '#ff3b30';
+        ctx.beginPath();
+        ctx.arc(tl.x, tl.y, tlRad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#101411';
+        ctx.lineWidth = 2 / scale;
+        ctx.stroke();
+      }
     }
 
     const rIcon = 24 / scale;
@@ -1119,6 +1523,20 @@ CiudadCero.Renderer = (() => {
         ctx.fillStyle = '#fff';
         ctx.fillText(npc.name.split(' ')[0], npc.x, npc.y + rIcon + labelFont);
       }
+    }
+
+    // Active GPS Navigation Line from Player to Custom Waypoint or Active Mission
+    const activeTarget = gameData.customWaypoint || gameData.mission;
+    if (activeTarget && gameData.player) {
+      ctx.save();
+      ctx.strokeStyle = gameData.customWaypoint ? '#38bdf8' : '#f5d94b';
+      ctx.lineWidth = 7 / scale;
+      ctx.setLineDash([22 / scale, 14 / scale]);
+      ctx.beginPath();
+      ctx.moveTo(gameData.player.x, gameData.player.y);
+      ctx.lineTo(activeTarget.x, activeTarget.y);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Active Mission
@@ -1313,6 +1731,7 @@ CiudadCero.Renderer = (() => {
   return {
     setQuality,
     setShowMinimap,
+    setShowTrafficLightsOnMap,
     addSkidParticle,
     addSparkParticles,
     addFootstepDust,

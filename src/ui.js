@@ -63,6 +63,8 @@ CiudadCero.UI = (() => {
       mapModal: document.getElementById('map-modal'),
       fullMapCanvas: document.getElementById('full-map-canvas'),
       mapDistrictsStrip: document.getElementById('map-districts-strip'),
+      mapLandmarksStrip: document.getElementById('map-landmarks-strip'),
+      mapGpsStatus: document.getElementById('map-gps-status'),
       btnMapClearGps: document.getElementById('btn-map-clear-gps'),
       garageModal: document.getElementById('garage-modal'),
       garageModalTitle: document.getElementById('garage-modal-title'),
@@ -163,6 +165,10 @@ CiudadCero.UI = (() => {
 
     c.addEventListener('pointerup', endDrag);
     c.addEventListener('pointercancel', endDrag);
+    c.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      zoomFullMap(e.deltaY < 0 ? 0.22 : -0.22);
+    }, { passive: false });
   }
 
   function showToast(text, duration = 2600) {
@@ -426,7 +432,7 @@ CiudadCero.UI = (() => {
     }
 
     const sectionTitles = {
-      hub: { tag: 'CIUDAD CERO · v0.6 · PANTALLA COMPLETA', title: 'MENÚ DEL JUEGO' },
+      hub: { tag: 'CIUDAD CERO · v0.7 · INFRAESTRUCTURA URBANA', title: 'MENÚ DEL JUEGO' },
       partida: { tag: 'SECCIÓN · GESTIÓN DE PROGRESO', title: 'PARTIDA Y GUARDADO' },
       sonido: { tag: 'SECCIÓN · AUDIO DEL JUEGO', title: 'SONIDO Y MÚSICA' },
       controles: { tag: 'SECCIÓN · ERGONOMÍA MÓVIL Y TÁCTIL', title: 'CONTROLES TÁCTILES' },
@@ -817,6 +823,17 @@ CiudadCero.UI = (() => {
       );
 
       panel.appendChild(
+        makeToggleRow(
+          'Semáforos en Radar y Mapa',
+          'Muestra el estado en vivo de los semáforos en el minimapa y mapa.',
+          gen.showTrafficLightsOnMap !== false,
+          'ACTIVOS',
+          'OCULTOS',
+          () => handlers.onUpdateGeneral({ showTrafficLightsOnMap: !(gen.showTrafficLightsOnMap !== false) })
+        )
+      );
+
+      panel.appendChild(
         makeChoiceRow(
           'Calidad Gráfica y Efectos',
           'Usa Rendimiento para ahorrar batería en celulares.',
@@ -876,6 +893,7 @@ CiudadCero.UI = (() => {
 
   function redrawFullMap() {
     if (!isMapOpen() || !lastMapArgs) return;
+    lastMapArgs.data.simTime = performance.now() / 1000;
     mapView.lastTransform = CiudadCero.Renderer.renderFullMap(
       dom.fullMapCanvas,
       mapView,
@@ -883,6 +901,20 @@ CiudadCero.UI = (() => {
     );
     if (dom.btnMapClearGps) {
       dom.btnMapClearGps.classList.toggle('hidden', !lastMapArgs.data.customWaypoint);
+    }
+    if (dom.mapGpsStatus && lastMapArgs.data.player) {
+      const p = lastMapArgs.data.player;
+      const wp = lastMapArgs.data.customWaypoint;
+      const m = lastMapArgs.data.mission;
+      if (wp) {
+        const distM = Math.round(Math.hypot(wp.x - p.x, wp.y - p.y) / 10);
+        dom.mapGpsStatus.textContent = `📍 RUTA GPS ACTIVA → ${wp.label || 'PUNTO MARCADO'} (${distM} m)`;
+      } else if (m) {
+        const distM = Math.round(Math.hypot(m.x - p.x, m.y - p.y) / 10);
+        dom.mapGpsStatus.textContent = `🎯 OBJETIVO DE MISIÓN: ${m.title.toUpperCase()} (${distM} m) · Toca el mapa para fijar GPS.`;
+      } else {
+        dom.mapGpsStatus.textContent = 'Toca cualquier punto del mapa, barrio o lugar destacado para fijar ruta GPS.';
+      }
     }
   }
 
@@ -914,6 +946,23 @@ CiudadCero.UI = (() => {
           redrawFullMap();
         });
         dom.mapDistrictsStrip.appendChild(chip);
+      });
+    }
+
+    if (dom.mapLandmarksStrip) {
+      dom.mapLandmarksStrip.innerHTML = '';
+      (CiudadCero.Config.LANDMARKS || []).forEach((lm) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'landmark-chip';
+        btn.textContent = `${lm.icon} ${lm.name}`;
+        btn.addEventListener('click', () => {
+          if (handlers && handlers.onSetWaypoint) {
+            handlers.onSetWaypoint({ x: lm.x, y: lm.y, label: lm.name.toUpperCase() });
+          }
+          redrawFullMap();
+        });
+        dom.mapLandmarksStrip.appendChild(btn);
       });
     }
 
