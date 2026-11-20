@@ -41,3 +41,19 @@ Se revisó la sintaxis de JavaScript y la integridad del ZIP. La apariencia y re
 - Mateo now uses his dedicated protagonist appearance; named mission/story NPCs use their own skin, hair, outfit and accessory palette.
 - Pedestrians have more visual variation, while foot patrols use the dedicated police appearance.
 - Added more natural arm/forearm and leg/shin articulation, foot lift, body bounce and subtle idle breathing.
+
+
+## CIUDAD ENGINE V0.1.0 — FOUNDATION
+
+Se incorpora la primera capa independiente del motor:
+- Núcleo de eventos (`EventBus`).
+- Gestor de escenas (`SceneManager`).
+- Registro de recursos (`ResourceRegistry`).
+- Ciclo de vida y diagnóstico (`Engine`).
+- Detección de capacidades de plataforma (`PlatformAdapter`).
+- Conexión del renderizador 3D actual con `CiudadEngine.runtime`.
+
+Esta fase no reemplaza el renderizador ni los sistemas de juego existentes. La base gráfica sigue usando Three.js 0.160.0 y WebGL 2 cuando está disponible. WebGPU queda detectado como capacidad, pero todavía no se usa como backend de renderizado.
+
+### Validación de esta entrega
+Se verificó la sintaxis de los archivos JavaScript y la integridad del archivo ZIP. No se realizó una prueba visual interactiva en navegador o iPhone; esa comprobación debe hacerse al abrir el juego.
