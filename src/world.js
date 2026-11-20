@@ -11,6 +11,7 @@ CiudadCero.World = (() => {
   const parkingLots = [];
   const garages = [];
   const hideouts = [];
+  const stores = (Config.STORES || []).map((store) => Object.assign({}, store));
   const parkedSpots = [];
   const sidewalkNodes = [];
   const trafficLights = [];
@@ -389,6 +390,77 @@ CiudadCero.World = (() => {
     return null;
   }
 
+  // Street-only GPS: A* over the orthogonal road/intersection grid.
+  // The route deliberately terminates at the nearest intersection instead of
+  // drawing a shortcut through a building to an indoor destination.
+  function getStreetRoute(startX, startY, endX, endY) {
+    const bs = cfg.blockSize;
+    const cols = Math.max(1, Math.floor(cfg.width / bs));
+    const rows = Math.max(1, Math.floor(cfg.height / bs));
+    const clampIndex = (v, max) => Math.max(0, Math.min(max - 1, Math.round((v - bs * 0.25) / bs)));
+    const sx = clampIndex(startX, cols), sy = clampIndex(startY, rows);
+    const ex = clampIndex(endX, cols), ey = clampIndex(endY, rows);
+    const key = (x, y) => `${x},${y}`;
+    const open = [{ x: sx, y: sy, g: 0, f: Math.abs(ex - sx) + Math.abs(ey - sy) }];
+    const cameFrom = new Map();
+    const gScore = new Map([[key(sx, sy), 0]]);
+    const closed = new Set();
+    let found = false;
+    while (open.length) {
+      open.sort((a, b) => a.f - b.f);
+      const current = open.shift();
+      const ck = key(current.x, current.y);
+      if (closed.has(ck)) continue;
+      if (current.x === ex && current.y === ey) { found = true; break; }
+      closed.add(ck);
+      const neighbors = [[current.x + 1, current.y], [current.x - 1, current.y], [current.x, current.y + 1], [current.x, current.y - 1]];
+      for (const [nx, ny] of neighbors) {
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+        const nk = key(nx, ny);
+        if (closed.has(nk)) continue;
+        const tentative = current.g + 1;
+        if (tentative < (gScore.get(nk) ?? Infinity)) {
+          cameFrom.set(nk, ck);
+          gScore.set(nk, tentative);
+          open.push({ x: nx, y: ny, g: tentative, f: tentative + Math.abs(ex - nx) + Math.abs(ey - ny) });
+        }
+      }
+    }
+    if (!found) return [];
+    const path = [];
+    let cursor = key(ex, ey);
+    while (cursor) {
+      const parts = cursor.split(',').map(Number);
+      path.push({ x: parts[0] * bs + cfg.roadWidth * 0.5, y: parts[1] * bs + cfg.roadWidth * 0.5 });
+      cursor = cameFrom.get(cursor);
+    }
+    path.reverse();
+    const route = path.slice();
+    const startNode = route[0];
+    // Orthogonal connector from the player to the nearest intersection.
+    if (isOnRoad(startX, startY) && Math.hypot(startX - startNode.x, startY - startNode.y) < bs * 0.72) {
+      const rx = ((startX % bs) + bs) % bs;
+      const ry = ((startY % bs) + bs) % bs;
+      const corner = rx < cfg.roadWidth
+        ? { x: startX, y: startNode.y }
+        : { x: startNode.x, y: startY };
+      route.unshift(corner);
+      route.unshift({ x: startX, y: startY });
+    }
+    // A destination that lies on a road/sidewalk edge can be reached exactly.
+    // Indoor or block-centre destinations stop at the closest intersection.
+    const endNode = route[route.length - 1];
+    if (isOnRoad(endX, endY) && Math.hypot(endX - endNode.x, endY - endNode.y) < bs * 0.72) {
+      const rx = ((endX % bs) + bs) % bs;
+      const corner = rx < cfg.roadWidth
+        ? { x: endX, y: endNode.y }
+        : { x: endNode.x, y: endY };
+      route.push(corner);
+      route.push({ x: endX, y: endY });
+    }
+    return route.filter((point, index, list) => index === 0 || Math.hypot(point.x - list[index - 1].x, point.y - list[index - 1].y) > 0.5);
+  }
+
   function getTrafficLightState(light, simTime) {
     const cycle = sigCfg.cycleDuration || 15.0;
     const gDur = sigCfg.greenDuration || 6.0;
@@ -469,6 +541,7 @@ CiudadCero.World = (() => {
     parkingLots,
     garages,
     hideouts,
+    stores,
     parkedSpots,
     sidewalkNodes,
     trafficLights,
@@ -478,6 +551,7 @@ CiudadCero.World = (() => {
     isOnRoad,
     getGarageAt,
     getHideoutAt,
+    getStreetRoute,
     getTrafficLightState,
     getNearestTrafficLight,
     getLaneCoords

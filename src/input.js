@@ -34,6 +34,7 @@ CiudadCero.Input = (() => {
     onEnterExit: null,
     onHorn: null,
     onGarage: null,
+    onStore: null,
     onStory: null,
     onTalk: null,
     onMenu: null,
@@ -253,6 +254,7 @@ CiudadCero.Input = (() => {
           if (k === 'g') {
             if (callbacks.onGarage) callbacks.onGarage(false);
           }
+          if (k === 't' && !blocked && callbacks.onStore) callbacks.onStore(false);
           if (k === 'h') {
             if (callbacks.onStory) callbacks.onStory(false);
           }

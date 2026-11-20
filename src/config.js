@@ -4,8 +4,8 @@ CiudadCero.Config = {
   GAME_INFO: {
     title: 'Ciudad Cero',
     installment: 1,
-    version: '0.7.9',
-    subtitle: 'Ciudad Viva: Fachadas, Parques y Barrios'
+    version: '0.8.0',
+    subtitle: 'Comercios, armerías y navegación urbana'
   },
 
   TRAFFIC_SIGNAL: {
@@ -231,6 +231,37 @@ CiudadCero.Config = {
       desc: 'Parque abierto en la periferia oriental con vistas a toda la ciudad.'
     }
   ],
+
+  STORES: [
+    {
+      id: 'arm_store_centro', type: 'weapons', name: 'Armería Distrito 9',
+      districtId: 'centro', x: 2175, y: 165, icon: '🔫',
+      desc: 'Comercio legal de equipamiento y munición. Compra y equipa tu inventario.'
+    },
+    {
+      id: 'arm_store_industrial', type: 'weapons', name: 'Armería Industrial',
+      districtId: 'industrial', x: 2475, y: 1665, icon: '🔫',
+      desc: 'Sucursal de equipamiento en el corredor industrial. Compra y equipa tu inventario.'
+    },
+    {
+      id: 'rob_store_galerias', type: 'robbery', name: 'Minimercado Galerías',
+      districtId: 'comercial', x: 3675, y: 465, icon: '🏪',
+      desc: 'Un minimercado abierto hasta tarde. Puedes intentar asaltarlo.', rewardMin: 180, rewardMax: 280, cooldownMs: 180000
+    },
+    {
+      id: 'rob_store_puerto', type: 'robbery', name: 'Almacén del Puerto',
+      districtId: 'portuaria', x: 1275, y: 1665, icon: '🏪',
+      desc: 'Almacén de suministros de la zona portuaria. Puedes intentar asaltarlo.', rewardMin: 220, rewardMax: 340, cooldownMs: 210000
+    }
+  ],
+
+  WEAPONS: [
+    { id: 'compacta', name: 'Pistola compacta', price: 350, ammoOnPurchase: 24, desc: 'Equipo ligero para defensa urbana.' },
+    { id: 'escopeta', name: 'Escopeta táctica', price: 720, ammoOnPurchase: 12, desc: 'Mayor potencia a corta distancia.' },
+    { id: 'subfusil', name: 'Subfusil urbano', price: 980, ammoOnPurchase: 48, desc: 'Equipo automático de uso urbano.' }
+  ],
+
+  WEAPON_AMMO: { price: 90, amount: 30 },
 
   VEHICLE_TYPES: {
     compact: {

@@ -877,6 +877,43 @@ CiudadCero.Renderer = (() => {
     }
   }
 
+  function drawStoreMarkers(ctx, stores, now) {
+    if (!Array.isArray(stores)) return;
+    for (const store of stores) {
+      const weapon = store.type === 'weapons';
+      const color = weapon ? '#f5d94b' : '#4de0b5';
+      const pulse = 1 + Math.sin((now || 0) / 260 + store.x * 0.01) * 0.12;
+      ctx.save();
+      ctx.translate(store.x, store.y);
+      ctx.fillStyle = 'rgba(8, 13, 10, 0.78)';
+      ctx.beginPath(); ctx.arc(0, 0, 17 * pulse, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.fillStyle = color; ctx.font = 'bold 17px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(weapon ? '✚' : '▣', 0, 0.5);
+      ctx.fillStyle = '#f4f7ee'; ctx.font = 'bold 10px sans-serif';
+      ctx.fillText(weapon ? 'ARMERÍA' : 'COMERCIO', 0, -23);
+      ctx.restore();
+    }
+  }
+
+  function drawNavigationPolyline(ctx, points, xOffset, yOffset, sx, sy, color, width) {
+    if (!Array.isArray(points) || points.length < 2) return;
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = color; ctx.lineWidth = width + 2.2;
+    ctx.globalAlpha = 0.24;
+    ctx.beginPath();
+    ctx.moveTo(xOffset + points[0].x * sx, yOffset + points[0].y * sy);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(xOffset + points[i].x * sx, yOffset + points[i].y * sy);
+    ctx.stroke();
+    ctx.globalAlpha = 0.92; ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.setLineDash([4, 2]);
+    ctx.beginPath();
+    ctx.moveTo(xOffset + points[0].x * sx, yOffset + points[0].y * sy);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(xOffset + points[i].x * sx, yOffset + points[i].y * sy);
+    ctx.stroke(); ctx.restore();
+  }
+
   function drawStoryNPCs(ctx, npcs, player, activeMission, now) {
     if (!Array.isArray(npcs)) return;
     for (let i = 0; i < npcs.length; i++) {
@@ -1007,8 +1044,8 @@ CiudadCero.Renderer = (() => {
 
   function drawMinimap(ctx, viewW, state, policeHUD) {
     if (!showMinimap) return;
-    const mapW = viewW < 640 ? 132 : 170;
-    const mapH = viewW < 640 ? 99 : 126;
+    const mapW = viewW < 640 ? 154 : 190;
+    const mapH = viewW < 640 ? 116 : 143;
     const mx = viewW - mapW - 12;
     const my = 12;
     const simTime = state.simTime || performance.now() / 1000;
@@ -1025,6 +1062,8 @@ CiudadCero.Renderer = (() => {
 
     // v0.7.9: capa base (barrios, calles, manzanas, edificios, parques y agua) en caché
     ctx.drawImage(CityArt.getMinimapBase(mapW, mapH), mx, my, mapW, mapH);
+    ctx.fillStyle = 'rgba(8, 13, 10, 0.78)'; ctx.fillRect(mx + 3, my + 3, Math.min(88, mapW - 6), 11);
+    ctx.fillStyle = '#dce9d6'; ctx.font = 'bold 7px monospace'; ctx.textAlign = 'left'; ctx.fillText('CIUDAD CERO · GPS', mx + 7, my + 11);
 
     // Live Traffic Light indicators at major intersections
     if (showTrafficLightsOnMap) {
@@ -1037,18 +1076,18 @@ CiudadCero.Renderer = (() => {
       }
     }
 
-    // GPS Route Line on Minimap
-    const navTarget = state.customWaypoint || state.mission;
-    if (navTarget && state.player) {
-      ctx.save();
-      ctx.strokeStyle = state.customWaypoint ? 'rgba(56, 189, 248, 0.72)' : 'rgba(245, 217, 75, 0.65)';
-      ctx.lineWidth = 1.3;
-      ctx.setLineDash([3, 2]);
-      ctx.beginPath();
-      ctx.moveTo(mx + state.player.x * sx, my + state.player.y * sy);
-      ctx.lineTo(mx + navTarget.x * sx, my + navTarget.y * sy);
-      ctx.stroke();
-      ctx.restore();
+    // GPS follows the road grid: no diagonal shortcut across city blocks.
+    drawNavigationPolyline(
+      ctx, state.navigationRoute, mx, my, sx, sy,
+      state.customWaypoint ? '#38bdf8' : '#f5d94b', 2.2
+    );
+
+    // Store points are visible even when the player is far away.
+    for (const store of World.stores || []) {
+      const weapon = store.type === 'weapons';
+      ctx.fillStyle = weapon ? '#f5d94b' : '#4de0b5';
+      ctx.strokeStyle = '#101611'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(mx + store.x * sx, my + store.y * sy, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
 
     // Garages
@@ -1301,6 +1340,17 @@ CiudadCero.Renderer = (() => {
       ctx.fill();
     }
 
+    // Weapon store and robbery-store locations.
+    for (const store of World.stores || []) {
+      const weapon = store.type === 'weapons';
+      ctx.fillStyle = weapon ? '#f5d94b' : '#4de0b5';
+      ctx.strokeStyle = '#101411'; ctx.lineWidth = 3 / scale;
+      ctx.beginPath(); ctx.arc(store.x, store.y, rIcon * 0.92, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#101411'; ctx.font = `bold ${Math.max(9, Math.round(11 / scale))}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.fillText(weapon ? 'A' : '$', store.x, store.y + Math.max(3, 4 / scale));
+      ctx.fillStyle = '#f4f7ee'; ctx.fillText(store.name, store.x, store.y - rIcon - 5 / scale);
+    }
+
     // Story NPCs
     if (Array.isArray(gameData.npcs)) {
       for (let i = 0; i < gameData.npcs.length; i++) {
@@ -1314,18 +1364,20 @@ CiudadCero.Renderer = (() => {
       }
     }
 
-    // Active GPS Navigation Line from Player to Custom Waypoint or Active Mission
-    const activeTarget = gameData.customWaypoint || gameData.mission;
-    if (activeTarget && gameData.player) {
+    // Street-following GPS route, shared with the minimap.
+    const navRoute = gameData.navigationRoute || [];
+    if (navRoute.length > 1) {
       ctx.save();
-      ctx.strokeStyle = gameData.customWaypoint ? '#38bdf8' : '#f5d94b';
-      ctx.lineWidth = 7 / scale;
-      ctx.setLineDash([22 / scale, 14 / scale]);
-      ctx.beginPath();
-      ctx.moveTo(gameData.player.x, gameData.player.y);
-      ctx.lineTo(activeTarget.x, activeTarget.y);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(8, 14, 10, 0.82)'; ctx.lineWidth = 15 / scale;
+      ctx.beginPath(); ctx.moveTo(navRoute[0].x, navRoute[0].y);
+      for (let i = 1; i < navRoute.length; i++) ctx.lineTo(navRoute[i].x, navRoute[i].y);
       ctx.stroke();
-      ctx.restore();
+      ctx.strokeStyle = gameData.customWaypoint ? '#38bdf8' : '#f5d94b';
+      ctx.lineWidth = 7 / scale; ctx.setLineDash([20 / scale, 12 / scale]);
+      ctx.beginPath(); ctx.moveTo(navRoute[0].x, navRoute[0].y);
+      for (let i = 1; i < navRoute.length; i++) ctx.lineTo(navRoute[i].x, navRoute[i].y);
+      ctx.stroke(); ctx.restore();
     }
 
     // Active Mission
@@ -1415,6 +1467,7 @@ CiudadCero.Renderer = (() => {
     }
 
     drawTrafficLightsAndUrbanGlow(ctx, cam, viewW, viewH, simTime);
+    drawStoreMarkers(ctx, state.stores || World.stores, now);
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];

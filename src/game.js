@@ -23,6 +23,9 @@ CiudadCero.Game = (() => {
   let lastTime = 0;
   let simTime = 0;
   let autoSaveTimer = 0;
+  let navigationRefreshTimer = 0;
+  let navigationTargetKey = '';
+  let navigationLastPlayer = { x: -99999, y: -99999 };
   let appSettings = Save.loadSettings();
 
   const state = {
@@ -33,6 +36,9 @@ CiudadCero.Game = (() => {
     pedestrians: [],
     npcs: [],
     customWaypoint: null,
+    navigationRoute: [],
+    inventory: { ownedWeapons: [], equippedWeapon: null, ammo: 0 },
+    robberyCooldowns: {},
     camera: { x: 0, y: 0 }
   };
 
@@ -67,7 +73,9 @@ CiudadCero.Game = (() => {
         ? { x: Math.round(state.player.x), y: Math.round(state.player.y), angle: state.player.angle }
         : null,
       story: Story.exportState(),
-      garage: Garage.exportState()
+      garage: Garage.exportState(),
+      inventory: state.inventory,
+      robberyCooldowns: state.robberyCooldowns
     });
   }
 
@@ -123,6 +131,10 @@ CiudadCero.Game = (() => {
     state.money = 500;
     state.missionsCompleted = 0;
     state.customWaypoint = null;
+    state.navigationRoute = [];
+    state.activeStore = null;
+    state.inventory = { ownedWeapons: [], equippedWeapon: null, ammo: 0 };
+    state.robberyCooldowns = {};
     state.player = Entities.createPlayer();
     state.vehicles = [];
     state.pedestrians = [];
@@ -150,7 +162,7 @@ CiudadCero.Game = (() => {
     Input.setMode(false);
     updateCamera(1);
     UI.renderDialogue(Story.getCurrentDialogueLine());
-    UI.showToast('Ciudad Cero v0.7.9 · Ciudad Viva: Pulido Urbano');
+    UI.showToast('Ciudad Cero v0.8.0 · Comercios y GPS Urbano');
   }
 
   function loadOrInitGame(isManualLoad = false) {
@@ -166,6 +178,12 @@ CiudadCero.Game = (() => {
 
     state.money = typeof saved.money === 'number' ? saved.money : 500;
     state.missionsCompleted = typeof saved.missionsCompleted === 'number' ? saved.missionsCompleted : 0;
+    state.inventory = saved.inventory && typeof saved.inventory === 'object'
+      ? { ownedWeapons: Array.isArray(saved.inventory.ownedWeapons) ? saved.inventory.ownedWeapons : [], equippedWeapon: saved.inventory.equippedWeapon || null, ammo: Math.max(0, Number(saved.inventory.ammo) || 0) }
+      : { ownedWeapons: [], equippedWeapon: null, ammo: 0 };
+    state.robberyCooldowns = saved.robberyCooldowns && typeof saved.robberyCooldowns === 'object' ? saved.robberyCooldowns : {};
+    state.navigationRoute = [];
+    state.activeStore = null;
     state.player = Entities.createPlayer();
     if (saved.playerPos && typeof saved.playerPos.x === 'number' && typeof saved.playerPos.y === 'number') {
       if (!Physics.collidesBuildingCircle(saved.playerPos.x, saved.playerPos.y, state.player.radius)) {
@@ -216,6 +234,7 @@ CiudadCero.Game = (() => {
     UI.closeMenuModal();
     UI.closeMapModal();
     UI.closeGarageModal();
+    UI.closeStoreModal();
     UI.closeStoryModal();
     UI.closeConfirmModal();
     Input.setBlocked(false);
@@ -226,6 +245,7 @@ CiudadCero.Game = (() => {
       UI.isMenuOpen() ||
       UI.isMapOpen() ||
       UI.isGarageOpen() ||
+      UI.isStoreOpen() ||
       UI.isStoryOpen() ||
       UI.isConfirmOpen() ||
       Story.isDialogueOpen();
@@ -401,6 +421,7 @@ CiudadCero.Game = (() => {
      ============================================================================ */
   function setCustomWaypoint(wp) {
     state.customWaypoint = wp;
+    refreshNavigationRoute(0, true);
     if (wp) {
       UI.showToast(`📍 GPS fijado en ${wp.label || 'destino marcado'}`, 2400);
     } else {
@@ -493,6 +514,12 @@ CiudadCero.Game = (() => {
         syncBlockedState();
         return;
       }
+      if (UI.isStoreOpen()) {
+        UI.closeStoreModal();
+        state.activeStore = null;
+        syncBlockedState();
+        return;
+      }
       if (UI.isGarageOpen()) {
         UI.closeGarageModal();
         syncBlockedState();
@@ -518,6 +545,8 @@ CiudadCero.Game = (() => {
 
     UI.closeMapModal();
     UI.closeGarageModal();
+    UI.closeStoreModal();
+    state.activeStore = null;
     UI.closeStoryModal();
     Input.setBlocked(true);
     UI.openMenuModal('hub', getMenuData(), getMenuHandlers());
@@ -529,7 +558,8 @@ CiudadCero.Game = (() => {
       player: state.player,
       npcs: state.npcs,
       mission: Story.state.activeMission,
-      customWaypoint: state.customWaypoint
+      customWaypoint: state.customWaypoint,
+      navigationRoute: state.navigationRoute
     };
   }
 
@@ -552,9 +582,113 @@ CiudadCero.Game = (() => {
     }
     UI.closeMenuModal();
     UI.closeGarageModal();
+    UI.closeStoreModal();
     UI.closeStoryModal();
     Input.setBlocked(true);
     UI.openMapModal(getMapData(), getMapHandlers());
+  }
+
+  function getNearbyStore() {
+    if (!state.player || state.player.inCar) return null;
+    let best = null;
+    let bestDist = 86;
+    for (const store of World.stores || []) {
+      const d = Math.hypot(store.x - state.player.x, store.y - state.player.y);
+      if (d < bestDist) { best = store; bestDist = d; }
+    }
+    return best;
+  }
+
+  function refreshStoreModal() {
+    const store = state.activeStore;
+    if (!store) { UI.closeStoreModal(); syncBlockedState(); return; }
+    UI.renderStoreModal({
+      store,
+      money: state.money,
+      inventory: state.inventory,
+      wanted: Police.state.wanted,
+      cooldownUntil: Number(state.robberyCooldowns[store.id]) || 0
+    }, {
+      onBuyWeapon: (weaponId) => {
+        const item = (Config.WEAPONS || []).find((w) => w.id === weaponId);
+        if (!item) return;
+        if (state.inventory.ownedWeapons.includes(item.id)) { UI.showToast('Ese equipo ya está en tu inventario'); return; }
+        if (state.money < item.price) { UI.showToast(`Necesitas $ ${item.price}`); return; }
+        state.money -= item.price;
+        state.inventory.ownedWeapons.push(item.id);
+        state.inventory.equippedWeapon = item.id;
+        state.inventory.ammo += item.ammoOnPurchase || 0;
+        Audio.playGarageAction();
+        saveCurrentProgress();
+        UI.showToast(`${item.name} comprada y equipada · +${item.ammoOnPurchase || 0} municiones`);
+        refreshStoreModal();
+      },
+      onEquipWeapon: (weaponId) => {
+        if (!state.inventory.ownedWeapons.includes(weaponId)) return;
+        state.inventory.equippedWeapon = weaponId;
+        saveCurrentProgress();
+        UI.showToast('Equipo seleccionado');
+        refreshStoreModal();
+      },
+      onBuyAmmo: () => {
+        const ammo = Config.WEAPON_AMMO;
+        if (!state.inventory.equippedWeapon) { UI.showToast('Primero compra un equipo'); return; }
+        if (state.money < ammo.price) { UI.showToast(`Necesitas $ ${ammo.price}`); return; }
+        state.money -= ammo.price;
+        state.inventory.ammo += ammo.amount;
+        saveCurrentProgress();
+        UI.showToast(`Munición comprada · +${ammo.amount}`);
+        refreshStoreModal();
+      },
+      onRobStore: () => {
+        if (!state.inventory.equippedWeapon) { UI.showToast('Necesitas comprar y equipar un arma en la armería'); return; }
+        if (state.inventory.ammo <= 0) { UI.showToast('No tienes munición. Compra un paquete en la armería'); return; }
+        const now = Date.now();
+        const until = Number(state.robberyCooldowns[store.id]) || 0;
+        if (now < until) { UI.showToast(`Este local estará cerrado por ${Math.ceil((until - now) / 1000)} s`); return; }
+        const reward = Math.round(store.rewardMin + Math.random() * (store.rewardMax - store.rewardMin));
+        state.money += reward;
+        state.inventory.ammo = Math.max(0, state.inventory.ammo - 1);
+        state.robberyCooldowns[store.id] = now + (store.cooldownMs || 180000);
+        Police.addWanted(2, state.player.x, state.player.y, `Asalto a ${store.name}`, (msg) => UI.showToast(msg, 3200));
+        Audio.playAlert();
+        saveCurrentProgress();
+        UI.showRewardBanner({ title: `ASALTO: ${store.name}`, reward });
+        UI.showToast(`Asalto completado · +$ ${reward} · La policía ha sido alertada`, 3600);
+        UI.closeStoreModal();
+        state.activeStore = null;
+        syncBlockedState();
+      }
+    });
+  }
+
+  function handleStoreAction(forceClose = false) {
+    if (forceClose || UI.isStoreOpen()) {
+      UI.closeStoreModal();
+      state.activeStore = null;
+      syncBlockedState();
+      return;
+    }
+    const store = getNearbyStore();
+    if (!store) { UI.showToast('Acércate a un comercio para interactuar'); return; }
+    if (state.player.inCar) { UI.showToast('Baja del vehículo para entrar al comercio'); return; }
+    UI.closeMenuModal(); UI.closeMapModal(); UI.closeGarageModal(); UI.closeStoryModal();
+    state.activeStore = store;
+    Input.setBlocked(true);
+    refreshStoreModal();
+  }
+
+  function refreshNavigationRoute(dt = 0, force = false) {
+    const target = state.customWaypoint || Story.state.activeMission;
+    if (!target || !state.player) { state.navigationRoute = []; navigationTargetKey = ''; navigationRefreshTimer = 0; return; }
+    navigationRefreshTimer += dt;
+    const targetKey = `${target.id || target.title || 'target'}:${Math.round(target.x)}:${Math.round(target.y)}:${Boolean(state.customWaypoint)}`;
+    const moved = Math.hypot(state.player.x - navigationLastPlayer.x, state.player.y - navigationLastPlayer.y);
+    if (!force && targetKey === navigationTargetKey && navigationRefreshTimer < 0.35 && moved < 95) return;
+    state.navigationRoute = World.getStreetRoute(state.player.x, state.player.y, target.x, target.y);
+    navigationTargetKey = targetKey;
+    navigationLastPlayer = { x: state.player.x, y: state.player.y };
+    navigationRefreshTimer = 0;
   }
 
   /* ============================================================================
@@ -701,6 +835,7 @@ CiudadCero.Game = (() => {
 
     UI.closeMenuModal();
     UI.closeMapModal();
+    UI.closeStoreModal();
     UI.closeStoryModal();
 
     const ctxData = getActiveGarageContext();
@@ -749,6 +884,8 @@ CiudadCero.Game = (() => {
     UI.closeMenuModal();
     UI.closeMapModal();
     UI.closeGarageModal();
+    UI.closeStoreModal();
+    state.activeStore = null;
     Input.setBlocked(true);
     refreshStoryModal();
   }
@@ -1207,6 +1344,7 @@ CiudadCero.Game = (() => {
       UI.isMenuOpen() ||
       UI.isMapOpen() ||
       UI.isGarageOpen() ||
+      UI.isStoreOpen() ||
       UI.isStoryOpen() ||
       UI.isConfirmOpen() ||
       dialogueOpen
@@ -1216,6 +1354,7 @@ CiudadCero.Game = (() => {
     }
 
     simTime += dt;
+    refreshNavigationRoute(dt);
 
     if (state.player.inCar) {
       updatePlayerVehicle(dt);
@@ -1330,6 +1469,7 @@ CiudadCero.Game = (() => {
     const p = state.player;
     const v = p.vehicle;
     const nearGarage = Boolean(World.getGarageAt(p.x, p.y, 26));
+    const nearStore = getNearbyStore();
     const nearNPC = !p.inCar && Boolean(Story.findNearbyNPC(p, state.npcs));
     Input.setNearbyGarage(nearGarage);
 
@@ -1346,6 +1486,7 @@ CiudadCero.Game = (() => {
       wanted: Police.state.wanted,
       policeHUD: Police.getHUDState(),
       nearGarage,
+      nearStore,
       nearNPC,
       district,
       showDistrictBadge: appSettings.general.showDistrictBadge,
@@ -1371,6 +1512,8 @@ CiudadCero.Game = (() => {
       mission: Story.state.activeMission,
       missionInfo,
       customWaypoint: state.customWaypoint,
+      navigationRoute: state.navigationRoute,
+      stores: World.stores,
       camera: state.camera,
       policeHUD: Police.getHUDState(),
       roadblocks: Police.state.roadblocks
@@ -1387,6 +1530,7 @@ CiudadCero.Game = (() => {
       onEnterExit: toggleEnterExitVehicle,
       onHorn: triggerHorn,
       onGarage: handleGarageAction,
+      onStore: handleStoreAction,
       onStory: handleStoryAction,
       onTalk: handleTalkAction,
       onMenu: handleMenuAction,
@@ -1400,8 +1544,8 @@ CiudadCero.Game = (() => {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const mapW = rect.width < 640 ? 128 : 164;
-      const mapH = rect.width < 640 ? 96 : 122;
+      const mapW = rect.width < 640 ? 154 : 190;
+      const mapH = rect.width < 640 ? 116 : 143;
       if (x >= rect.width - mapW - 18 && y <= mapH + 18) {
         e.preventDefault();
         handleMapAction(false);
@@ -1445,6 +1589,11 @@ CiudadCero.Game = (() => {
 
     const btnGarageQuick = document.getElementById('btn-garage-quick');
     if (btnGarageQuick) btnGarageQuick.addEventListener('click', () => handleGarageAction(false));
+
+    const btnStoreQuick = document.getElementById('btn-store-quick');
+    if (btnStoreQuick) btnStoreQuick.addEventListener('click', () => handleStoreAction(false));
+    const btnStoreClose = document.getElementById('btn-store-close');
+    if (btnStoreClose) btnStoreClose.addEventListener('click', () => handleStoreAction(true));
 
     const btnDialogueNext = document.getElementById('btn-dialogue-next');
     if (btnDialogueNext) {

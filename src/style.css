@@ -275,7 +275,7 @@ canvas#game {
 .hud-right-stack {
   position: absolute;
   right: calc(12px + var(--safe-right));
-  top: calc(142px + var(--safe-top));
+  top: calc(166px + var(--safe-top));
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -286,6 +286,9 @@ canvas#game {
 
 .quick-context-row {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: min(54vw, 280px);
   gap: 6px;
   pointer-events: auto;
 }
@@ -936,6 +939,7 @@ canvas#game {
 .dot-mission { background: var(--amber); }
 .dot-garage { background: #eab308; }
 .dot-hideout { background: var(--stealth); }
+.dot-store { background: linear-gradient(135deg, #f5d94b 50%, #4de0b5 50%); box-shadow: 0 0 4px #f5d94b; }
 .dot-gps { background: var(--sky); }
 
 .map-stage {
@@ -1638,7 +1642,7 @@ canvas#full-map-canvas:active {
 
   .hud-right-stack {
     right: calc(8px + var(--safe-right));
-    top: calc(114px + var(--safe-top));
+    top: calc(143px + var(--safe-top));
   }
 
   .vehicle-hud {
@@ -1905,3 +1909,17 @@ button:disabled,
     cursor: default;
   }
 }
+
+
+/* v0.8.0 · interactive commerce */
+.store-card { max-width: 720px; }
+.store-content { display: grid; gap: 11px; padding: 16px; max-height: min(68vh, 620px); overflow: auto; }
+.store-intro { margin: 0; color: #d7e2d5; font-size: 13px; line-height: 1.5; }
+.store-status, .store-warning { padding: 11px 13px; border: 1px solid rgba(214,243,106,.28); border-radius: 10px; background: rgba(214,243,106,.07); color: #e5efcf; font-size: 12px; }
+.store-warning { border-color: rgba(245,217,75,.35); background: rgba(245,217,75,.08); }
+.store-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px; border: 1px solid rgba(190,210,185,.18); border-radius: 12px; background: rgba(255,255,255,.035); }
+.store-item-copy { display: grid; gap: 5px; min-width: 0; }
+.store-item-copy strong { color: #f2f5eb; font-size: 14px; }
+.store-item-copy small { color: #aab7a7; font-size: 11px; line-height: 1.4; }
+.store-rob-btn { width: 100%; min-height: 46px; }
+@media (max-width: 520px) { .store-item { align-items: stretch; flex-direction: column; } .store-item button { width: 100%; } .store-content { padding: 12px; } }

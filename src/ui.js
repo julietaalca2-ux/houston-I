@@ -34,6 +34,11 @@ CiudadCero.UI = (() => {
       districtAvenue: document.getElementById('district-avenue'),
       btnTalkQuick: document.getElementById('btn-talk-quick'),
       btnGarageQuick: document.getElementById('btn-garage-quick'),
+      btnStoreQuick: document.getElementById('btn-store-quick'),
+      storeModal: document.getElementById('store-modal'),
+      storeModalTitle: document.getElementById('store-modal-title'),
+      storeModalTag: document.getElementById('store-modal-tag'),
+      storeContent: document.getElementById('store-content'),
       policeHud: document.getElementById('police-hud'),
       policeStateLabel: document.getElementById('police-state-label'),
       policeUnits: document.getElementById('police-units'),
@@ -232,6 +237,10 @@ CiudadCero.UI = (() => {
     }
     if (dom.btnTalkQuick) {
       dom.btnTalkQuick.classList.toggle('hidden', !data.nearNPC);
+    }
+    if (dom.btnStoreQuick) {
+      dom.btnStoreQuick.classList.toggle('hidden', !data.nearStore);
+      if (data.nearStore) dom.btnStoreQuick.textContent = data.nearStore.type === 'weapons' ? '🔫 ARMERÍA' : '🏪 COMERCIO';
     }
 
     if (data.missionInfo && dom.missionTitle) {
@@ -432,7 +441,7 @@ CiudadCero.UI = (() => {
     }
 
     const sectionTitles = {
-      hub: { tag: 'CIUDAD CERO · v0.7.5 · CIUDAD VIVA', title: 'MENÚ DEL JUEGO' },
+      hub: { tag: 'CIUDAD CERO · v0.8.0 · COMERCIOS Y GPS', title: 'MENÚ DEL JUEGO' },
       partida: { tag: 'SECCIÓN · GESTIÓN DE PROGRESO', title: 'PARTIDA Y GUARDADO' },
       sonido: { tag: 'SECCIÓN · AUDIO DEL JUEGO', title: 'SONIDO Y MÚSICA' },
       controles: { tag: 'SECCIÓN · ERGONOMÍA MÓVIL Y TÁCTIL', title: 'CONTROLES TÁCTILES' },
@@ -906,12 +915,16 @@ CiudadCero.UI = (() => {
       const p = lastMapArgs.data.player;
       const wp = lastMapArgs.data.customWaypoint;
       const m = lastMapArgs.data.mission;
+      const route = lastMapArgs.data.navigationRoute || [];
+      let routeLength = 0;
+      for (let i = 1; i < route.length; i++) routeLength += Math.hypot(route[i].x - route[i - 1].x, route[i].y - route[i - 1].y);
+      const routeMeters = routeLength ? Math.round(routeLength / 10) : null;
       if (wp) {
-        const distM = Math.round(Math.hypot(wp.x - p.x, wp.y - p.y) / 10);
-        dom.mapGpsStatus.textContent = `📍 RUTA GPS ACTIVA → ${wp.label || 'PUNTO MARCADO'} (${distM} m)`;
+        const distM = routeMeters || Math.round(Math.hypot(wp.x - p.x, wp.y - p.y) / 10);
+        dom.mapGpsStatus.textContent = `📍 RUTA POR CALLES → ${wp.label || 'PUNTO MARCADO'} (${distM} m aprox.)`;
       } else if (m) {
-        const distM = Math.round(Math.hypot(m.x - p.x, m.y - p.y) / 10);
-        dom.mapGpsStatus.textContent = `🎯 OBJETIVO DE MISIÓN: ${m.title.toUpperCase()} (${distM} m) · Toca el mapa para fijar GPS.`;
+        const distM = routeMeters || Math.round(Math.hypot(m.x - p.x, m.y - p.y) / 10);
+        dom.mapGpsStatus.textContent = `🎯 OBJETIVO: ${m.title.toUpperCase()} · RECORRIDO POR CALLES: ${distM} m aprox.`;
       } else {
         dom.mapGpsStatus.textContent = 'Toca cualquier punto del mapa, barrio o lugar destacado para fijar ruta GPS.';
       }
@@ -966,6 +979,22 @@ CiudadCero.UI = (() => {
       });
     }
 
+    if (dom.mapLandmarksStrip) {
+      (CiudadCero.Config.STORES || []).forEach((store) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'landmark-chip';
+        btn.textContent = `${store.icon} ${store.name}`;
+        btn.addEventListener('click', () => {
+          if (handlers && handlers.onSetWaypoint) {
+            handlers.onSetWaypoint({ x: store.x, y: store.y, label: store.name.toUpperCase() });
+          }
+          redrawFullMap();
+        });
+        dom.mapLandmarksStrip.appendChild(btn);
+      });
+    }
+
     redrawFullMap();
   }
 
@@ -992,6 +1021,74 @@ CiudadCero.UI = (() => {
       mapView.panY = (CiudadCero.Config.WORLD.height * 0.5 - p.y) * scale;
     }
     redrawFullMap();
+  }
+
+  function isStoreOpen() {
+    return dom.storeModal && !dom.storeModal.classList.contains('hidden');
+  }
+
+  function closeStoreModal() {
+    if (dom.storeModal) dom.storeModal.classList.add('hidden');
+  }
+
+  function openStoreModal(data, handlers) {
+    renderStoreModal(data, handlers);
+  }
+
+  function renderStoreModal(data, handlers) {
+    if (!dom.storeModal || !dom.storeContent || !data.store) return;
+    dom.storeModal.classList.remove('hidden');
+    if (dom.storeModalTitle) dom.storeModalTitle.textContent = data.store.name;
+    if (dom.storeModalTag) dom.storeModalTag.textContent = data.store.type === 'weapons' ? 'ARMERÍA · EQUIPAMIENTO' : 'COMERCIO · ACTIVIDAD ILEGAL';
+    dom.storeContent.innerHTML = '';
+
+    const intro = document.createElement('p');
+    intro.className = 'store-intro';
+    intro.textContent = `${data.store.desc}  ·  Saldo disponible: $ ${data.money}`;
+    dom.storeContent.appendChild(intro);
+
+    if (data.store.type === 'weapons') {
+      const inventory = data.inventory || { ownedWeapons: [], equippedWeapon: null, ammo: 0 };
+      const equipped = (CiudadCero.Config.WEAPONS || []).find((w) => w.id === inventory.equippedWeapon);
+      const current = document.createElement('div');
+      current.className = 'store-status';
+      current.textContent = `Equipo equipado: ${equipped ? equipped.name : 'Ninguno'} · Munición: ${inventory.ammo || 0}`;
+      dom.storeContent.appendChild(current);
+      (CiudadCero.Config.WEAPONS || []).forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'store-item';
+        const copy = document.createElement('div');
+        copy.className = 'store-item-copy';
+        const name = document.createElement('strong'); name.textContent = item.name;
+        const desc = document.createElement('small'); desc.textContent = `${item.desc} · $ ${item.price} · +${item.ammoOnPurchase} municiones`;
+        copy.append(name, desc);
+        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'g-btn';
+        const owned = inventory.ownedWeapons.includes(item.id);
+        btn.textContent = owned ? (inventory.equippedWeapon === item.id ? 'EQUIPADA' : 'EQUIPAR') : 'COMPRAR';
+        btn.disabled = inventory.equippedWeapon === item.id || (!owned && data.money < item.price);
+        btn.addEventListener('click', () => owned ? handlers.onEquipWeapon(item.id) : handlers.onBuyWeapon(item.id));
+        card.append(copy, btn); dom.storeContent.appendChild(card);
+      });
+      const ammo = CiudadCero.Config.WEAPON_AMMO;
+      const ammoRow = document.createElement('div'); ammoRow.className = 'store-item';
+      const ammoCopy = document.createElement('div'); ammoCopy.className = 'store-item-copy';
+      const ammoName = document.createElement('strong'); ammoName.textContent = 'Paquete de munición';
+      const ammoDesc = document.createElement('small'); ammoDesc.textContent = `+${ammo.amount} unidades · $ ${ammo.price}`;
+      ammoCopy.append(ammoName, ammoDesc);
+      const ammoBtn = document.createElement('button'); ammoBtn.type = 'button'; ammoBtn.className = 'g-btn'; ammoBtn.textContent = 'COMPRAR';
+      ammoBtn.disabled = !inventory.equippedWeapon || data.money < ammo.price;
+      ammoBtn.addEventListener('click', handlers.onBuyAmmo);
+      ammoRow.append(ammoCopy, ammoBtn); dom.storeContent.appendChild(ammoRow);
+    } else {
+      const warning = document.createElement('div'); warning.className = 'store-warning';
+      warning.textContent = data.cooldownUntil > Date.now() ? `Local cerrado temporalmente · ${Math.ceil((data.cooldownUntil - Date.now()) / 1000)} s` : 'El asalto activa una búsqueda policial de 2 estrellas. Necesitas llevar un arma equipada.';
+      dom.storeContent.appendChild(warning);
+      const action = document.createElement('button'); action.type = 'button'; action.className = 'g-btn g-btn-amber store-rob-btn';
+      action.textContent = 'INICIAR ASALTO';
+      action.disabled = data.cooldownUntil > Date.now() || !data.inventory || !data.inventory.equippedWeapon;
+      action.addEventListener('click', handlers.onRobStore);
+      dom.storeContent.appendChild(action);
+    }
   }
 
   /* ============================================================================
@@ -1401,6 +1498,10 @@ CiudadCero.UI = (() => {
     centerFullMap,
     isGarageOpen,
     closeGarageModal,
+    isStoreOpen,
+    openStoreModal,
+    closeStoreModal,
+    renderStoreModal,
     renderGarageModal,
     isStoryOpen,
     closeStoryModal,
