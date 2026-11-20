@@ -181,73 +181,173 @@ CiudadCero.Renderer3D = (() => {
 
   // Detailed stylized human model built from softly rounded anatomical parts.
   // All proportions are authored in one local group so player/NPC animation stays cheap.
+  function getStoryProfile(id) {
+    const profiles = CiudadCero.Characters && CiudadCero.Characters.STORY_PROFILES;
+    return profiles && id && profiles[id] ? profiles[id] : null;
+  }
+
   function makePerson(color = '#d6d9d2', options = {}) {
     const g = new THREE.Group();
-    const skinTone = options.skin || ['#c88f6d', '#e0b493', '#9b694f', '#f0c9a5'][Math.abs(options.variant || 0) % 4];
+    const profile = options.profile || {};
+    const variant = Math.abs(Number.isFinite(options.variant) ? options.variant : 0);
+    const skinTone = profile.skin || options.skin || ['#c88f6d', '#e0b493', '#9b694f', '#f0c9a5', '#d5a17c'][variant % 5];
+    const shirtColor = profile.torsoPrimary || options.shirt || color;
+    const pantsColor = profile.pants || options.pants || ['#303b45', '#39423b', '#34313d', '#4b4540', '#283746'][variant % 5];
+    const shoeColor = profile.shoe || options.shoes || '#202426';
+    const hairColor = profile.hairColor || options.hair || ['#292421', '#49352a', '#17191b', '#76543b', '#342331'][variant % 5];
+    const shirt = material(shirtColor, 0.78);
+    const shirtDark = material(profile.torsoSecondary || options.shirtDark || '#202b32', 0.84);
+    const pants = material(pantsColor, 0.9);
     const skin = material(skinTone, 0.92);
-    const shirt = material(color, 0.82);
-    const pants = material(options.pants || '#303b45', 0.9);
-    const shoes = material('#202426', 0.94);
-    const hair = material(options.hair || ['#292421', '#49352a', '#17191b', '#76543b'][Math.abs(options.variant || 0) % 4], 0.98);
-    const detail = material(options.police ? '#d9e0e2' : '#c7c5b9');
-    const addCapsule = (parent, radius, length, mat, x, y, z, rz = 0) => {
-      const m = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 4, 8), mat);
-      m.position.set(x, y, z); m.rotation.z = rz; m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+    const hair = material(hairColor, 0.94);
+    const hairLight = material(profile.hairHighlight || hairColor, 0.9);
+    const shoes = material(shoeColor, 0.86);
+    const trim = material(profile.accent || options.accent || '#d6d9d2', 0.58, 0.08);
+    const fabricDetail = material(profile.trim || '#d5d9d2', 0.72);
+    const beltMat = material(options.police ? '#101820' : '#29251f', 0.9);
+    const addMesh = (parent, geometry, mat, x, y, z, cast = true) => {
+      const m = new THREE.Mesh(geometry, mat);
+      m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true;
+      parent.add(m); return m;
     };
-    // Pelvis, torso, neck and layered clothing.
-    addCapsule(g, 1.75, 2.0, pants, 0, 3.0, 0);
-    addCapsule(g, 2.25, 4.0, shirt, 0, 7.1, 0);
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.22, 6, 12), detail);
-    collar.position.set(0, 9.15, 0.08); collar.rotation.x = Math.PI / 2; g.add(collar);
-    addCapsule(g, 0.55, 0.65, skin, 0, 9.55, 0);
-    // Head, ears, hair cap and a short rear hair mass.
-    const head = new THREE.Mesh(new THREE.SphereGeometry(1.72, 16, 12), skin);
-    head.position.set(0, 11.45, 0); head.scale.set(0.92, 1.08, 0.88); head.castShadow = true; g.add(head);
-    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(1.76, 14, 9, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
-    hairCap.position.set(0, 11.75, -0.08); hairCap.scale.set(1.0, 0.78, 1.0); hairCap.castShadow = true; g.add(hairCap);
-    const hairBack = new THREE.Mesh(new THREE.SphereGeometry(1.38, 12, 9), hair);
-    hairBack.position.set(0, 10.95, -0.92); hairBack.scale.set(0.92, 0.95, 0.48); g.add(hairBack);
-    for (const side of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 7), skin);
-      ear.position.set(side * 1.55, 11.35, 0); g.add(ear);
-      // Eyes and brows are on the forward (+Z) side of the face.
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), material('#242b2c'));
-      eye.position.set(side * 0.58, 11.62, 1.48); g.add(eye);
-      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.11, 0.12), hair);
-      brow.position.set(side * 0.58, 11.94, 1.46); g.add(brow);
-    }
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), skin);
-    nose.position.set(0, 11.25, 1.57); nose.scale.set(0.72, 1.0, 0.8); g.add(nose);
-    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.09, 0.08), material('#754b42'));
-    mouth.position.set(0, 10.82, 1.48); g.add(mouth);
-    // Shoulder pivots allow a natural alternating walk cycle.
-    const arms = [], legs = [];
-    for (const side of [-1, 1]) {
-      const arm = new THREE.Group(); arm.position.set(side * 2.25, 8.45, 0); g.add(arm);
-      addCapsule(arm, 0.78, 2.35, shirt, 0, -1.45, 0, side * -0.04);
-      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.67, 0.67, 0.28, 10), detail);
-      cuff.position.set(0, -2.72, 0); arm.add(cuff);
-      addCapsule(arm, 0.58, 1.45, skin, 0, -3.55, 0);
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.62, 9, 7), skin); hand.position.set(0, -4.45, 0.05); arm.add(hand);
-      arms.push(arm);
-      const leg = new THREE.Group(); leg.position.set(side * 0.95, 3.1, 0); g.add(leg);
-      addCapsule(leg, 0.88, 2.7, pants, 0, -1.9, 0);
-      const shin = addCapsule(leg, 0.68, 2.0, pants, 0, -4.0, 0.08);
-      const shoe = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.78, 2.15), shoes);
-      shoe.position.set(0, -5.05, 0.48); shoe.castShadow = true; leg.add(shoe);
-      legs.push(leg);
-    }
-    // Small outfit-specific details keep police and mission cast recognizable.
-    if (options.police) {
-      const badge = new THREE.Mesh(new THREE.CircleGeometry(0.42, 8), material('#d7b85b'));
-      badge.position.set(-0.9, 7.7, 2.12); g.add(badge);
-      const belt = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.42, 2.15), material('#202a32'));
-      belt.position.set(0, 4.75, 0); g.add(belt);
+    const capsule = (parent, radius, length, mat, x, y, z, rz = 0) => {
+      const m = addMesh(parent, new THREE.CapsuleGeometry(radius, length, 4, 10), mat, x, y, z);
+      m.rotation.z = rz; return m;
+    };
+    const sphere = (parent, rx, ry, rz, mat, x, y, z) => {
+      const m = addMesh(parent, new THREE.SphereGeometry(1, 12, 10), mat, x, y, z);
+      m.scale.set(rx, ry, rz); return m;
+    };
+
+    // Natural silhouette: pelvis, waist, ribcage and shoulders are separate layers.
+    capsule(g, 1.9, 1.7, pants, 0, 3.0, 0);
+    capsule(g, 2.15, 3.1, shirtDark, 0, 6.45, 0);
+    const torso = capsule(g, 2.42, 3.35, shirt, 0, 7.35, 0);
+    torso.scale.set(1.08, 1.0, 0.92);
+    sphere(g, 2.6, 1.05, 1.28, shirt, 0, 8.75, 0);
+    capsule(g, 0.62, 0.8, skin, 0, 9.75, 0);
+    // Neckline, collar and layered front placket.
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.2, 6, 14), fabricDetail);
+    collar.position.set(0, 9.55, 0.12); collar.rotation.x = Math.PI / 2; g.add(collar);
+    addMesh(g, new THREE.BoxGeometry(0.16, 2.45, 0.08), shirtDark, 0, 7.2, 2.05, false);
+    if (profile.outfitStyle === 'suit') {
+      const lapelL = addMesh(g, new THREE.ConeGeometry(0.85, 2.2, 4), fabricDetail, -0.92, 8.2, 1.82, false);
+      lapelL.rotation.z = -0.35; lapelL.rotation.x = -0.22;
+      const lapelR = addMesh(g, new THREE.ConeGeometry(0.85, 2.2, 4), fabricDetail, 0.92, 8.2, 1.82, false);
+      lapelR.rotation.z = 0.35; lapelR.rotation.x = -0.22;
+      addMesh(g, new THREE.BoxGeometry(0.34, 1.8, 0.12), trim, 0, 7.1, 2.08, false);
+    } else if (profile.outfitStyle === 'overalls') {
+      for (const x of [-1.12, 1.12]) {
+        const strap = addMesh(g, new THREE.BoxGeometry(0.55, 3.15, 0.22), trim, x, 7.65, 1.93, false);
+        strap.rotation.z = x < 0 ? -0.08 : 0.08;
+        addMesh(g, new THREE.BoxGeometry(0.22, 0.22, 0.08), fabricDetail, x, 8.65, 2.08, false);
+      }
+      addMesh(g, new THREE.BoxGeometry(1.55, 1.0, 0.16), trim, 0, 6.5, 2.05, false);
+    } else if (profile.outfitStyle === 'pilot_jacket' || profile.outfitStyle === 'racer_jacket') {
+      for (const x of [-1.7, 1.7]) addMesh(g, new THREE.BoxGeometry(0.24, 3.0, 0.12), trim, x, 7.45, 1.98, false);
+      addMesh(g, new THREE.BoxGeometry(3.5, 0.18, 0.12), trim, 0, 6.2, 2.0, false);
+    } else if (profile.outfitStyle === 'hi_vis_vest') {
+      for (const x of [-1.05, 1.05]) addMesh(g, new THREE.BoxGeometry(0.38, 3.6, 0.16), fabricDetail, x, 7.4, 2.02, false);
+      addMesh(g, new THREE.BoxGeometry(3.3, 0.22, 0.16), fabricDetail, 0, 6.25, 2.04, false);
+    } else if (options.police || profile.outfitStyle === 'police_uniform' || profile.outfitStyle === 'commander') {
+      addMesh(g, new THREE.BoxGeometry(4.0, 0.42, 0.18), beltMat, 0, 5.0, 1.88, false);
+      addMesh(g, new THREE.BoxGeometry(0.62, 0.72, 0.2), trim, -1.15, 7.7, 2.02, false);
+      addMesh(g, new THREE.BoxGeometry(0.62, 0.72, 0.2), trim, 1.15, 7.7, 2.02, false);
+      addMesh(g, new THREE.BoxGeometry(0.48, 0.58, 0.18), fabricDetail, -0.92, 7.65, 2.12, false);
     } else {
-      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.4, 0.08), detail);
-      seam.position.set(0, 6.9, 2.22); g.add(seam);
+      // Casual jacket/hoodie seams, pocket and cuff details.
+      addMesh(g, new THREE.BoxGeometry(1.2, 0.78, 0.13), shirtDark, 1.05, 6.65, 2.02, false);
+      addMesh(g, new THREE.BoxGeometry(0.12, 2.8, 0.1), trim, 0, 7.1, 2.05, false);
     }
-    g.userData = { arms, legs, walkPhase: Math.random() * Math.PI * 2, lastX: 0, lastZ: 0 };
+    // Belt buckle and side pockets.
+    addMesh(g, new THREE.BoxGeometry(0.72, 0.38, 0.16), trim, 0, 4.95, 1.85, false);
+    for (const x of [-1.0, 1.0]) addMesh(g, new THREE.BoxGeometry(0.85, 0.95, 0.12), shirtDark, x, 3.1, 1.52, false);
+
+    // Head with jaw, ears and readable facial features.
+    sphere(g, 1.48, 1.82, 1.34, skin, 0, 11.55, 0);
+    sphere(g, 1.2, 0.75, 1.12, skin, 0, 10.65, 0.28);
+    for (const side of [-1, 1]) {
+      sphere(g, 0.34, 0.48, 0.28, skin, side * 1.43, 11.45, 0);
+      sphere(g, 0.17, 0.19, 0.12, material('#f1d5c4'), side * 0.57, 11.72, 1.22);
+      const brow = addMesh(g, new THREE.BoxGeometry(0.48, 0.12, 0.12), hair, side * 0.57, 12.02, 1.23, false);
+      brow.rotation.z = side * -0.08;
+    }
+    sphere(g, 0.17, 0.22, 0.16, skin, 0, 11.25, 1.36);
+    addMesh(g, new THREE.BoxGeometry(0.42, 0.09, 0.08), material('#754b42'), 0, 10.95, 1.31, false);
+
+    // Hair cap, fringe and distinct silhouette by named style.
+    sphere(g, 1.53, 0.78, 1.42, hair, 0, 12.52, -0.12);
+    const hairStyle = profile.hairStyle || options.hairStyle || ['short_crop','long_hair','slick_part','bun','ponytail'][variant % 5];
+    if (hairStyle === 'bun') {
+      sphere(g, 0.72, 0.72, 0.72, hair, -1.38, 11.8, -0.58);
+      sphere(g, 0.22, 0.22, 0.22, hairLight, -1.38, 11.8, 0.06);
+      sphere(g, 0.42, 0.92, 0.62, hair, -1.42, 10.9, -0.22);
+    } else if (hairStyle === 'ponytail') {
+      sphere(g, 0.42, 1.25, 0.46, hair, -1.38, 11.0, -0.48);
+      sphere(g, 0.22, 0.28, 0.2, trim, -1.35, 11.72, -0.08);
+    } else if (hairStyle === 'long_hair' || hairStyle === 'asym_bob') {
+      sphere(g, 1.48, 1.55, 0.52, hair, 0, 10.95, -0.88);
+      sphere(g, 0.38, 1.3, 0.52, hair, -1.18, 11.2, 0.32);
+      if (hairStyle === 'asym_bob') sphere(g, 0.42, 1.15, 0.55, hair, 1.18, 11.0, 0.38);
+    } else {
+      // swept fringe and sideburns
+      const fringe = addMesh(g, new THREE.SphereGeometry(1, 12, 8), hairLight, 0.38, 12.45, 1.0, false);
+      fringe.scale.set(0.92, 0.38, 0.42); fringe.rotation.z = -0.18;
+      for (const side of [-1, 1]) sphere(g, 0.25, 0.72, 0.38, hair, side * 1.24, 11.5, 0.42);
+    }
+    // Headwear is attached after hair, with a fitted shape instead of covering the face.
+    const hatType = profile.hatType || 'none';
+    if (hatType === 'police_cap' || hatType === 'dock_cap' || hatType === 'cap') {
+      const hatMat = material(hatType === 'dock_cap' ? '#243647' : (hatType === 'cap' ? (options.hatColor || '#3898ff') : '#14202e'), 0.78);
+      sphere(g, 1.48, 0.42, 1.35, hatMat, 0, 12.85, -0.05);
+      const brim = addMesh(g, new THREE.CylinderGeometry(1.02, 1.12, 0.16, 16), hatMat, 0, 12.65, 0.42, false);
+      brim.scale.set(1, 1, 0.62);
+      if (hatType === 'police_cap') addMesh(g, new THREE.BoxGeometry(0.42, 0.42, 0.12), trim, 0, 12.9, 1.22, false);
+    } else if (hatType === 'hardhat') {
+      const hatMat = material(profile.hatColor || '#facc15');
+      sphere(g, 1.55, 0.52, 1.42, hatMat, 0, 12.9, 0);
+      addMesh(g, new THREE.BoxGeometry(2.7, 0.12, 0.52), hatMat, 0, 12.55, 0.72, false);
+    } else if (hatType === 'visor') {
+      const visor = addMesh(g, new THREE.BoxGeometry(2.35, 0.16, 0.18), trim, 0, 11.95, 1.36, false);
+      visor.material = new THREE.MeshStandardMaterial({ color: profile.accent || '#4de0b5', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.82, emissive: profile.accent || '#4de0b5', emissiveIntensity: 0.24 });
+    }
+
+    // Articulated limbs: upper/lower arms and thighs/shins pivot independently.
+    const arms = [], forearms = [], legs = [], shins = [];
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Group(); arm.position.set(side * 2.45, 8.45, 0); g.add(arm);
+      capsule(arm, 0.82, 2.15, shirt, 0, -1.35, 0, side * -0.035);
+      sphere(arm, 0.88, 0.88, 0.86, shirt, 0, -0.15, 0);
+      const elbow = new THREE.Group(); elbow.position.set(0, -2.55, 0); arm.add(elbow);
+      capsule(elbow, 0.62, 1.65, profile.glove ? material(profile.glove) : skin, 0, -1.05, 0);
+      const cuff = addMesh(elbow, new THREE.CylinderGeometry(0.64, 0.64, 0.24, 10), trim, 0, -1.9, 0, false);
+      cuff.rotation.x = Math.PI / 2;
+      sphere(elbow, 0.48, 0.5, 0.48, skin, 0, -2.02, 0.08);
+      arms.push(arm); forearms.push(elbow);
+
+      const leg = new THREE.Group(); leg.position.set(side * 0.98, 3.35, 0); g.add(leg);
+      capsule(leg, 0.96, 2.35, pants, 0, -1.25, 0);
+      sphere(leg, 0.96, 0.88, 0.88, pants, 0, -0.18, 0);
+      const shin = new THREE.Group(); shin.position.set(0, -2.35, 0); leg.add(shin);
+      capsule(shin, 0.72, 2.0, pants, 0, -1.05, 0);
+      const shoe = addMesh(shin, new THREE.BoxGeometry(1.42, 0.78, 2.28), shoes, 0, -2.12, 0.48);
+      shoe.rotation.x = -0.04;
+      addMesh(leg, new THREE.BoxGeometry(1.48, 0.14, 0.18), trim, 0, -1.65, 0.78, false);
+      legs.push(leg); shins.push(shin);
+    }
+
+    // Mission/role-specific identity details.
+    if (options.police || profile.outfitStyle === 'police_uniform' || profile.outfitStyle === 'commander') {
+      addMesh(g, new THREE.BoxGeometry(0.62, 0.76, 0.18), trim, -1.12, 7.65, 2.08, false);
+      addMesh(g, new THREE.BoxGeometry(0.42, 0.48, 0.14), beltMat, 1.45, 5.05, 1.92, false);
+      addMesh(g, new THREE.BoxGeometry(0.28, 1.0, 0.18), beltMat, -1.55, 5.45, 1.9, false);
+    }
+    g.userData = {
+      arms, forearms, legs, shins,
+      walkPhase: (variant * 1.71) % (Math.PI * 2),
+      lastX: 0, lastZ: 0, breathPhase: variant * 0.7,
+      profileId: profile.id || null
+    };
     return g;
   }
 
@@ -255,16 +355,23 @@ CiudadCero.Renderer3D = (() => {
     if (!mesh || mesh.userData.carMode || !mesh.userData.legs) return;
     const dx = Number.isFinite(item && item.x) ? item.x - mesh.userData.lastX : 0;
     const dz = Number.isFinite(item && item.y) ? item.y - mesh.userData.lastZ : 0;
-    const speed = Math.min(1, Math.hypot(dx, dz) / 2.2);
+    const rawSpeed = Math.hypot(dx, dz);
+    const speed = Math.min(1, rawSpeed / 2.2);
     mesh.userData.lastX = item && item.x || mesh.userData.lastX;
     mesh.userData.lastZ = item && item.y || mesh.userData.lastZ;
-    const phase = time * (speed > 0.025 ? 9 + speed * 5 : 1.2) + mesh.userData.walkPhase;
-    const swing = speed > 0.025 ? Math.sin(phase) * 0.62 * speed : Math.sin(time * 1.4 + mesh.userData.walkPhase) * 0.025;
+    const phase = time * (speed > 0.025 ? 8.5 + speed * 5.2 : 1.25) + mesh.userData.walkPhase;
+    const swing = speed > 0.025 ? Math.sin(phase) * 0.58 * speed : Math.sin(time * 1.25 + mesh.userData.breathPhase) * 0.018;
+    const bounce = speed > 0.025 ? Math.abs(Math.cos(phase * 2)) * 0.24 * speed : Math.sin(time * 2.0 + mesh.userData.breathPhase) * 0.035;
     mesh.userData.legs[0].rotation.x = swing;
     mesh.userData.legs[1].rotation.x = -swing;
+    mesh.userData.shins[0].rotation.x = Math.max(0, -Math.cos(phase)) * 0.48 * speed;
+    mesh.userData.shins[1].rotation.x = Math.max(0, Math.cos(phase)) * 0.48 * speed;
     mesh.userData.arms[0].rotation.x = -swing * 0.82;
     mesh.userData.arms[1].rotation.x = swing * 0.82;
-    mesh.position.y = Math.abs(swing) * 0.42;
+    mesh.userData.forearms[0].rotation.x = -0.12 - Math.max(0, swing) * 0.22;
+    mesh.userData.forearms[1].rotation.x = -0.12 - Math.max(0, -swing) * 0.22;
+    mesh.rotation.z = speed > 0.025 ? Math.sin(phase) * 0.025 * speed : Math.sin(time * 0.8 + mesh.userData.breathPhase) * 0.008;
+    mesh.position.y = bounce;
   }
 
   function init() {
@@ -353,7 +460,7 @@ CiudadCero.Renderer3D = (() => {
     sun.shadow.camera.top = 500; sun.shadow.camera.bottom = -500;
     scene.add(sun);
     buildCity();
-    playerMesh = makePerson('#435f70', { variant: 1, pants: '#26333c' }); scene.add(playerMesh);
+    playerMesh = makePerson('#435f70', { variant: 1, profile: getStoryProfile('mateo'), pants: '#26333c' }); scene.add(playerMesh);
     playerShadow = new THREE.Mesh(new THREE.CircleGeometry(5.5, 16), new THREE.MeshBasicMaterial({ color: '#17231c', transparent: true, opacity: 0.28 }));
     playerShadow.rotation.x = -Math.PI / 2; playerShadow.position.y = 0.08; scene.add(playerShadow);
     active = true;
@@ -399,7 +506,7 @@ CiudadCero.Renderer3D = (() => {
         scene.add(playerMesh); playerMesh.userData.carMode = true;
       }
     } else if (playerMesh.userData.carMode) {
-      scene.remove(playerMesh); playerMesh = makePerson('#435f70', { variant: 1, pants: '#26333c' }); scene.add(playerMesh);
+      scene.remove(playerMesh); playerMesh = makePerson('#435f70', { variant: 1, profile: getStoryProfile('mateo'), pants: '#26333c' }); scene.add(playerMesh);
     }
     playerMesh.position.set(p.x, 0, p.y);
     animatePerson(playerMesh, p, performance.now() / 1000, true);
@@ -409,10 +516,10 @@ CiudadCero.Renderer3D = (() => {
     const vehicles = (state.vehicles || []).filter(v => v && v !== p.vehicle && (Math.abs(v.x-p.x) < 620 && Math.abs(v.y-p.y) < 620)).slice(0, 42);
     syncActors(vehicles, vehicleMeshes, (v) => makeCar(v.color || '#9da8a2', v.typeId === 'police'), true);
     const pedestrians = (state.pedestrians || []).filter(v => v && Math.abs(v.x-p.x) < 420 && Math.abs(v.y-p.y) < 420).slice(0, 55);
-    syncActors(pedestrians, pedestrianMeshes, (v) => makePerson(v.isPolice ? '#263d57' : ['#9b765d','#687b68','#9b9da3','#a67d56'][Math.abs(v.id || 0) % 4], { police: !!v.isPolice, variant: Math.abs(v.id || 0) } ), false);
+    syncActors(pedestrians, pedestrianMeshes, (v) => makePerson(v.isPolice ? '#263d57' : ['#9b765d','#687b68','#9b9da3','#a67d56','#6e718c','#b06f59'][Math.abs(v.id || 0) % 6], { police: !!v.isPolice, variant: Math.abs(v.id || 0), profile: v.isPolice ? getStoryProfile('police_foot') : null, pants: ['#303b45','#39423b','#34313d','#4b4540','#283746'][Math.abs(v.id || 0) % 5], hairStyle: ['short_crop','slick_part','long_hair','bun','ponytail'][Math.abs(v.id || 0) % 5] } ), false);
     pedestrianMeshes.forEach((m, i) => { if (m.visible) animatePerson(m, pedestrians[i], performance.now() / 1000); });
     const npcs = (state.npcs || []).filter(v => v && Math.abs(v.x-p.x) < 420 && Math.abs(v.y-p.y) < 420).slice(0, 18);
-    syncActors(npcs, npcMeshes, (v) => makePerson(['#526d83','#84634e','#687b68','#9a765d'][Math.abs(v.id || 0) % 4], { variant: Math.abs(v.id || 0) + 2, pants: '#343b48' }), false);
+    syncActors(npcs, npcMeshes, (v) => makePerson(v.shirt || v.color || ['#526d83','#84634e','#687b68','#9a765d'][Math.abs(v.id || 0) % 4], { variant: Math.abs(v.id || 0) + 2, profile: getStoryProfile(v.visualId || v.id), pants: '#343b48' }), false);
     npcMeshes.forEach((m, i) => { if (m.visible) animatePerson(m, npcs[i], performance.now() / 1000); });
 
     // Third-person TPS camera: stay behind the direction of travel, slightly
