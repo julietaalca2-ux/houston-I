@@ -365,7 +365,10 @@ CiudadCero.Renderer3D = (() => {
     let floors = id === 'centro' ? 5 + (index % 13) : id === 'comercial' || id === 'loston' ? 2 + (index % 4) : id === 'industrial' || id === 'portuaria' ? 1 + (index % 2) : 1 + (index % 3);
     if (role === 'tower') floors += 8;
     if (role === 'warehouse') floors = 2;
-    if (role === 'detached-home' || role === 'residence') floors = 1 + (index % 2);
+    // V0.24.0: suburban/residential homes are deliberately two full storeys
+    // plus roof massing so they read clearly taller than the ~11-unit player.
+    if (role === 'detached-home' || role === 'residence') floors = 2.6 + (index % 3) * 0.25;
+    if (role === 'apartment') floors = Math.max(floors, 3);
     if (b.isHideoutWall) floors = 1;
     const height = clamp(floors * 8.5, 7, 178);
     const x = b.x + b.w / 2, z = b.y + b.h / 2;
@@ -401,6 +404,20 @@ CiudadCero.Renderer3D = (() => {
       addBox(root, b.x + 1.5, 0.18, b.y + 1.5, 1.8, height, 1.8, trimMat, false);
       addBox(root, b.x + b.w - 3.3, 0.18, b.y + b.h - 3.3, 1.8, height, 1.8, trimMat, false);
       addBox(root, x, 0.18, z, Math.max(8, b.w - 1), 1.1, Math.max(8, b.h - 1), trimMat, false);
+      // Repeated recessed window bays and shallow balconies on residential blocks.
+      if (role === 'detached-home' || role === 'residence' || role === 'apartment') {
+        const windowMat = new THREE.MeshStandardMaterial({ color:'#8db6c5', emissive:'#28434c', emissiveIntensity:0.16, roughness:0.22, metalness:0.18 });
+        const frameMat = material('#e0d9c9',0.72,0.04);
+        const cols = Math.max(2, Math.min(5, Math.floor(b.w / 24)));
+        const rows = Math.max(2, Math.min(4, Math.floor(height / 8)));
+        for (let row=0; row<rows; row++) for (let col=0; col<cols; col++) {
+          const wx = b.x + (col+1)*b.w/(cols+1);
+          const wy = 3.2 + row*(height-5)/(rows);
+          addBox(root,wx,wy,b.y+0.82,Math.min(5,b.w/(cols+1)*0.52),3.2,0.28,windowMat,false);
+          addBox(root,wx,wy-1.85,b.y+0.72,Math.min(5.8,b.w/(cols+1)*0.62),0.22,0.5,frameMat,false);
+          if (row>0 && (col%2===0)) addBox(root,wx,wy-2.1,b.y-1.1,Math.min(6,b.w/(cols+1)*0.7),0.22,2.4,trimMat,false);
+        }
+      }
     }
   }
 
