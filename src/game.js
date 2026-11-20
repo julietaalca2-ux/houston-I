@@ -906,7 +906,10 @@ CiudadCero.Game = (() => {
       p.speed = 0;
       return;
     }
-    const move = Input.getFootInput();
+    const rawMove = Input.getFootInput();
+    const move = CiudadCero.Renderer3D && CiudadCero.Renderer3D.isActive()
+      ? CiudadCero.Renderer3D.transformMovement(rawMove.dx, rawMove.dy, p.angle || 0)
+      : rawMove;
     const mag = Math.hypot(move.dx, move.dy);
     const staminaMax = p.maxStamina || Config.PLAYER.staminaMax || 100;
     p.stamina = Physics.clamp(Number.isFinite(p.stamina) ? p.stamina : staminaMax, 0, staminaMax);

@@ -212,8 +212,8 @@ CiudadCero.Renderer3D = (() => {
       const dx = event.clientX - lastPointerX;
       const dy = event.clientY - lastPointerY;
       lastPointerX = event.clientX; lastPointerY = event.clientY;
-      cameraYawOffset = clamp(cameraYawOffset - dx * 0.006, -Math.PI * 0.92, Math.PI * 0.92);
-      cameraPitchOffset = clamp(cameraPitchOffset + dy * 0.0035, -0.12, 0.34);
+      cameraYawOffset = ((cameraYawOffset - dx * 0.0045 + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      cameraPitchOffset = clamp(cameraPitchOffset + dy * 0.0025, -0.10, 0.22);
     });
     const releaseCameraDrag = (event) => { if (dragPointerId === event.pointerId) dragPointerId = null; };
     canvas.addEventListener('pointerup', releaseCameraDrag);
@@ -322,8 +322,8 @@ CiudadCero.Renderer3D = (() => {
     // adjust the viewing pitch. The camera target leads the character a little.
     const angle = p.angle || 0;
     const orbitAngle = angle + cameraYawOffset;
-    const distance = p.inCar ? 76 : 43;
-    const cameraHeight = (p.inCar ? 27 : 22) + cameraPitchOffset * 34;
+    const distance = p.inCar ? 92 : 58;
+    const cameraHeight = (p.inCar ? 34 : 29) + cameraPitchOffset * 42;
     const targetHeight = p.inCar ? 8 : 8.5;
     const forwardX = Math.cos(angle), forwardZ = Math.sin(angle);
     const target = new THREE.Vector3(p.x + forwardX * 5, targetHeight, p.y + forwardZ * 5);
@@ -333,10 +333,19 @@ CiudadCero.Renderer3D = (() => {
       p.y - Math.sin(orbitAngle) * distance
     );
     if (!cameraReady) { camera.position.copy(desired); cameraReady = true; }
-    else camera.position.lerp(desired, 0.11);
+    else camera.position.lerp(desired, 0.16);
     camera.lookAt(target);
     renderer.render(scene, camera);
     return true;
+  }
+
+  // Camera-relative controls: joystick up follows camera forward, left/right
+  // strafe relative to the current camera heading.
+  function transformMovement(dx, dy, playerAngle) {
+    const heading = (Number(playerAngle) || 0) + cameraYawOffset;
+    const fx = Math.cos(heading), fz = Math.sin(heading);
+    const rx = -Math.sin(heading), rz = Math.cos(heading);
+    return { dx: rx * dx + fx * (-dy), dy: rz * dx + fz * (-dy) };
   }
 
   function isActive() { return active; }
@@ -344,5 +353,5 @@ CiudadCero.Renderer3D = (() => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
   window.addEventListener('resize', resize);
-  return { render, resize, isActive, getStatus };
+  return { render, resize, isActive, getStatus, transformMovement };
 })();
