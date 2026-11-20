@@ -162,7 +162,7 @@ CiudadCero.Game = (() => {
     Input.setMode(false);
     updateCamera(1);
     UI.renderDialogue(Story.getCurrentDialogueLine());
-    UI.showToast('Ciudad Cero v0.8.0 · Comercios y GPS Urbano');
+    UI.showToast('Ciudad Cero v0.8.3 · Loston y Puente Costero');
   }
 
   function loadOrInitGame(isManualLoad = false) {
@@ -1544,9 +1544,8 @@ CiudadCero.Game = (() => {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const mapW = rect.width < 640 ? 190 : 248;
-      const worldSize = CiudadCero.Config.WORLD;
-      const mapH = Math.round(mapW * (worldSize.height / worldSize.width));
+      const mapW = rect.width < 640 ? 184 : 230;
+      const mapH = Math.round(mapW * Config.WORLD.height / Config.WORLD.width);
       if (x >= rect.width - mapW - 18 && y <= mapH + 18) {
         e.preventDefault();
         handleMapAction(false);

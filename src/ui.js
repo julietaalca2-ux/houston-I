@@ -441,11 +441,11 @@ CiudadCero.UI = (() => {
     }
 
     const sectionTitles = {
-      hub: { tag: 'CIUDAD CERO · v0.8.0 · COMERCIOS Y GPS', title: 'MENÚ DEL JUEGO' },
+      hub: { tag: 'CIUDAD CERO · v0.8.3 · LOSTON Y PUENTE COSTERO', title: 'MENÚ DEL JUEGO' },
       partida: { tag: 'SECCIÓN · GESTIÓN DE PROGRESO', title: 'PARTIDA Y GUARDADO' },
       sonido: { tag: 'SECCIÓN · AUDIO DEL JUEGO', title: 'SONIDO Y MÚSICA' },
       controles: { tag: 'SECCIÓN · ERGONOMÍA MÓVIL Y TÁCTIL', title: 'CONTROLES TÁCTILES' },
-      mapa: { tag: 'SECCIÓN · CIUDAD EXPANDIDA (6 BARRIOS)', title: 'MAPA Y UBICACIONES' },
+      mapa: { tag: 'SECCIÓN · CIUDAD EXPANDIDA Y LOSTON', title: 'MAPA Y UBICACIONES' },
       configuracion: { tag: 'SECCIÓN · PREFERENCIAS DEL SISTEMA', title: 'CONFIGURACIÓN GENERAL' }
     };
 
@@ -959,27 +959,6 @@ CiudadCero.UI = (() => {
           redrawFullMap();
         });
         dom.mapDistrictsStrip.appendChild(chip);
-      });
-      (CiudadCero.Config.DISTRICTS || []).forEach((d) => {
-        (d.neighborhoods || []).forEach((n) => {
-          const chip = document.createElement('button');
-          chip.type = 'button';
-          chip.className = 'district-chip neighborhood-chip';
-          chip.innerHTML = `
-            <div>
-              <strong style="color:${d.color}">${n.name.toUpperCase()}</strong>
-              <small>LOSTON · BARRIO</small>
-            </div>
-            <span style="font-size:10px;color:#38bdf8">GPS ▸</span>
-          `;
-          chip.addEventListener('click', () => {
-            if (handlers && handlers.onSetWaypoint) {
-              handlers.onSetWaypoint({ x: n.center.x, y: n.center.y, label: n.shortName });
-            }
-            redrawFullMap();
-          });
-          dom.mapDistrictsStrip.appendChild(chip);
-        });
       });
     }
 

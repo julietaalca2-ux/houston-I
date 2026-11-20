@@ -7,7 +7,7 @@ CiudadCero.Renderer = (() => {
   const CityArt = CiudadCero.CityArt;
   const wCfg = Config.WORLD;
 
-  // Tile cache de 2400x1800: permite ampliar el mundo sin crear canvases gigantes en móviles.
+  // Fixed-size offscreen tile cache keeps canvas memory within mobile Safari/Android limits.
   let mapTiles = null;
   let asphaltPattern = null;
   let sidewalkPattern = null;
@@ -113,6 +113,28 @@ CiudadCero.Renderer = (() => {
 
     sidewalkPattern = targetCtx.createPattern(sCanvas, 'repeat');
     return sidewalkPattern;
+  }
+
+  function drawRoadArrow(ctx, x, y, angle, alpha = 0.62) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#e9eee8';
+    ctx.strokeStyle = 'rgba(22, 29, 24, 0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(5.5, -2);
+    ctx.lineTo(2.2, -2);
+    ctx.lineTo(2.2, 8);
+    ctx.lineTo(-2.2, 8);
+    ctx.lineTo(-2.2, -2);
+    ctx.lineTo(-5.5, -2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   function renderWorldToContext(c, ox, oy, tw, th) {
@@ -226,6 +248,19 @@ CiudadCero.Renderer = (() => {
       }
     }
 
+    // 3b. Reflective centerline studs make avenue markings read clearly at night and at speed.
+    c.fillStyle = 'rgba(250, 224, 112, 0.58)';
+    for (let x = Math.ceil(startX / (wCfg.blockSize * 2)) * wCfg.blockSize * 2; x <= ox + tw + wCfg.blockSize; x += wCfg.blockSize * 2) {
+      for (let y = startY + 28; y < oy + th; y += 54) {
+        c.fillRect(x + wCfg.roadWidth * 0.5 - 1.2, y, 2.4, 3.2);
+      }
+    }
+    for (let y = Math.ceil(startY / (wCfg.blockSize * 2)) * wCfg.blockSize * 2; y <= oy + th + wCfg.blockSize; y += wCfg.blockSize * 2) {
+      for (let x = startX + 28; x < ox + tw; x += 54) {
+        c.fillRect(x, y + wCfg.roadWidth * 0.5 - 1.2, 3.2, 2.4);
+      }
+    }
+
     // 4. Intersections: Clear box, Zebra Crosswalks, White Stop Bars, Manholes & Drains
     const rw = wCfg.roadWidth;
     for (let x = startX; x < ox + tw + wCfg.blockSize; x += wCfg.blockSize) {
@@ -235,14 +270,13 @@ CiudadCero.Renderer = (() => {
         c.fillRect(x + 9, y + 9, rw - 18, rw - 18);
 
         // Zebra crosswalks on all 4 approaches of the intersection
-        c.fillStyle = 'rgba(238, 244, 236, 0.36)';
-        for (let s = 14; s < rw - 14; s += 14) {
-          // Top & bottom crosswalks
-          c.fillRect(x + s, y + 3, 7, 13);
-          c.fillRect(x + s, y + rw - 16, 7, 13);
-          // Left & right crosswalks
-          c.fillRect(x + 3, y + s, 13, 7);
-          c.fillRect(x + rw - 16, y + s, 13, 7);
+        c.fillStyle = 'rgba(238, 244, 236, 0.52)';
+        for (let s = 13; s < rw - 13; s += 13) {
+          // Franjas peatonales más anchas y regulares para que se lean mejor.
+          c.fillRect(x + s, y + 2, 8, 15);
+          c.fillRect(x + s, y + rw - 17, 8, 15);
+          c.fillRect(x + 2, y + s, 15, 8);
+          c.fillRect(x + rw - 17, y + s, 15, 8);
         }
 
         // Crisp white stop bars (líneas de detención) before crosswalks
@@ -269,6 +303,20 @@ CiudadCero.Renderer = (() => {
         c.fillStyle = '#181d1a';
         c.fillRect(x + rw + 14, y + 3, 12, 5);
         c.fillRect(x + rw + 14, y + rw - 8, 12, 5);
+      }
+    }
+
+    // 4b. Directional lane arrows before major intersections (painted, not gameplay colliders).
+    for (let gx = Math.max(1, Math.floor(ox / wCfg.blockSize)); gx < Math.min(Math.ceil((ox + tw) / wCfg.blockSize) + 1, Math.floor(wCfg.width / wCfg.blockSize)); gx++) {
+      for (let gy = Math.max(1, Math.floor(oy / wCfg.blockSize)); gy < Math.min(Math.ceil((oy + th) / wCfg.blockSize) + 1, Math.floor(wCfg.height / wCfg.blockSize)); gy++) {
+        if (gx % 2 !== 0 || gy % 2 !== 0) continue;
+        const ix = gx * wCfg.blockSize;
+        const iy = gy * wCfg.blockSize;
+        // North/south approaches and east/west approaches, aligned with the existing traffic lanes.
+        drawRoadArrow(c, ix + 108, iy - 27, Math.PI, 0.56);
+        drawRoadArrow(c, ix + 42, iy + rw + 27, 0, 0.56);
+        drawRoadArrow(c, ix - 27, iy + 108, Math.PI * 0.5, 0.56);
+        drawRoadArrow(c, ix + rw + 27, iy + 42, -Math.PI * 0.5, 0.56);
       }
     }
 
@@ -318,14 +366,46 @@ CiudadCero.Renderer = (() => {
         c.lineWidth = 1;
         c.strokeRect(blockLeft + sw, blockTop + sw, blockSize - sw * 2, blockSize - sw * 2);
 
+        // Additional expansion joints and a lighter pedestrian edge band give the sidewalks clearer structure.
+        c.strokeStyle = 'rgba(238, 242, 232, 0.18)';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(blockLeft + 5, blockTop + 8);
+        c.lineTo(blockLeft + blockSize - 5, blockTop + 8);
+        c.moveTo(blockLeft + 5, blockTop + blockSize - 8);
+        c.lineTo(blockLeft + blockSize - 5, blockTop + blockSize - 8);
+        c.moveTo(blockLeft + 8, blockTop + 5);
+        c.lineTo(blockLeft + 8, blockTop + blockSize - 5);
+        c.moveTo(blockLeft + blockSize - 8, blockTop + 5);
+        c.lineTo(blockLeft + blockSize - 8, blockTop + blockSize - 5);
+        c.stroke();
+
         // Corner tactile pedestrian curb-cut ramps (rampas peatonales)
         c.fillStyle = dist.id === 'centro' || dist.id === 'comercial'
-          ? 'rgba(245, 217, 75, 0.45)'
-          : 'rgba(205, 214, 200, 0.35)';
-        c.fillRect(blockLeft + 2, blockTop + 2, 11, 11);
-        c.fillRect(blockLeft + blockSize - 13, blockTop + 2, 11, 11);
-        c.fillRect(blockLeft + 2, blockTop + blockSize - 13, 11, 11);
-        c.fillRect(blockLeft + blockSize - 13, blockTop + blockSize - 13, 11, 11);
+          ? 'rgba(245, 217, 75, 0.48)'
+          : 'rgba(205, 214, 200, 0.42)';
+        const ramps = [
+          [blockLeft + 2, blockTop + 2],
+          [blockLeft + blockSize - 17, blockTop + 2],
+          [blockLeft + 2, blockTop + blockSize - 17],
+          [blockLeft + blockSize - 17, blockTop + blockSize - 17]
+        ];
+        ramps.forEach(([rx, ry]) => {
+          c.fillRect(rx, ry, 15, 15);
+          // Relieve táctil de puntos y borde biselado en rampas accesibles.
+          c.strokeStyle = 'rgba(255, 255, 255, 0.24)';
+          c.lineWidth = 0.8;
+          c.strokeRect(rx + 0.5, ry + 0.5, 14, 14);
+          c.fillStyle = 'rgba(28, 35, 30, 0.38)';
+          for (let py = 0; py < 4; py++) for (let px = 0; px < 4; px++) {
+            c.beginPath();
+            c.arc(rx + 2.8 + px * 3.1, ry + 2.8 + py * 3.1, 0.72, 0, Math.PI * 2);
+            c.fill();
+          }
+          c.fillStyle = dist.id === 'centro' || dist.id === 'comercial'
+            ? 'rgba(245, 217, 75, 0.48)'
+            : 'rgba(205, 214, 200, 0.42)';
+        });
 
         // v0.7.9: decoración propia de cada barrio sobre la vereda
         CityArt.decorateBlock(c, blockLeft, blockTop, blockSize, dist, Math.round(x / wCfg.blockSize), Math.round(y / wCfg.blockSize));
@@ -341,70 +421,139 @@ CiudadCero.Renderer = (() => {
       }
     }
 
-    // 6. Port harbor water zones
+    // 6. Callejones transitables: calzada angosta, cordones y marcas de guía.
+    // Se dibujan encima de la vereda base y debajo de los edificios divididos.
+    if (World.alleyways) {
+      World.alleyways.forEach((a) => {
+        if (a.x + a.w < ox || a.x > ox + tw || a.y + a.h < oy || a.y > oy + th) return;
+        c.fillStyle = 'rgba(8, 12, 10, 0.42)';
+        c.fillRect(a.x - 2, a.y - 2, a.w + 4, a.h + 4);
+        c.fillStyle = a.districtId === 'portuaria' || a.districtId === 'industrial' ? '#292d2a' : '#303632';
+        c.fillRect(a.x, a.y, a.w, a.h);
+        // Bordes de cordón rebajado y canaletas laterales.
+        c.fillStyle = 'rgba(191, 202, 190, 0.72)';
+        if (a.orientation === 'vertical') {
+          c.fillRect(a.x, a.y, 2.5, a.h);
+          c.fillRect(a.x + a.w - 2.5, a.y, 2.5, a.h);
+          c.fillStyle = 'rgba(12, 17, 14, 0.34)';
+          c.fillRect(a.x + 4, a.y, 2, a.h);
+          c.fillRect(a.x + a.w - 6, a.y, 2, a.h);
+          c.strokeStyle = 'rgba(236, 240, 231, 0.55)';
+          c.lineWidth = 1.5;
+          c.setLineDash([9, 12]);
+          c.beginPath();
+          c.moveTo(a.x + a.w * 0.5, a.y + 4);
+          c.lineTo(a.x + a.w * 0.5, a.y + a.h - 4);
+          c.stroke();
+        } else {
+          c.fillRect(a.x, a.y, a.w, 2.5);
+          c.fillRect(a.x, a.y + a.h - 2.5, a.w, 2.5);
+          c.fillStyle = 'rgba(12, 17, 14, 0.34)';
+          c.fillRect(a.x, a.y + 4, a.w, 2);
+          c.fillRect(a.x, a.y + a.h - 6, a.w, 2);
+          c.strokeStyle = 'rgba(236, 240, 231, 0.55)';
+          c.lineWidth = 1.5;
+          c.setLineDash([9, 12]);
+          c.beginPath();
+          c.moveTo(a.x + 4, a.y + a.h * 0.5);
+          c.lineTo(a.x + a.w - 4, a.y + a.h * 0.5);
+          c.stroke();
+        }
+        c.setLineDash([]);
+        // Small reflective studs, patch repairs and pedestrian threshold bars in the alley.
+        c.fillStyle = 'rgba(245, 240, 220, 0.28)';
+        if (a.orientation === 'vertical') {
+          for (let py = a.y + 24; py < a.y + a.h - 18; py += 48) {
+            c.fillRect(a.x + 9, py, 2, 7);
+            c.fillRect(a.x + a.w - 11, py, 2, 7);
+          }
+          c.fillStyle = 'rgba(232, 237, 226, 0.48)';
+          for (let k = 0; k < 4; k++) c.fillRect(a.x + 7 + k * 8, a.y + 5, 4, 9);
+          for (let k = 0; k < 4; k++) c.fillRect(a.x + 7 + k * 8, a.y + a.h - 14, 4, 9);
+        } else {
+          for (let px = a.x + 24; px < a.x + a.w - 18; px += 48) {
+            c.fillRect(px, a.y + 9, 7, 2);
+            c.fillRect(px, a.y + a.h - 11, 7, 2);
+          }
+          c.fillStyle = 'rgba(232, 237, 226, 0.48)';
+          for (let k = 0; k < 4; k++) c.fillRect(a.x + 5, a.y + 7 + k * 8, 9, 4);
+          for (let k = 0; k < 4; k++) c.fillRect(a.x + a.w - 14, a.y + 7 + k * 8, 9, 4);
+        }
+        // Pequeñas bocas de acceso con pavimento rebajado.
+        c.fillStyle = 'rgba(224, 216, 184, 0.42)';
+        if (a.orientation === 'vertical') {
+          c.fillRect(a.x - 2, a.y + 2, a.w + 4, 5);
+          c.fillRect(a.x - 2, a.y + a.h - 7, a.w + 4, 5);
+        } else {
+          c.fillRect(a.x + 2, a.y - 2, 5, a.h + 4);
+          c.fillRect(a.x + a.w - 7, a.y - 2, 5, a.h + 4);
+        }
+      });
+    }
+
+    // 7. Port harbor water zones
     for (let i = 0; i < World.waterZones.length; i++) {
       const w = World.waterZones[i];
       if (w.x + w.w < ox || w.x > ox + tw || w.y + w.h < oy || w.y > oy + th) continue;
-      c.fillStyle = '#183d4a';
-      c.fillRect(w.x, w.y, w.w, w.h);
-      c.strokeStyle = '#4de0b5';
-      c.lineWidth = 2;
-      c.strokeRect(w.x + 2, w.y + 2, w.w - 4, w.h - 4);
-
-      c.strokeStyle = 'rgba(130, 224, 245, 0.26)';
-      c.lineWidth = 1.5;
-      for (let wy = w.y + 22; wy < w.y + w.h - 14; wy += 24) {
-        c.beginPath();
-        c.moveTo(w.x + 14, wy);
-        c.lineTo(w.x + w.w - 14, wy);
-        c.stroke();
+      if (w.isSea) {
+        const sea = c.createLinearGradient(w.x, w.y, w.x + w.w, w.y + w.h);
+        sea.addColorStop(0, '#164b60'); sea.addColorStop(0.5, '#1d6076'); sea.addColorStop(1, '#123e55');
+        c.fillStyle = sea;
+        c.fillRect(w.x, w.y, w.w, w.h);
+        c.strokeStyle = 'rgba(151, 224, 238, 0.24)'; c.lineWidth = 1.2;
+        for (let wy = w.y + 20; wy < w.y + w.h - 10; wy += 34) {
+          for (let wx = w.x + 18 + ((Math.floor(wy / 34) % 2) * 16); wx < w.x + w.w - 22; wx += 74) {
+            c.beginPath(); c.moveTo(wx, wy); c.quadraticCurveTo(wx + 10, wy - 3, wx + 20, wy); c.stroke();
+          }
+        }
+        c.strokeStyle = 'rgba(208, 246, 249, 0.38)'; c.lineWidth = 3;
+        c.strokeRect(w.x + 1.5, w.y + 1.5, w.w - 3, w.h - 3);
+      } else {
+        c.fillStyle = '#183d4a';
+        c.fillRect(w.x, w.y, w.w, w.h);
+        c.strokeStyle = '#4de0b5'; c.lineWidth = 2;
+        c.strokeRect(w.x + 2, w.y + 2, w.w - 4, w.h - 4);
+        c.strokeStyle = 'rgba(130, 224, 245, 0.26)'; c.lineWidth = 1.5;
+        for (let wy = w.y + 22; wy < w.y + w.h - 14; wy += 24) {
+          c.beginPath(); c.moveTo(w.x + 14, wy); c.lineTo(w.x + w.w - 14, wy); c.stroke();
+        }
+        c.strokeStyle = '#8b9696'; c.lineWidth = 3;
+        c.strokeRect(w.x - 1.5, w.y - 1.5, w.w + 3, w.h + 3);
+        c.strokeStyle = 'rgba(235, 250, 255, 0.32)'; c.lineWidth = 1.2;
+        c.strokeRect(w.x + 4, w.y + 4, w.w - 8, w.h - 8);
+        for (let bx = w.x + 14; bx < w.x + w.w - 8; bx += 28) {
+          c.fillStyle = '#e3b42b'; c.beginPath();
+          c.arc(bx, w.y - 1.5, 2, 0, Math.PI * 2); c.arc(bx, w.y + w.h + 1.5, 2, 0, Math.PI * 2); c.fill();
+        }
+        c.fillStyle = 'rgba(180, 240, 255, 0.55)'; c.font = 'bold 9px monospace'; c.textAlign = 'center';
+        c.fillText('DÁRSENA PORTUARIA', w.x + w.w * 0.5, w.y + w.h * 0.5 + 3);
       }
-      // v0.7.9: muelle de piedra, espuma y amarras
-      c.strokeStyle = '#8b9696';
-      c.lineWidth = 3;
-      c.strokeRect(w.x - 1.5, w.y - 1.5, w.w + 3, w.h + 3);
-      c.strokeStyle = 'rgba(235, 250, 255, 0.32)';
-      c.lineWidth = 1.2;
-      c.strokeRect(w.x + 4, w.y + 4, w.w - 8, w.h - 8);
-      for (let bx = w.x + 14; bx < w.x + w.w - 8; bx += 28) {
-        c.fillStyle = '#e3b42b';
-        c.beginPath();
-        c.arc(bx, w.y - 1.5, 2, 0, Math.PI * 2);
-        c.arc(bx, w.y + w.h + 1.5, 2, 0, Math.PI * 2);
-        c.fill();
-      }
-      c.fillStyle = 'rgba(180, 240, 255, 0.55)';
-      c.font = 'bold 9px monospace';
-      c.textAlign = 'center';
-      c.fillText('DÁRSENA PORTUARIA', w.x + w.w * 0.5, w.y + w.h * 0.5 + 3);
     }
 
-    // 6b. Puente de Loston: tablero, veredas, barandas y juntas de expansión.
-    for (const bridge of World.bridges || []) {
-      c.fillStyle = '#34413f';
-      c.fillRect(bridge.x, bridge.y, bridge.w, bridge.h);
-      c.fillStyle = '#9aa7a0';
-      c.fillRect(bridge.x, bridge.y + 2, bridge.w, 6);
-      c.fillRect(bridge.x, bridge.y + bridge.h - 8, bridge.w, 6);
-      c.fillStyle = '#202a28';
-      for (let px = bridge.x + 90; px < bridge.x + bridge.w - 20; px += 150) {
-        c.fillRect(px, bridge.y + 8, 12, bridge.h - 16);
+    // 7b. Puente vial sobre el canal: tablero, carriles, barandas y luminarias.
+    for (const b of (World.bridges || [])) {
+      if (b.x + b.w < ox || b.x > ox + tw || b.y + b.h < oy || b.y > oy + th) continue;
+      c.fillStyle = 'rgba(5, 12, 16, 0.48)'; c.fillRect(b.x - 3, b.y - 5, b.w + 6, b.h + 10);
+      c.fillStyle = '#899795'; c.fillRect(b.x, b.y, b.w, b.h);
+      c.fillStyle = '#303936'; c.fillRect(b.x, b.y + 9, b.w, b.h - 18);
+      // Two-way deck markings aligned with the city avenue grid.
+      c.strokeStyle = '#e5c957'; c.lineWidth = 2.4; c.setLineDash([]);
+      c.beginPath(); c.moveTo(b.x, b.y + b.h * 0.5 - 2.5); c.lineTo(b.x + b.w, b.y + b.h * 0.5 - 2.5); c.moveTo(b.x, b.y + b.h * 0.5 + 2.5); c.lineTo(b.x + b.w, b.y + b.h * 0.5 + 2.5); c.stroke();
+      c.strokeStyle = 'rgba(245, 248, 242, 0.58)'; c.lineWidth = 1.6; c.setLineDash([15, 15]);
+      c.beginPath(); c.moveTo(b.x, b.y + 43); c.lineTo(b.x + b.w, b.y + 43); c.moveTo(b.x, b.y + b.h - 43); c.lineTo(b.x + b.w, b.y + b.h - 43); c.stroke(); c.setLineDash([]);
+      // Raised safety rails and regularly spaced supports.
+      c.strokeStyle = '#c4d0ca'; c.lineWidth = 5;
+      c.beginPath(); c.moveTo(b.x, b.y + 5); c.lineTo(b.x + b.w, b.y + 5); c.moveTo(b.x, b.y + b.h - 5); c.lineTo(b.x + b.w, b.y + b.h - 5); c.stroke();
+      c.strokeStyle = 'rgba(23, 35, 34, 0.85)'; c.lineWidth = 2;
+      for (let px = b.x + 24; px < b.x + b.w; px += 48) {
+        c.beginPath(); c.moveTo(px, b.y + 2); c.lineTo(px, b.y + 12); c.moveTo(px, b.y + b.h - 12); c.lineTo(px, b.y + b.h - 2); c.stroke();
       }
-      c.strokeStyle = '#e7c95d';
-      c.lineWidth = 3;
-      c.setLineDash([28, 20]);
-      c.beginPath();
-      c.moveTo(bridge.x + 12, bridge.y + bridge.h * 0.5);
-      c.lineTo(bridge.x + bridge.w - 12, bridge.y + bridge.h * 0.5);
-      c.stroke();
-      c.setLineDash([]);
-      c.strokeStyle = 'rgba(225, 238, 231, 0.8)';
-      c.lineWidth = 2;
-      c.strokeRect(bridge.x + 1, bridge.y + 1, bridge.w - 2, bridge.h - 2);
-      c.fillStyle = '#e7eef0';
-      c.font = 'bold 16px monospace';
-      c.textAlign = 'center';
-      c.fillText('PUENTE DE LOSTON', bridge.x + bridge.w * 0.5, bridge.y + bridge.h * 0.5 - 13);
+      c.fillStyle = '#f5d94b';
+      for (let px = b.x + 28; px < b.x + b.w - 12; px += 112) {
+        c.fillRect(px, b.y + 13, 4, 5); c.fillRect(px, b.y + b.h - 18, 4, 5);
+      }
+      c.fillStyle = 'rgba(10, 18, 18, 0.82)'; c.fillRect(b.x + b.w - 150, b.y + 14, 132, 22);
+      c.fillStyle = '#d7f5ee'; c.font = 'bold 12px monospace'; c.textAlign = 'center'; c.fillText('LOSTON →', b.x + b.w - 84, b.y + 29);
     }
 
     // 7. Parking lots
@@ -504,17 +653,13 @@ CiudadCero.Renderer = (() => {
   }
 
   function buildStaticMapCache() {
-    const tileW = Math.min(2400, wCfg.width);
-    const tileH = Math.min(1800, wCfg.height);
+    // Fixed-size tiles keep peak canvas dimensions mobile-friendly after the island expansion.
+    const tileW = 2300;
+    const tileH = 1800;
     const tiles = [];
     for (let oy = 0; oy < wCfg.height; oy += tileH) {
       for (let ox = 0; ox < wCfg.width; ox += tileW) {
-        tiles.push({
-          ox,
-          oy,
-          w: Math.min(tileW, wCfg.width - ox),
-          h: Math.min(tileH, wCfg.height - oy)
-        });
+        tiles.push({ ox, oy, w: Math.min(tileW, wCfg.width - ox), h: Math.min(tileH, wCfg.height - oy) });
       }
     }
     mapTiles = tiles.map((q) => {
@@ -1076,8 +1221,8 @@ CiudadCero.Renderer = (() => {
 
   function drawMinimap(ctx, viewW, state, policeHUD) {
     if (!showMinimap) return;
-    const mapW = viewW < 640 ? 190 : 248;
-    const mapH = Math.round(mapW * (wCfg.height / wCfg.width));
+    const mapW = viewW < 640 ? 184 : 230;
+    const mapH = Math.round(mapW * wCfg.height / wCfg.width);
     const mx = viewW - mapW - 12;
     const my = 12;
     const simTime = state.simTime || performance.now() / 1000;
@@ -1093,8 +1238,6 @@ CiudadCero.Renderer = (() => {
     const sy = mapH / wCfg.height;
 
     // v0.7.9: capa base (barrios, calles, manzanas, edificios, parques y agua) en caché
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(CityArt.getMinimapBase(mapW, mapH), mx, my, mapW, mapH);
     ctx.fillStyle = 'rgba(8, 13, 10, 0.78)'; ctx.fillRect(mx + 3, my + 3, Math.min(88, mapW - 6), 11);
     ctx.fillStyle = '#dce9d6'; ctx.font = 'bold 7px monospace'; ctx.textAlign = 'left'; ctx.fillText('CIUDAD CERO · GPS', mx + 7, my + 11);
@@ -1293,21 +1436,28 @@ CiudadCero.Renderer = (() => {
       ctx.fillStyle = 'rgba(10, 15, 12, 0.80)';
       const labelW = ctx.measureText(d.shortName).width + 24 / scale;
       const labelH = fontSize * 1.45;
-      ctx.fillRect(d.center.x - labelW * 0.5, d.center.y - labelH * 0.5, labelW, labelH);
+      const labelY = d.id === 'loston' ? d.bounds.y1 + 38 : d.center.y;
+      ctx.fillRect(d.center.x - labelW * 0.5, labelY - labelH * 0.5, labelW, labelH);
       ctx.fillStyle = d.color || '#fff';
-      ctx.fillText(d.shortName, d.center.x, d.center.y + fontSize * 0.35);
-      if (Array.isArray(d.neighborhoods)) {
-        for (const n of d.neighborhoods) {
-          ctx.font = `bold ${Math.max(10, Math.round(11 / scale))}px sans-serif`;
-          ctx.fillStyle = 'rgba(8, 15, 17, 0.78)';
-          const nw = ctx.measureText(n.name).width + 18 / scale;
-          ctx.fillRect(n.center.x - nw * 0.5, n.center.y - 11 / scale, nw, 22 / scale);
-          ctx.fillStyle = '#d7f7fa';
-          ctx.textAlign = 'center';
-          ctx.fillText(n.name.toUpperCase(), n.center.x, n.center.y + 4 / scale);
-        }
-      }
+      ctx.fillText(d.shortName, d.center.x, labelY + fontSize * 0.35);
     }
+
+    // Neighborhood labels for Loston, kept separate from its district title.
+    (Config.LOSTON_NEIGHBORHOODS || []).forEach((n) => {
+      ctx.save();
+      ctx.font = `bold ${Math.max(10, Math.round(12 / scale))}px sans-serif`;
+      ctx.textAlign = 'center';
+      const label = n.name.toUpperCase();
+      const width = ctx.measureText(label).width + 20 / scale;
+      const height = Math.max(18, 18 / scale);
+      ctx.fillStyle = 'rgba(9, 25, 29, 0.78)';
+      ctx.fillRect(n.center.x - width / 2, n.center.y - height / 2, width, height);
+      ctx.strokeStyle = 'rgba(119, 218, 224, 0.72)'; ctx.lineWidth = 1.2 / scale;
+      ctx.strokeRect(n.bounds.x1 + 8, n.bounds.y1 + 8, n.bounds.x2 - n.bounds.x1 - 16, n.bounds.y2 - n.bounds.y1 - 16);
+      ctx.fillStyle = '#d5f4f1';
+      ctx.fillText(label, n.center.x, n.center.y + 4 / scale);
+      ctx.restore();
+    });
 
     // Major Avenue & Highway Labels along roads
     const aveLabels = Config.AVENUE_LABELS || [];

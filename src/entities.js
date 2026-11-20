@@ -120,6 +120,7 @@ CiudadCero.Entities = (() => {
         angle = lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       }
 
+      if (!World.isOnRoad(x, y)) continue;
       if (playerRef && Math.hypot(x - playerRef.x, y - playerRef.y) < 260) {
         continue;
       }
@@ -160,6 +161,7 @@ CiudadCero.Entities = (() => {
         angle = lane.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       }
 
+      if (!World.isOnRoad(x, y)) continue;
       const distToPlayer = playerRef ? Math.hypot(x - playerRef.x, y - playerRef.y) : 500;
       if (distToPlayer < 260) continue;
       if (nearPlayer && distToPlayer > 780) continue;
@@ -250,6 +252,11 @@ CiudadCero.Entities = (() => {
         { role: 'resident', shirt: '#7fa653', sec: '#4f6b30', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'cap', hatColor: '#3b4d38', acc: 'backpack', w: 16.4 },
         { role: 'resident', shirt: '#d48c59', sec: '#8c552e', outfit: 'casual_hoodie', hairStyle: 'long_hair', hat: 'none', acc: 'none', w: 15.4 },
         { role: 'resident', shirt: '#577590', sec: '#35495c', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'none', acc: 'none', w: 16.2 }
+      ],
+      loston: [
+        { role: 'resident', shirt: '#55a6a6', sec: '#326f75', outfit: 'casual_jacket', hairStyle: 'short_crop', hat: 'cap', hatColor: '#e8f2ed', acc: 'backpack', w: 16.0 },
+        { role: 'shopper', shirt: '#e7a96b', sec: '#a86e43', outfit: 'casual_hoodie', hairStyle: 'ponytail', hat: 'none', acc: 'shopping_bag', w: 15.4 },
+        { role: 'resident', shirt: '#8c9fbd', sec: '#536b8b', outfit: 'casual_jacket', hairStyle: 'long_hair', hat: 'none', acc: 'backpack', w: 15.8 }
       ]
     };
 

@@ -4,8 +4,8 @@ CiudadCero.Config = {
   GAME_INFO: {
     title: 'Ciudad Cero',
     installment: 1,
-    version: '0.8.1',
-    subtitle: 'Minimapa HD y expansión a Loston'
+    version: '0.8.3',
+    subtitle: 'Loston, puente costero y expansión urbana'
   },
 
   TRAFFIC_SIGNAL: {
@@ -24,14 +24,15 @@ CiudadCero.Config = {
     { text: 'AV. DEL PARQUE', x: 675, y: 1125, axis: 'v' },
     { text: 'AV. TORRE CERO', x: 2475, y: 1125, axis: 'v' },
     { text: 'AV. GALERÍAS', x: 3675, y: 1125, axis: 'v' },
-     { text: 'AV. PUERTO SUR', x: 1275, y: 2475, axis: 'v' },
-    { text: 'PUENTE DE LOSTON', x: 5100, y: 1545, axis: 'h' },
-    { text: 'BULEVAR DE LOSTON', x: 6150, y: 1125, axis: 'v' }
+    { text: 'AV. PUERTO SUR', x: 1275, y: 2475, axis: 'v' },
+    { text: 'PUENTE DE LOSTON', x: 5100, y: 1785, axis: 'h' },
+    { text: 'AV. COSTERA LOSTON', x: 6000, y: 2175, axis: 'h' }
   ],
 
   WORLD: {
-    width: 7200,
+    width: 6900,
     height: 3600,
+    mainCityWidth: 4800,
     roadWidth: 150,
     blockSize: 300,
     sidewalkWidth: 22
@@ -125,20 +126,23 @@ CiudadCero.Config = {
       id: 'loston',
       name: 'Loston',
       shortName: 'LOSTON',
-      color: '#48c6d8',
-      groundTint: '#293f49',
-      blockTint: '#617b80',
-      description: 'Ciudad insular al este de Ciudad Cero, rodeada de agua y conectada por el Puente de Loston.',
-      bounds: { x1: 5400, y1: 600, x2: 6900, y2: 3000 },
-      center: { x: 6150, y: 1800 },
-      avenueLabel: 'Bulevar de Loston',
-      neighborhoods: [
-        { id: 'loston_centro', name: 'Centro de Loston', shortName: 'CENTRO LOSTON', bounds: { x1: 5400, y1: 600, x2: 6900, y2: 1500 }, center: { x: 6150, y: 1050 } },
-        { id: 'barrio_faro', name: 'Barrio del Faro', shortName: 'BARRIO DEL FARO', bounds: { x1: 5400, y1: 1500, x2: 6900, y2: 2100 }, center: { x: 6150, y: 1800 } },
-        { id: 'las_palmeras', name: 'Las Palmeras', shortName: 'LAS PALMERAS', bounds: { x1: 5400, y1: 2100, x2: 6900, y2: 3000 }, center: { x: 6150, y: 2550 } }
-      ]
+      color: '#55c9d8',
+      groundTint: '#34464a',
+      blockTint: '#687b78',
+      description: 'Isla urbana al este de Ciudad Cero, rodeada por el mar y conectada mediante el Puente de Loston. Incluye los barrios Norte, Centro y Costero.',
+      bounds: { x1: 5400, y1: 900, x2: 6600, y2: 2700 },
+      center: { x: 6000, y: 1800 },
+      avenueLabel: 'Avenida Costera Loston'
     }
   ],
+
+  LOSTON_NEIGHBORHOODS: [
+    { id: 'loston_norte', name: 'Loston Norte', shortName: 'NORTE', bounds: { x1: 5400, y1: 900, x2: 6600, y2: 1500 }, center: { x: 6000, y: 1200 } },
+    { id: 'loston_centro', name: 'Loston Centro', shortName: 'CENTRO', bounds: { x1: 5400, y1: 1500, x2: 6600, y2: 2100 }, center: { x: 6000, y: 1800 } },
+    { id: 'loston_costero', name: 'Loston Costero', shortName: 'COSTERO', bounds: { x1: 5400, y1: 2100, x2: 6600, y2: 2700 }, center: { x: 6000, y: 2400 } }
+  ],
+
+  LOSTON_BOUNDS: { x1: 5400, y1: 900, x2: 6600, y2: 2700 },
 
   LANDMARKS: [
     {
@@ -250,20 +254,16 @@ CiudadCero.Config = {
       desc: 'Parque abierto en la periferia oriental con vistas a toda la ciudad.'
     },
     {
-      id: 'lm_puente_loston', name: 'Puente de Loston', districtId: 'loston',
-      x: 5175, y: 1575, icon: '🌉', desc: 'Puente vial que conecta Ciudad Cero con la isla de Loston.'
+      id: 'lm_loston_norte', name: 'Loston Norte', districtId: 'loston',
+      x: 6000, y: 1125, icon: '🌴', desc: 'Barrio residencial de la isla, con plazas y calles tranquilas.'
     },
     {
-      id: 'lm_centro_loston', name: 'Centro de Loston', districtId: 'loston',
-      x: 6150, y: 1050, icon: '🏙️', desc: 'Centro urbano de la nueva zona insular.'
+      id: 'lm_loston_centro', name: 'Centro de Loston', districtId: 'loston',
+      x: 6000, y: 1725, icon: '🏙️', desc: 'Centro comercial y cívico de la nueva zona insular.'
     },
     {
-      id: 'lm_barrio_faro', name: 'Barrio del Faro', districtId: 'loston',
-      x: 6150, y: 1800, icon: '🗼', desc: 'Barrio costero de Loston, junto al agua.'
-    },
-    {
-      id: 'lm_las_palmeras', name: 'Las Palmeras', districtId: 'loston',
-      x: 6150, y: 2550, icon: '🌴', desc: 'Barrio residencial verde en el sur de Loston.'
+      id: 'lm_loston_costero', name: 'Loston Costero', districtId: 'loston',
+      x: 6000, y: 2325, icon: '🌊', desc: 'Paseo costero, parques y miradores junto al mar.'
     }
   ],
 

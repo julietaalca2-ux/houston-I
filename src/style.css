@@ -955,7 +955,7 @@ canvas#full-map-canvas {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 58vh;
+  max-height: 52vh;
   cursor: grab;
   touch-action: none;
 }
@@ -1923,13 +1923,3 @@ button:disabled,
 .store-item-copy small { color: #aab7a7; font-size: 11px; line-height: 1.4; }
 .store-rob-btn { width: 100%; min-height: 46px; }
 @media (max-width: 520px) { .store-item { align-items: stretch; flex-direction: column; } .store-item button { width: 100%; } .store-content { padding: 12px; } }
-
-
-/* Ciudad Cero V0.8.1: chips de barrios de la isla de Loston */
-.neighborhood-chip {
-  border-color: rgba(72, 198, 216, 0.42);
-  background: linear-gradient(135deg, rgba(27, 47, 52, 0.96), rgba(27, 37, 29, 0.96));
-}
-.neighborhood-chip small {
-  color: #9fcbd0;
-}

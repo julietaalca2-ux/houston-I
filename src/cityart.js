@@ -1,7 +1,7 @@
 window.CiudadCero = window.CiudadCero || {};
 
 /*
- * CityArt (v0.7.9)
+ * CityArt (v0.8.3)
  * Dibujo procedural de fachadas, techos, parques, árboles, veredas por barrio
  * y capa base del minimapa. Todo se dibuja UNA sola vez en las caches estáticas
  * del mapa, por lo que no agrega costo por fotograma (ideal para celulares).
@@ -115,9 +115,9 @@ CiudadCero.CityArt = (() => {
       grass: ['#4d7a3d', '#5f8f48']
     },
     loston: {
-      walls: ['#d1d8d3', '#b8c9c9', '#d7c8a9', '#a9c1c4'],
-      roofs: ['#536f78', '#526a61', '#7d6a58'],
-      grass: ['#477d59', '#5a966b']
+      walls: ['#c7d5ca', '#a9c5c1', '#d6c6a6', '#b9d1d5'],
+      roofs: ['#4f7477', '#687d78', '#8a765e', '#55707c'],
+      grass: ['#4d846f', '#5b987d']
     }
   };
 
@@ -467,7 +467,7 @@ CiudadCero.CityArt = (() => {
     const kind = p.isPlaza ? 'plaza' : p.sizeClass || 'medium';
     const trees = [];
     const bushes = [];
-    const speciesPool = dId === 'periferia' ? ['oak', 'pine', 'olive', 'poplar'] : dId === 'comercial' ? ['blossom', 'palm', 'oak'] : dId === 'centro' ? ['poplar', 'oak', 'blossom'] : ['oak', 'maple', 'oak', 'blossom', 'poplar'];
+    const speciesPool = dId === 'loston' ? ['palm', 'palm', 'blossom', 'olive'] : dId === 'periferia' ? ['oak', 'pine', 'olive', 'poplar'] : dId === 'comercial' ? ['blossom', 'palm', 'oak'] : dId === 'centro' ? ['poplar', 'oak', 'blossom'] : ['oak', 'maple', 'oak', 'blossom', 'poplar'];
 
     let X = p.x;
     let Y = p.y;
@@ -1450,12 +1450,15 @@ CiudadCero.CityArt = (() => {
         break;
       case 'periferia':
         return farmhouse(c, b, i, R);
+      case 'loston':
+        if (b.w > 55 && b.h > 55 && (i % 3 === 0)) return shops(c, b, i, R);
+        break;
       default:
         break;
     }
 
     // residencial (y cualquier edificio chico de otros barrios)
-    const pal = PAL.residencial;
+    const pal = PAL[id] && PAL[id].walls ? PAL[id] : PAL.residencial;
     if (b.w >= 90 && b.h >= 70) {
       const variant = Math.floor(R() * 4);
       if (variant === 0) {
@@ -1555,6 +1558,17 @@ CiudadCero.CityArt = (() => {
       g.lineTo(17, 16);
       g.lineTo(14, 24);
       g.stroke();
+    } else if (districtId === 'loston') {
+      // losas claras de piedra costera con juntas azuladas y pequeñas incrustaciones.
+      g.fillStyle = '#879a96'; g.fillRect(0, 0, s, s);
+      for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
+        g.fillStyle = (xx + yy) % 2 ? '#9eaaa2' : '#788f8c';
+        g.fillRect(xx * 12 + 0.6, yy * 12 + 0.6, 10.8, 10.8);
+        g.fillStyle = 'rgba(223, 245, 239, 0.18)';
+        g.fillRect(xx * 12 + 1, yy * 12 + 1, 9.8, 1);
+      }
+      g.strokeStyle = 'rgba(44, 104, 112, 0.28)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, 24); g.lineTo(48, 24); g.moveTo(24, 0); g.lineTo(24, 48); g.stroke();
     } else if (districtId === 'industrial') {
       // chapa antideslizante
       g.fillStyle = '#6a645d';
@@ -1603,7 +1617,8 @@ CiudadCero.CityArt = (() => {
     comercial: '#f5d94b',
     portuaria: '#4de0b5',
     industrial: '#e68a3e',
-    periferia: '#a3c977'
+    periferia: '#a3c977',
+    loston: '#55c9d8'
   };
 
   function decorateBlock(c, bl, bt, bs, dist, gx, gy) {
@@ -1805,7 +1820,7 @@ CiudadCero.CityArt = (() => {
       portuaria: '#6f8c92',
       industrial: '#a28265',
       periferia: '#97a97c',
-      loston: '#78b7bd'
+      loston: '#78b8b7'
     },
     block: {
       residencial: '#5c6a54',
@@ -1814,7 +1829,7 @@ CiudadCero.CityArt = (() => {
       portuaria: '#4c5f62',
       industrial: '#5d5750',
       periferia: '#56684a',
-      loston: '#46666a'
+      loston: '#536b68'
     }
   };
 
@@ -1822,7 +1837,7 @@ CiudadCero.CityArt = (() => {
     const key = `${mapW}x${mapH}`;
     if (miniCache[key]) return miniCache[key];
     const World = CiudadCero.World;
-    const dpr = 4;
+    const dpr = 2;
     const cv = document.createElement('canvas');
     cv.width = Math.round(mapW * dpr);
     cv.height = Math.round(mapH * dpr);
@@ -1868,38 +1883,43 @@ CiudadCero.CityArt = (() => {
       }
     }
 
+    // Callejones secundarios: aparecen como conexiones finas dentro de las manzanas.
+    if (World.alleyways) {
+      World.alleyways.forEach((a) => {
+        m.fillStyle = '#202823';
+        m.fillRect(a.x * sx, a.y * sy, Math.max(1.6, a.w * sx), Math.max(1.6, a.h * sy));
+        m.strokeStyle = 'rgba(225, 232, 220, 0.86)';
+        m.lineWidth = 0.65;
+        m.strokeRect(a.x * sx + 0.2, a.y * sy + 0.2, Math.max(0.8, a.w * sx - 0.4), Math.max(0.8, a.h * sy - 0.4));
+      });
+    }
+
     // estacionamientos, agua
     m.fillStyle = MINI.parking;
     World.parkingLots.forEach((p) => m.fillRect(p.x * sx, p.y * sy, Math.max(2, p.w * sx), Math.max(2, p.h * sy)));
     m.fillStyle = MINI.water;
     World.waterZones.forEach((w) => {
       m.fillRect(w.x * sx, w.y * sy, Math.max(2, w.w * sx), Math.max(2, w.h * sy));
-      if (w.w > 250 || w.h > 250) {
-        m.strokeStyle = 'rgba(137, 221, 235, 0.22)';
-        m.lineWidth = 0.65;
-        for (let wave = 8; wave < Math.min(w.w, w.h); wave += 34) {
-          m.beginPath();
-          if (w.w >= w.h) {
-            m.moveTo(w.x * sx, (w.y + wave) * sy);
-            m.lineTo((w.x + w.w) * sx, (w.y + wave) * sy);
-          } else {
-            m.moveTo((w.x + wave) * sx, w.y * sy);
-            m.lineTo((w.x + wave) * sx, (w.y + w.h) * sy);
-          }
-          m.stroke();
+      if (w.isSea) {
+        m.strokeStyle = 'rgba(166, 230, 239, 0.18)';
+        m.lineWidth = 0.55;
+        for (let x = w.x + 16; x < w.x + w.w - 8; x += 58) {
+          const yy = w.y + ((Math.floor(x / 58) % 4) * 12) + 18;
+          if (yy < w.y + w.h - 8) { m.beginPath(); m.moveTo(x * sx, yy * sy); m.lineTo((x + 22) * sx, yy * sy); m.stroke(); }
         }
       }
     });
 
-    // Puente de Loston, resaltado sobre el canal.
+    // Puente visible sobre el canal, dibujado por encima del agua.
     (World.bridges || []).forEach((b) => {
-      m.fillStyle = '#899994';
+      m.fillStyle = '#9aa6a2';
       m.fillRect(b.x * sx, b.y * sy, b.w * sx, b.h * sy);
-      m.fillStyle = '#e7c95d';
-      m.fillRect(b.x * sx, (b.y + b.h * 0.5) * sy - 0.55, b.w * sx, 1.1);
-      m.strokeStyle = '#e6f0ec';
-      m.lineWidth = 0.7;
-      m.strokeRect(b.x * sx, b.y * sy, b.w * sx, b.h * sy);
+      m.fillStyle = '#303b3a';
+      m.fillRect(b.x * sx, (b.y + 10) * sy, b.w * sx, Math.max(1.5, (b.h - 20) * sy));
+      m.strokeStyle = '#e3c85a'; m.lineWidth = 0.8;
+      m.beginPath(); m.moveTo(b.x * sx, (b.y + b.h * 0.5) * sy); m.lineTo((b.x + b.w) * sx, (b.y + b.h * 0.5) * sy); m.stroke();
+      m.strokeStyle = '#d9e1dc'; m.lineWidth = 0.6;
+      m.beginPath(); m.moveTo(b.x * sx, (b.y + 5) * sy); m.lineTo((b.x + b.w) * sx, (b.y + 5) * sy); m.moveTo(b.x * sx, (b.y + b.h - 5) * sy); m.lineTo((b.x + b.w) * sx, (b.y + b.h - 5) * sy); m.stroke();
     });
 
     // edificios por barrio
@@ -1939,32 +1959,20 @@ CiudadCero.CityArt = (() => {
       m.font = `bold ${mapW < 150 ? 5 : 6}px sans-serif`;
       m.textAlign = 'center';
       m.fillStyle = 'rgba(8,12,10,0.55)';
-      const label = d.shortName.split(' ')[0].slice(0, 4);
+      const label = d.id === 'loston' ? 'LOSTON' : d.shortName.split(' ')[0].slice(0, 4);
       const lw = m.measureText(label).width + 3;
-      m.fillRect(d.center.x * sx - lw / 2, d.center.y * sy - 4, lw, 6);
+      const labelY = d.id === 'loston' ? d.bounds.y1 + 38 : d.center.y;
+      m.fillRect(d.center.x * sx - lw / 2, labelY * sy - 4, lw, 6);
       m.fillStyle = d.color;
-      if (!d.neighborhoods || !d.neighborhoods.length) {
-        m.fillText(label, d.center.x * sx, d.center.y * sy + 0.6);
-      }
-      if (Array.isArray(d.neighborhoods)) {
-        d.neighborhoods.forEach((n) => {
-          m.strokeStyle = 'rgba(215, 247, 250, 0.42)';
-          m.lineWidth = 0.55;
-          m.setLineDash([2, 2]);
-          m.strokeRect(n.bounds.x1 * sx + 0.5, n.bounds.y1 * sy + 0.5,
-            (n.bounds.x2 - n.bounds.x1) * sx - 1, (n.bounds.y2 - n.bounds.y1) * sy - 1);
-          m.setLineDash([]);
-          if (mapW >= 220) {
-            const short = n.id === 'loston_centro' ? 'CENTRO' : n.id === 'barrio_faro' ? 'FARO' : 'PALMERAS';
-            m.font = 'bold 4.4px sans-serif';
-            m.textAlign = 'center';
-            m.fillStyle = 'rgba(5, 18, 22, 0.72)';
-            m.fillRect(n.center.x * sx - 12, n.center.y * sy - 3, 24, 6);
-            m.fillStyle = '#d7f7fa';
-            m.fillText(short, n.center.x * sx, n.center.y * sy + 1.4);
-          }
-        });
-      }
+      m.fillText(label, d.center.x * sx, labelY * sy + 0.6);
+    });
+
+    // Loston neighborhood boundaries and labels sit above the rendered blocks.
+    (Config.LOSTON_NEIGHBORHOODS || []).forEach((n) => {
+      m.strokeStyle = 'rgba(215, 246, 244, 0.72)'; m.lineWidth = 0.65; m.setLineDash([2, 1.5]);
+      m.strokeRect(n.bounds.x1 * sx + 0.4, n.bounds.y1 * sy + 0.4, (n.bounds.x2 - n.bounds.x1) * sx - 0.8, (n.bounds.y2 - n.bounds.y1) * sy - 0.8);
+      m.setLineDash([]);
+      if (mapW >= 180) { m.font = 'bold 4.5px sans-serif'; m.textAlign = 'center'; m.fillStyle = '#e4f7f4'; m.fillText(n.shortName, n.center.x * sx, n.center.y * sy); }
     });
 
     miniCache[key] = cv;

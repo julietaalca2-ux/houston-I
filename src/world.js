@@ -8,18 +8,18 @@ CiudadCero.World = (() => {
   const buildings = [];
   const parks = [];
   const waterZones = [];
+  const alleyways = [];
   const parkingLots = [];
   const garages = [];
   const hideouts = [];
   const stores = (Config.STORES || []).map((store) => Object.assign({}, store));
-  const bridges = [
-    { id: 'puente_loston', name: 'Puente de Loston', x: 4800, y: 1500, w: 600, h: 150, districtId: 'loston' }
-  ];
   const parkedSpots = [];
   const sidewalkNodes = [];
   const trafficLights = [];
   const streetLights = [];
   const props = [];
+  const bridges = [];
+  const mainCityWidth = cfg.mainCityWidth || 4800;
 
   function getDistrictAt(x, y) {
     const list = Config.DISTRICTS || [];
@@ -39,24 +39,11 @@ CiudadCero.World = (() => {
     return list[0] || { id: 'centro', name: 'Centro Urbano', shortName: 'CENTRO', color: '#6cb2d1', avenueLabel: 'Av. Central' };
   }
 
-  function getNeighborhoodAt(x, y) {
-    const district = getDistrictAt(x, y);
-    const neighborhoods = district.neighborhoods || [];
-    return neighborhoods.find((n) =>
-      x >= n.bounds.x1 && x < n.bounds.x2 && y >= n.bounds.y1 && y < n.bounds.y2
-    ) || null;
-  }
-
-  function isWaterAt(x, y) {
-    return waterZones.some((zone) =>
-      x >= zone.x && x < zone.x + zone.w && y >= zone.y && y < zone.y + zone.h
-    );
-  }
-
   function init() {
     buildings.length = 0;
     parks.length = 0;
     waterZones.length = 0;
+    alleyways.length = 0;
     parkingLots.length = 0;
     garages.length = 0;
     hideouts.length = 0;
@@ -65,11 +52,12 @@ CiudadCero.World = (() => {
     trafficLights.length = 0;
     streetLights.length = 0;
     props.length = 0;
+    bridges.length = 0;
 
     Config.GARAGES.forEach((g) => garages.push(Object.assign({}, g)));
     Config.HIDEOUTS.forEach((h) => hideouts.push(Object.assign({}, h)));
 
-    const cols = Math.floor(cfg.width / cfg.blockSize);
+    const cols = Math.floor(mainCityWidth / cfg.blockSize);
     const rows = Math.floor(cfg.height / cfg.blockSize);
 
     // Special block definitions (gx, gy)
@@ -92,19 +80,20 @@ CiudadCero.World = (() => {
       '1,9', '2,9', '3,9'
     ]);
 
-    // Canal profundo entre Ciudad Cero y Loston; mar que rodea la isla.
-    // Las celdas de agua no generan edificios, vegetación ni estacionamientos.
-    for (let gy = 0; gy < rows; gy++) {
-      waterSet.add(`16,${gy}`);
-      waterSet.add(`17,${gy}`);
-    }
-    for (let gx = 18; gx < 24; gx++) {
-      waterSet.add(`${gx},0`);
-      waterSet.add(`${gx},1`);
-      waterSet.add(`${gx},10`);
-      waterSet.add(`${gx},11`);
-    }
-    for (let gy = 2; gy < 10; gy++) waterSet.add(`23,${gy}`);
+    const alleyBlockMap = new Map([
+      ['4,3', { orientation: 'vertical', name: 'Pasaje de los Álamos' }],
+      ['6,1', { orientation: 'horizontal', name: 'Pasaje Central' }],
+      ['9,4', { orientation: 'vertical', name: 'Callejón de la Torre' }],
+      ['12,4', { orientation: 'horizontal', name: 'Pasaje de las Galerías' }],
+      ['3,8', { orientation: 'vertical', name: 'Callejón del Muelle' }],
+      ['7,7', { orientation: 'horizontal', name: 'Pasaje de los Talleres' }],
+      ['12,8', { orientation: 'vertical', name: 'Callejón del Sur' }],
+      ['2,5', { orientation: 'horizontal', name: 'Pasaje de la Estación' }],
+      ['5,5', { orientation: 'vertical', name: 'Callejón del Astillero' }],
+      ['8,2', { orientation: 'horizontal', name: 'Pasaje de la Torre Norte' }],
+      ['10,6', { orientation: 'vertical', name: 'Callejón de los Talleres Sur' }],
+      ['14,5', { orientation: 'horizontal', name: 'Pasaje del Bulevar Este' }]
+    ]);
 
     const parkingSet = new Set([
       '0,3',   // Estacionamiento Residencial
@@ -296,15 +285,44 @@ CiudadCero.World = (() => {
               districtId: district.id
             });
           } else {
-            buildings.push({
-              x: bx,
-              y: by,
-              w: bw,
-              h: bh,
+            const alleySpec = alleyBlockMap.get(key);
+            const buildingStyle = {
               shade: (gx * 3 + gy * 5) % 4,
               roofType: (gx + gy) % 4,
               districtId: district.id
-            });
+            };
+            if (alleySpec) {
+              const alleyWidth = 40;
+              if (alleySpec.orientation === 'vertical') {
+                const alleyX = blockLeft + blockSize * 0.5 - alleyWidth * 0.5;
+                alleyways.push({
+                  id: `alley_${gx}_${gy}`,
+                  name: alleySpec.name,
+                  x: alleyX, y: blockTop, w: alleyWidth, h: blockSize,
+                  orientation: 'vertical', gx, gy, districtId: district.id
+                });
+                const leftWidth = alleyX - bx;
+                const rightX = alleyX + alleyWidth;
+                const rightWidth = bx + bw - rightX;
+                if (leftWidth > 8) buildings.push(Object.assign({ x: bx, y: by, w: leftWidth, h: bh }, buildingStyle));
+                if (rightWidth > 8) buildings.push(Object.assign({ x: rightX, y: by, w: rightWidth, h: bh }, buildingStyle));
+              } else {
+                const alleyY = blockTop + blockSize * 0.5 - alleyWidth * 0.5;
+                alleyways.push({
+                  id: `alley_${gx}_${gy}`,
+                  name: alleySpec.name,
+                  x: blockLeft, y: alleyY, w: blockSize, h: alleyWidth,
+                  orientation: 'horizontal', gx, gy, districtId: district.id
+                });
+                const topHeight = alleyY - by;
+                const bottomY = alleyY + alleyWidth;
+                const bottomHeight = by + bh - bottomY;
+                if (topHeight > 8) buildings.push(Object.assign({ x: bx, y: by, w: bw, h: topHeight }, buildingStyle));
+                if (bottomHeight > 8) buildings.push(Object.assign({ x: bx, y: bottomY, w: bw, h: bottomHeight }, buildingStyle));
+              }
+            } else {
+              buildings.push(Object.assign({ x: bx, y: by, w: bw, h: bh }, buildingStyle));
+            }
           }
 
           addDistrictProps(gx, gy, district, blockLeft, blockTop, blockSize);
@@ -343,15 +361,125 @@ CiudadCero.World = (() => {
       }
     }
 
-    // Agua continua que cubre también las franjas de calzada del canal.
-    // Se deja libre únicamente la franja del puente (y: 1500..1650).
+    buildLoston();
+  }
+
+  function getLostonNeighborhoodAt(x, y) {
+    const list = Config.LOSTON_NEIGHBORHOODS || [];
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i].bounds;
+      if (x >= b.x1 && x < b.x2 && y >= b.y1 && y < b.y2) return list[i];
+    }
+    return null;
+  }
+
+  function buildLoston() {
+    const bounds = Config.LOSTON_BOUNDS || { x1: 5400, y1: 900, x2: 6600, y2: 2700 };
+    const bs = cfg.blockSize;
+    const rw = cfg.roadWidth;
+    const sw = cfg.sidewalkWidth;
+    const firstGX = Math.round(bounds.x1 / bs);
+    const lastGX = Math.round(bounds.x2 / bs);
+    const firstGY = Math.round(bounds.y1 / bs);
+    const lastGY = Math.round(bounds.y2 / bs);
+    const parkBlocks = new Set(['19,4', '20,7']);
+    const alleySpecs = new Map([
+      ['19,3', { orientation: 'vertical', name: 'Pasaje de los Faros' }],
+      ['20,5', { orientation: 'horizontal', name: 'Callejón del Mercado' }],
+      ['18,7', { orientation: 'vertical', name: 'Pasaje de las Palmeras' }],
+      ['21,6', { orientation: 'horizontal', name: 'Callejón Costero' }]
+    ]);
+
+    for (let gx = firstGX; gx < lastGX; gx++) {
+      for (let gy = firstGY; gy < lastGY; gy++) {
+        const x = gx * bs;
+        const y = gy * bs;
+        const blockLeft = x + rw;
+        const blockTop = y + rw;
+        const blockSize = bs - rw;
+        const cx = blockLeft + blockSize * 0.5;
+        const cy = blockTop + blockSize * 0.5;
+        const district = getDistrictAt(cx, cy);
+        const neighborhood = getLostonNeighborhoodAt(cx, cy);
+        const neighborhoodId = neighborhood ? neighborhood.id : 'loston_centro';
+        const key = `${gx},${gy}`;
+        const bx = blockLeft + sw;
+        const by = blockTop + sw;
+        const bw = blockSize - sw * 2;
+        const bh = blockSize - sw * 2;
+
+        // Every island block has a pedestrian loop, so foot traffic can populate Loston.
+        const pad = sw * 0.5;
+        sidewalkNodes.push([
+          { x: blockLeft + pad, y: blockTop + pad, districtId: 'loston', neighborhoodId },
+          { x: blockLeft + blockSize - pad, y: blockTop + pad, districtId: 'loston', neighborhoodId },
+          { x: blockLeft + blockSize - pad, y: blockTop + blockSize - pad, districtId: 'loston', neighborhoodId },
+          { x: blockLeft + pad, y: blockTop + blockSize - pad, districtId: 'loston', neighborhoodId }
+        ]);
+
+        if (parkBlocks.has(key)) {
+          parks.push({
+            x: bx, y: by, w: bw, h: bh, districtId: 'loston',
+            neighborhoodId, neighborhoodName: neighborhood ? neighborhood.name : 'Loston',
+            isPlaza: true, sizeClass: 'medium', isIslandPark: true
+          });
+          props.push({ type: 'bench', x: cx, y: cy, districtId: 'loston' });
+          props.push({ type: 'tree', x: bx + 18, y: by + 18, species: 'palm', size: 9 });
+          props.push({ type: 'tree', x: bx + bw - 18, y: by + bh - 18, species: 'palm', size: 9 });
+        } else {
+          const style = {
+            shade: (gx * 5 + gy * 3) % 4,
+            roofType: (gx + gy) % 4,
+            districtId: 'loston',
+            neighborhoodId,
+            neighborhoodName: neighborhood ? neighborhood.name : 'Loston'
+          };
+          const alley = alleySpecs.get(key);
+          if (alley) {
+            const aw = 34;
+            if (alley.orientation === 'vertical') {
+              const ax = blockLeft + blockSize * 0.5 - aw * 0.5;
+              alleyways.push({ id: `alley_loston_${gx}_${gy}`, name: alley.name, x: ax, y: blockTop, w: aw, h: blockSize, orientation: 'vertical', gx, gy, districtId: 'loston', neighborhoodId });
+              const leftW = ax - bx;
+              const rightX = ax + aw;
+              const rightW = bx + bw - rightX;
+              if (leftW > 8) buildings.push(Object.assign({ x: bx, y: by, w: leftW, h: bh }, style));
+              if (rightW > 8) buildings.push(Object.assign({ x: rightX, y: by, w: rightW, h: bh }, style));
+            } else {
+              const ay = blockTop + blockSize * 0.5 - aw * 0.5;
+              alleyways.push({ id: `alley_loston_${gx}_${gy}`, name: alley.name, x: blockLeft, y: ay, w: blockSize, h: aw, orientation: 'horizontal', gx, gy, districtId: 'loston', neighborhoodId });
+              const topH = ay - by;
+              const bottomY = ay + aw;
+              const bottomH = by + bh - bottomY;
+              if (topH > 8) buildings.push(Object.assign({ x: bx, y: by, w: bw, h: topH }, style));
+              if (bottomH > 8) buildings.push(Object.assign({ x: bx, y: bottomY, w: bw, h: bottomH }, style));
+            }
+          } else {
+            buildings.push(Object.assign({ x: bx, y: by, w: bw, h: bh }, style));
+          }
+          // Coastal planting, street furniture and a few distinct storefronts.
+          props.push({ type: 'tree', x: blockLeft + 10, y: blockTop + 10, species: 'palm', size: 8 });
+          if ((gx + gy) % 2 === 0) props.push({ type: 'planter', x: blockLeft + blockSize - 24, y: blockTop + blockSize - 10, w: 22, h: 7 });
+          if (neighborhoodId === 'loston_centro' && (gx + gy) % 2 === 1) props.push({ type: 'billboard', x: blockLeft + 12, y: blockTop + 12, color: '#55c9d8' });
+        }
+
+        if (gx % 2 === 0 && gy % 2 === 0) {
+          streetLights.push({ x: x + rw - 7, y: y + rw - 7, districtId: 'loston' });
+          trafficLights.push({ id: `tl_loston_${gx}_${gy}`, gx, gy, isMajor: true, x: x + rw * 0.5, y: y + rw * 0.5, ix: x, iy: y, phaseOffset: ((gx * 1.65 + gy * 1.65) % sigCfg.cycleDuration), districtId: 'loston' });
+        }
+        if ((gx + gy) % 3 === 0) parkedSpots.push({ x: cx, y: blockTop - 18, angle: 0 });
+      }
+    }
+
+    // Ocean surrounds the island. The only dry corridor across the western channel is the bridge deck.
     waterZones.push(
-      { x: 4800, y: 0, w: 600, h: 1500, districtId: 'sea' },
-      { x: 4800, y: 1650, w: 600, h: 1950, districtId: 'sea' },
-      { x: 5400, y: 0, w: 1800, h: 600, districtId: 'sea' },
-      { x: 5400, y: 3000, w: 1800, h: 600, districtId: 'sea' },
-      { x: 6900, y: 600, w: 300, h: 2400, districtId: 'sea' }
+      { id: 'loston_sea_west_north', x: 4800, y: 0, w: 600, h: 1800, isSea: true },
+      { id: 'loston_sea_west_south', x: 4800, y: 1950, w: 600, h: 1650, isSea: true },
+      { id: 'loston_sea_north', x: 5400, y: 0, w: 1500, h: 900, isSea: true },
+      { id: 'loston_sea_south', x: 5400, y: 2700, w: 1500, h: 900, isSea: true },
+      { id: 'loston_sea_east', x: 6600, y: 900, w: 300, h: 1800, isSea: true }
     );
+    bridges.push({ id: 'bridge_loston', name: 'Puente de Loston', x: 4800, y: 1800, w: 600, h: 150, orientation: 'horizontal', districtId: 'loston' });
   }
 
   // v0.7.5: vegetación y mobiliario con personalidad propia por barrio (solo decorativo)
@@ -391,15 +519,9 @@ CiudadCero.World = (() => {
       props.push({ type: 'crates', x: bl + bs - 13, y: bt + bs * 0.6 });
       if (h === 2) T(bl + bs * 0.5, bt + 8, 'poplar', 6.5);
     } else if (id === 'loston') {
-      if (gy < 5) {
-        T(bl + bs * 0.25, bt + 10, 'palm', 8);
-        T(bl + bs * 0.75, bt + bs - 10, 'blossom', 7);
-        props.push({ type: 'planter', x: bl + bs * 0.5, y: bt + bs * 0.5, w: 28, h: 9 });
-      } else {
-        T(bl + 12, bt + 12, 'palm', 9);
-        T(bl + bs - 12, bt + bs - 12, 'oak', 8);
-        props.push({ type: 'bench', x: bl + bs * 0.5, y: bt + bs - 12 });
-      }
+      for (let k = 1; k <= 3; k++) T(bl + (bs * k) / 4, bt + (k % 2 ? 9 : bs - 9), 'palm', 8 + (k % 2));
+      props.push({ type: 'planter', x: bl + bs * 0.5, y: bt + bs - 8, w: 28, h: 8 });
+      if (h === 2) props.push({ type: 'bench', x: bl + bs * 0.5, y: bt + bs * 0.35 });
     } else if (id === 'periferia') {
       const sp = ['oak', 'pine', 'olive'][(gx + gy) % 3];
       T(bl + 12, bt + 10, sp, 9);
@@ -409,10 +531,26 @@ CiudadCero.World = (() => {
     }
   }
 
+  function isInWater(x, y, margin = 0) {
+    for (let i = 0; i < waterZones.length; i++) {
+      const w = waterZones[i];
+      if (x + margin > w.x && x - margin < w.x + w.w && y + margin > w.y && y - margin < w.y + w.h) return true;
+    }
+    return false;
+  }
+
   function isOnRoad(x, y) {
+    if (isInWater(x, y, 2)) return false;
     const rx = ((x % cfg.blockSize) + cfg.blockSize) % cfg.blockSize;
     const ry = ((y % cfg.blockSize) + cfg.blockSize) % cfg.blockSize;
-    return rx < cfg.roadWidth || ry < cfg.roadWidth;
+    if (rx < cfg.roadWidth || ry < cfg.roadWidth) return true;
+    // Los callejones son calzadas reales: se puede circular por ellos y los peatones
+    // los reconocen como superficie vial, sin cambiar la cuadrícula principal.
+    for (let i = 0; i < alleyways.length; i++) {
+      const a = alleyways[i];
+      if (x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h) return true;
+    }
+    return false;
   }
 
   function getGarageAt(x, y, margin = 22) {
@@ -467,9 +605,9 @@ CiudadCero.World = (() => {
       const neighbors = [[current.x + 1, current.y], [current.x - 1, current.y], [current.x, current.y + 1], [current.x, current.y - 1]];
       for (const [nx, ny] of neighbors) {
         if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
-        const roadNodeX = nx * bs + cfg.roadWidth * 0.5;
-        const roadNodeY = ny * bs + cfg.roadWidth * 0.5;
-        if (isWaterAt(roadNodeX, roadNodeY)) continue;
+        const nodeX = nx * bs + cfg.roadWidth * 0.5;
+        const nodeY = ny * bs + cfg.roadWidth * 0.5;
+        if (isInWater(nodeX, nodeY, 4)) continue;
         const nk = key(nx, ny);
         if (closed.has(nk)) continue;
         const tentative = current.g + 1;
@@ -592,7 +730,7 @@ CiudadCero.World = (() => {
     buildings,
     parks,
     waterZones,
-    bridges,
+    alleyways,
     parkingLots,
     garages,
     hideouts,
@@ -602,9 +740,10 @@ CiudadCero.World = (() => {
     trafficLights,
     streetLights,
     props,
+    bridges,
     getDistrictAt,
-    getNeighborhoodAt,
-    isWaterAt,
+    getLostonNeighborhoodAt,
+    isInWater,
     isOnRoad,
     getGarageAt,
     getHideoutAt,
