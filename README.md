@@ -112,3 +112,7 @@ Incluye Vehicle AI opcional para rutas por waypoints, control de conducción y e
 - Integración automática al adjuntar la escena al motor.
 - Sistemas legacy del videojuego conservados y sin migración forzada.
 - Documentación: `engine/world/README.md`.
+
+
+## CIUDAD ENGINE V0.14.0
+Mejora visual del mundo 3D: materiales procedurales de alta resolución para fachadas, asfalto, hormigón y césped; iluminación y sombras refinadas; marcas viales y perfiles de calidad adaptativos para móvil/escritorio. Ver `engine/rendering/README.md`.

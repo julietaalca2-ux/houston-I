@@ -68,3 +68,12 @@ Adds the optional ECS Vehicle Engine (`vehicles/VehicleSystem.js` and `VehicleFa
 - `Engine.attachRenderer()` enlaza automáticamente la escena y los diagnósticos incorporan métricas del puente.
 - La integración es optativa: no migra ni reemplaza `src/` ni la simulación actual del juego.
 - Prueba: `node engine/world/WorldBridge.smoke.test.js`.
+
+
+## CIUDAD ENGINE V0.14.0 — VISUAL QUALITY & PERFORMANCE
+- Se reemplazan superficies planas por materiales procedurales de alta resolución: asfalto, hormigón, césped y fachadas con ventanas detalladas.
+- Se mejora la iluminación direccional, el balance ambiental, el tone mapping y la niebla de profundidad.
+- Se elevan los mapas de sombras y la resolución de renderizado con perfiles adaptados a móvil y escritorio.
+- Se agregan separadores de carril y detalles arquitectónicos de fachada.
+- Las texturas se generan localmente con CanvasTexture: no requieren servicios externos ni descargas en tiempo de juego.
+- Se mantiene el renderer 2D como fallback y se conservan los controles táctiles y la simulación de juego.
